@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { CadastroIncompletoBadge } from "@/components/desempenho/CadastroIncompletoBadge";
 import { FilterBar } from "@/components/desempenho/FilterBar";
 import { KpiCards } from "@/components/desempenho/KpiCards";
@@ -35,9 +35,6 @@ function formatarDataHora(iso: string | null): string {
   return new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
 }
 
-/** Altura do ModuleNav (components/ui/ModuleNav.tsx) — fixa, não muda com o conteúdo. */
-const ALTURA_MODULE_NAV = 52;
-
 export function DesempenhoDashboard({
   lojas,
   compradores,
@@ -68,25 +65,6 @@ export function DesempenhoDashboard({
   const [exportando, setExportando] = useState<"excel" | "pdf" | null>(null);
   const [atualizandoDados, setAtualizandoDados] = useState(false);
   const [dadosGeradoEm, setDadosGeradoEm] = useState<string | null>(null);
-
-  // Filtros + KPIs ficam fixos ao rolar (título/botões acima e o restante da
-  // página, não). Medimos a altura real desse bloco (em vez de cravar um valor
-  // fixo) porque ela varia — filtros multi-seleção quebram em 2 linhas em telas
-  // estreitas, o badge de cadastro pendente aparece/some — e é esse valor que
-  // define onde o cabeçalho das tabelas de Estrutura/Lojas gruda ao rolar,
-  // pra nunca colidir com o bloco fixo (ver EstruturaPanel/LojasPanel).
-  const headerFixoRef = useRef<HTMLDivElement>(null);
-  const [alturaHeaderFixo, setAlturaHeaderFixo] = useState(0);
-
-  useLayoutEffect(() => {
-    const elemento = headerFixoRef.current;
-    if (!elemento) return;
-    const observer = new ResizeObserver(([entrada]) => setAlturaHeaderFixo(entrada.contentRect.height));
-    observer.observe(elemento);
-    return () => observer.disconnect();
-  }, []);
-
-  const topoTabela = ALTURA_MODULE_NAV + alturaHeaderFixo;
 
   const [resultado, setResultado] = useState<ResultadoDesempenho>(resultadoInicial);
   const [carregando, setCarregando] = useState(false);
@@ -279,11 +257,7 @@ export function DesempenhoDashboard({
         </div>
       </div>
 
-      <div
-        ref={headerFixoRef}
-        className="sticky z-20 -mx-6 flex flex-col gap-4 border-b border-zinc-200 bg-zinc-50 px-6 pb-3 pt-3"
-        style={{ top: ALTURA_MODULE_NAV }}
-      >
+      <div className="sticky top-[52px] z-20 -mx-6 flex flex-col gap-4 border-b border-zinc-200 bg-zinc-50 px-6 pb-3 pt-3">
         <FilterBar
           lojas={lojas}
           compradores={compradores}
@@ -316,14 +290,8 @@ export function DesempenhoDashboard({
           onToggleModo={() => setModoRanking((m) => !m)}
           onClickLinha={aoClicarEstrutura}
           onVoltarPara={aoVoltarPara}
-          topoFixo={topoTabela}
         />
-        <LojasPanel
-          linhas={resultado.linhasLojas}
-          selecionadas={lojasSelecionadas}
-          onClickLinha={aoClicarLoja}
-          topoFixo={topoTabela}
-        />
+        <LojasPanel linhas={resultado.linhasLojas} selecionadas={lojasSelecionadas} onClickLinha={aoClicarLoja} />
       </div>
 
       <p className="pb-2 text-center text-xs text-zinc-400">

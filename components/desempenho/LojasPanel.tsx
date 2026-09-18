@@ -33,13 +33,10 @@ export function LojasPanel({
   linhas,
   selecionadas,
   onClickLinha,
-  topoFixo,
 }: {
   linhas: LojaAgregada[];
   selecionadas: string[];
   onClickLinha: (loja: LojaAgregada, evento: MouseEvent) => void;
-  /** Distância do topo (px) do bloco Filtros+KPIs fixo — o cabeçalho da tabela gruda logo abaixo dele ao rolar. */
-  topoFixo: number;
 }) {
   const [ordenacao, setOrdenacao] = useState<{ coluna: Coluna; dir: 1 | -1 } | null>(null);
 
@@ -64,19 +61,16 @@ export function LojasPanel({
           Clique para selecionar uma loja · Shift+clique para selecionar várias
         </p>
       </div>
-      <div className="flex-1 overflow-auto">
+      <div className="max-h-[65vh] flex-1 overflow-auto">
         <table className="table-fixed text-sm">
-          <thead
-            className="sticky z-[15] bg-azul text-[13px] font-medium tracking-wide text-white/80 uppercase"
-            style={{ top: topoFixo }}
-          >
+          <thead className="bg-azul text-[13px] font-medium tracking-wide text-white/80 uppercase">
             <tr>
               <ThOrdenavel<Coluna>
                 coluna="nome"
                 ordenacao={ordenacao}
                 onClick={aoClicarColuna}
                 largura={LARGURA_NOME}
-                className="sticky left-0 z-30 bg-azul px-4 py-2 font-medium"
+                className="sticky top-0 left-0 z-30 bg-azul px-4 py-2 font-medium"
               >
                 Loja
               </ThOrdenavel>
@@ -87,12 +81,15 @@ export function LojasPanel({
                   ordenacao={ordenacao}
                   onClick={aoClicarColuna}
                   largura={c.largura}
-                  className="px-2 py-2 font-medium"
+                  className="sticky top-0 z-20 bg-azul px-2 py-2 font-medium"
                 >
                   {c.rotulo}
                 </ThOrdenavel>
               ))}
-              <th className="px-3 py-2 text-center font-medium" style={{ width: LARGURA_PART }}>
+              <th
+                className="sticky top-0 z-20 bg-azul px-3 py-2 text-center font-medium"
+                style={{ width: LARGURA_PART }}
+              >
                 Part.
               </th>
             </tr>
