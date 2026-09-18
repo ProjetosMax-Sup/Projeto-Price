@@ -35,15 +35,10 @@ export function calcDesvio(atual: number, comparacao: number): number | null {
 
 const MESES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
-/** "DD/MMM/AAAA", ex: "16/Set/2026". */
-export function formatDataBr(data: Date): string {
-  const dia = String(data.getDate()).padStart(2, "0");
-  return `${dia}/${MESES[data.getMonth()]}/${data.getFullYear()}`;
-}
-
-/** "DD/MMM/AAAA – DD/MMM/AAAA" (ou só uma data quando início = fim). */
+/** "DD a DD/MMM" (ou só "DD/MMM" quando início = fim) — formato fixo pros períodos Atual/Comparação. */
 export function formatPeriodo(inicio: Date, fim: Date): string {
-  const dIni = formatDataBr(inicio);
-  const dFim = formatDataBr(fim);
-  return dIni === dFim ? dIni : `${dIni} – ${dFim}`;
+  const diaIni = String(inicio.getDate()).padStart(2, "0");
+  const diaFim = String(fim.getDate()).padStart(2, "0");
+  const mes = MESES[fim.getMonth()];
+  return diaIni === diaFim ? `${diaFim}/${mes}` : `${diaIni} a ${diaFim}/${mes}`;
 }

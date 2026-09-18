@@ -19,8 +19,8 @@ export type { NoSelecionado } from "@/lib/desempenho/aggregate";
 
 export interface Filtros {
   lojas: string[]; // vazio = todas
-  formato: "Todos" | "Varejo" | "Atacado";
-  comprador: string; // "Todos" ou nome do comprador padronizado
+  formato: string[]; // vazio = todos ("Varejo" | "Atacado")
+  comprador: string[]; // vazio = todos (nomes de comprador padronizados)
 }
 
 /**
@@ -28,11 +28,15 @@ export interface Filtros {
  * pela rede; os registros brutos (centenas de milhares de linhas) nunca saem
  * do servidor. `caminhoDrill` é o breadcrumb do drill-down (Departamento →
  * Seção → Categoria → Grupo → Sub Grupo → Produto); o nível exibido é sempre
- * o próximo depois do último nó do caminho.
+ * o próximo depois do último nó do caminho. `produtoSelecionado` é um SKU
+ * escolhido dentro da lista de Produtos (folha do drill-down) — filtra
+ * KPIs/Lojas por aquele produto específico sem navegar pra fora da lista de
+ * produtos irmãos (diferente de descer um nível no caminho).
  */
 export interface ConsultaDesempenho {
   filtros: Filtros;
   caminhoDrill: NoSelecionado[];
+  produtoSelecionado: string | null;
   lojasSelecionadas: string[];
   nivelTopAltasQuedas: NivelHierarquia;
 }
@@ -47,19 +51,22 @@ export interface ResultadoDesempenho {
 }
 
 export const CONSULTA_PADRAO: ConsultaDesempenho = {
-  filtros: { lojas: [], formato: "Todos", comprador: "Todos" },
+  filtros: { lojas: [], formato: [], comprador: [] },
   caminhoDrill: [],
+  produtoSelecionado: null,
   lojasSelecionadas: [],
   nivelTopAltasQuedas: "secao",
 };
 
 function aplicarFiltrosBase(registros: RegistroDesempenho[], filtros: Filtros): RegistroDesempenho[] {
-  return registros.filter(
-    (r) =>
+  return registros.filter((r) => {
+    const comprador = filtros.comprador.length > 0 ? nomeCompradorDoRegistro(r) : null;
+    return (
       (filtros.lojas.length === 0 || (r.loja && filtros.lojas.includes(r.loja.codUnid))) &&
-      (filtros.formato === "Todos" || r.loja?.formato === filtros.formato) &&
-      (filtros.comprador === "Todos" || nomeCompradorDoRegistro(r) === filtros.comprador),
-  );
+      (filtros.formato.length === 0 || (r.loja && filtros.formato.includes(r.loja.formato))) &&
+      (filtros.comprador.length === 0 || (comprador && filtros.comprador.includes(comprador)))
+    );
+  });
 }
 
 /**
@@ -73,22 +80,25 @@ export function computarDesempenho(
   lojas: Loja[],
   consulta: ConsultaDesempenho,
 ): ResultadoDesempenho {
-  const { filtros, caminhoDrill, lojasSelecionadas, nivelTopAltasQuedas } = consulta;
+  const { filtros, caminhoDrill, produtoSelecionado, lojasSelecionadas, nivelTopAltasQuedas } = consulta;
   const noAtivo = caminhoDrill.at(-1) ?? null;
   const estruturaNivel = NIVEIS_ESTRUTURA[caminhoDrill.length] ?? "produto";
+  const filtroProduto = (r: RegistroDesempenho) => !produtoSelecionado || r.movimento.codigo === produtoSelecionado;
 
   const baseAtual = aplicarFiltrosBase(registrosAtual, filtros);
   const baseComparacao = aplicarFiltrosBase(registrosComparacao, filtros);
 
   const filtroSelecao = (r: RegistroDesempenho) =>
     (lojasSelecionadas.length === 0 || (r.loja && lojasSelecionadas.includes(r.loja.codUnid))) &&
-    (!noAtivo || pertenceAoNo(r, noAtivo));
+    (!noAtivo || pertenceAoNo(r, noAtivo)) &&
+    filtroProduto(r);
 
-  // Recorte completo (filtros + seleção de lojas/estrutura) — alimenta KPIs e Top Altas/Quedas.
+  // Recorte completo (filtros + seleção de lojas/estrutura/produto) — alimenta KPIs e Top Altas/Quedas.
   const recorteAtual = baseAtual.filter(filtroSelecao);
   const recorteComparacao = baseComparacao.filter(filtroSelecao);
 
-  // Estrutura: escopada pelas lojas selecionadas e pelo caminho de drill-down atual.
+  // Estrutura: escopada pelas lojas selecionadas e pelo caminho de drill-down atual — nunca
+  // pelo produto selecionado, pra continuar mostrando os produtos irmãos na lista.
   const filtroLojas = (r: RegistroDesempenho) =>
     lojasSelecionadas.length === 0 || (r.loja && lojasSelecionadas.includes(r.loja.codUnid));
   let estruturaAtualBase = baseAtual.filter(filtroLojas);
@@ -102,8 +112,8 @@ export function computarDesempenho(
       ? agregarPorProduto(estruturaAtualBase, estruturaComparacaoBase)
       : agregarPorEstrutura(estruturaAtualBase, estruturaComparacaoBase, estruturaNivel);
 
-  // Lojas: escopada pelo nó de estrutura selecionado (não pela própria seleção de loja).
-  const filtroEstrutura = (r: RegistroDesempenho) => !noAtivo || pertenceAoNo(r, noAtivo);
+  // Lojas: escopada pelo nó de estrutura e pelo produto selecionados (não pela própria seleção de loja).
+  const filtroEstrutura = (r: RegistroDesempenho) => (!noAtivo || pertenceAoNo(r, noAtivo)) && filtroProduto(r);
   const lojasAtualBase = baseAtual.filter(filtroEstrutura);
   const lojasComparacaoBase = baseComparacao.filter(filtroEstrutura);
   const linhasLojas = agregarPorLoja(lojasAtualBase, lojasComparacaoBase, lojas);

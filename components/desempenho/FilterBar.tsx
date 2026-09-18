@@ -6,43 +6,14 @@ import type { Filtros } from "@/lib/desempenho/consulta";
 import { formatPeriodo } from "@/lib/desempenho/format";
 import type { Loja } from "@/lib/types";
 
-function SelectPill({
-  rotulo,
-  valor,
-  onChange,
-  opcoes,
-}: {
-  rotulo: string;
-  valor: string;
-  onChange: (v: string) => void;
-  opcoes: { value: string; label: string }[];
-}) {
-  return (
-    <label className="flex items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 hover:border-zinc-400">
-      <span className="text-zinc-500">{rotulo}:</span>
-      <select
-        value={valor}
-        onChange={(e) => onChange(e.target.value)}
-        className="bg-transparent font-medium text-zinc-800 focus:outline-none"
-      >
-        {opcoes.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
 function PeriodoAtualPill({ label }: { label: string }) {
   return (
     <span
       title="Calculado automaticamente a partir das datas em bdDesempenhoComercialAtual.txt"
       className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700"
     >
-      <span className="text-zinc-500">Atual: </span>
       <span className="font-medium text-zinc-800">{label}</span>
+      <span className="text-zinc-500"> Atual</span>
     </span>
   );
 }
@@ -114,8 +85,8 @@ function PeriodoComparacaoPill({
       title="Este período não vem com data no arquivo — defina manualmente de quanto até quando ele vai"
       className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 hover:border-zinc-400"
     >
-      <span className="text-zinc-500">Comparação: </span>
       <span className="font-medium text-zinc-800">{label ?? "definir…"}</span>
+      <span className="text-zinc-500"> Comparação</span>
       <span className="ml-1 text-zinc-400">▾</span>
     </button>
   );
@@ -144,27 +115,27 @@ export function FilterBar({
 
       <MultiSelect
         rotulo="Loja"
+        rotuloTodos="Todas"
         opcoes={lojas.map((l) => ({ value: l.codUnid, label: `${l.codUnid} - ${l.nomeLoja}` }))}
         selecionados={filtros.lojas}
         onChange={(lojasSelecionadas) => onChange({ ...filtros, lojas: lojasSelecionadas })}
       />
 
-      <SelectPill
+      <MultiSelect
         rotulo="Formato"
-        valor={filtros.formato}
-        onChange={(v) => onChange({ ...filtros, formato: v as Filtros["formato"] })}
         opcoes={[
-          { value: "Todos", label: "Todos" },
           { value: "Varejo", label: "Varejo" },
           { value: "Atacado", label: "Atacado" },
         ]}
+        selecionados={filtros.formato}
+        onChange={(formato) => onChange({ ...filtros, formato })}
       />
 
-      <SelectPill
+      <MultiSelect
         rotulo="Comprador"
-        valor={filtros.comprador}
-        onChange={(v) => onChange({ ...filtros, comprador: v })}
-        opcoes={[{ value: "Todos", label: "Todos" }, ...compradores.map((c) => ({ value: c, label: c }))]}
+        opcoes={compradores.map((c) => ({ value: c, label: c }))}
+        selecionados={filtros.comprador}
+        onChange={(comprador) => onChange({ ...filtros, comprador })}
       />
 
       <div className="ml-auto flex items-center gap-2">

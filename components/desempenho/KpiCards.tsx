@@ -1,6 +1,6 @@
 import { Semaforo } from "@/components/ui/Semaforo";
 import type { Metricas } from "@/lib/desempenho/aggregate";
-import { calcDesvio, formatMoeda, formatMoedaDetalhada, formatNumero, formatPercent } from "@/lib/desempenho/format";
+import { calcDesvio, formatMoeda, formatPercent } from "@/lib/desempenho/format";
 
 function KpiCard({
   titulo,
@@ -38,7 +38,6 @@ export function KpiCards({
   const desvioVenda = comparacao ? calcDesvio(atual.venda, comparacao.venda) : null;
   const desvioLucro = comparacao ? calcDesvio(atual.lucro, comparacao.lucro) : null;
   const desvioPercLucro = comparacao ? atual.percLucro - comparacao.percLucro : null;
-  const desvioTicket = comparacao ? calcDesvio(atual.ticketMedio, comparacao.ticketMedio) : null;
 
   const percRegularVenda = atual.venda !== 0 ? (atual.vendaRegular / atual.venda) * 100 : 0;
   const percOfertaVenda = atual.venda !== 0 ? (atual.vendaOferta / atual.venda) * 100 : 0;
@@ -46,7 +45,7 @@ export function KpiCards({
   const percOfertaLucro = atual.lucro !== 0 ? (atual.lucroOferta / atual.lucro) * 100 : 0;
 
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
       <KpiCard
         titulo="Venda"
         valor={formatMoeda(atual.venda)}
@@ -67,15 +66,6 @@ export function KpiCards({
         desvio={desvioPercLucro}
         linhaComparacao={comparacao ? `vs. ${formatPercent(comparacao.percLucro)} na comparação` : undefined}
         linhaDetalhe="Desvio em pontos percentuais"
-      />
-      <KpiCard
-        titulo="Ticket Médio"
-        valor={formatMoedaDetalhada(atual.ticketMedio)}
-        desvio={desvioTicket}
-        linhaComparacao={
-          comparacao ? `vs. ${formatMoedaDetalhada(comparacao.ticketMedio)} na comparação` : undefined
-        }
-        linhaDetalhe={`${formatNumero(atual.qtdeVendas)} unidades vendidas · Venda ÷ quantidade`}
       />
     </div>
   );

@@ -37,6 +37,7 @@ export default async function DesempenhoComercialPage() {
           lojas={lojas}
           compradores={compradores}
           produtosDescartados={atual.produtosDescartados}
+          produtosDescartadosCodigos={atual.produtosDescartadosCodigos}
           resultadoInicial={resultadoInicial}
           periodoAtual={periodoAtual}
           periodoComparacaoInicial={periodoComparacao}

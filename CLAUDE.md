@@ -251,7 +251,9 @@ rotina da equipe do usuário tratar/corrigir esses produtos regularmente.
 
 Se algum produto nessa situação aparecer com movimentação:
 - **avisar o usuário**
-- exibir contagem num **badge discreto na interface** (não um banner chamativo)
+- exibir contagem num **badge discreto na interface** (não um banner chamativo);
+  clicar no badge baixa um `.txt` com os códigos (SKU) desses produtos, pra
+  facilitar levar a lista pra quem corrige o cadastro
 - excluir esses produtos dos números consolidados até serem corrigidos
 
 ## Design system
@@ -277,39 +279,59 @@ que o Claude Code não acessa esse link diretamente)
 Elementos a replicar:
 
 1. **KPI cards reativos ao filtro** — Venda, Lucro, %Lucro sempre refletem o recorte
-   ativo (categoria × loja selecionadas), não um total fixo da empresa. Mostrar
-   claramente que os números refletem o recorte quando ele não é "toda a empresa ×
-   todas as lojas".
+   ativo (categoria × loja × produto selecionados), não um total fixo da empresa.
+   Mostrar claramente que os números refletem o recorte quando ele não é "toda a
+   empresa × todas as lojas". Ticket Médio foi removido dos cards (cálculo com
+   inconsistência a investigar antes de voltar a exibir).
 2. **Duas tabelas que se filtram mutuamente**: Estrutura Mercadológica (com
    drill-down completo Departamento → Seção → Categoria → Grupo → Sub Grupo →
    **Produto**, via breadcrumb clicável pra voltar a qualquer nível) e Lojas,
    lado a lado.
    - Produto (folha do drill-down) é rotulado no padrão "Código - Descrição -
      Complemento" e agrupado por SKU (não faz parte da Hierarquia de Grupos).
-   - Clicar numa linha (exceto no nível Produto, que é folha) desce um nível e
-     também filtra a tabela de Lojas pra mostrar a performance daquele nó em
-     cada loja.
+   - Clicar numa linha de Departamento/Seção/Categoria/Grupo/Sub Grupo desce um
+     nível (breadcrumb cresce) e também filtra a tabela de Lojas pra mostrar a
+     performance daquele nó em cada loja.
+   - Clicar num Produto **não desce nível** (é a folha) — em vez disso
+     seleciona aquele SKU específico (clique de novo desmarca), filtrando
+     KPIs e a tabela de Lojas pela performance daquele produto por loja, sem
+     sair da lista de produtos irmãos (pra comparar vários rapidamente).
    - Clicar numa loja filtra a tabela de Estrutura para mostrar só a performance
      daquela loja (clique de novo para desmarcar).
    - Barra de status mostrando o recorte ativo + botão "Limpar seleção".
    - Cliques nas tabelas (e no breadcrumb) ficam bloqueados enquanto uma busca
      está em andamento (`pointer-events-none`) — evita que um clique numa
      tabela desatualizada empurre um nó errado/duplicado pro breadcrumb.
+   - **Subtotal** no rodapé de cada tabela (Estrutura e Lojas), somando as
+     linhas visíveis (V./L. Atual e Comparação, %Desvio do total, Part. 100%).
+   - **Colunas clicáveis pra ordenar** (nome/código, V. Atual, V. Comp., %D,
+     L. Atual, L. Comp., %D, Part.) — clique alterna asc/desc. Ordenação
+     padrão (sem coluna escolhida): por código em todos os níveis, exceto
+     Produto, que ordena por nome (alfabético — código de SKU não é uma
+     sequência significativa).
 3. **Toggle Tabela ↔ Ranking** no painel de Estrutura — Tabela é a visão detalhada
    com todas as colunas; Ranking é barras horizontais ordenadas por valor, mais
    rápidas de escanear.
 4. **Painel Top Altas/Quedas** com **toggle de nível independente** (Seção /
    Categoria / Grupo) — ranqueia por %Desvio de Venda no nível escolhido, escopado
-   pela loja selecionada (se houver).
+   pela loja selecionada (se houver). Rótulo no formato "Departamento - Nome";
+   um item nunca aparece nos dois grupos ao mesmo tempo (quem caiu não entra em
+   Altas, quem subiu não entra em Quedas).
 5. **Semaforização automática**: todo %Desvio (venda e lucro) fica verde
    (positivo) ou vermelho (negativo) — cor + fundo leve, nunca só a cor do texto.
-6. **Ordenação em modo Tabela por código** (`003 - Bazar`, `002 - Vila Mutirão`),
-   não por valor. Modo Ranking continua ordenado por valor (maior → menor).
+6. **Ordenação em modo Tabela por código** (`003 - Bazar`, `002 - Vila Mutirão`)
+   por padrão — ver "Colunas clicáveis pra ordenar" acima. Modo Ranking continua
+   ordenado por valor (maior → menor).
 7. **Exportar Excel / PDF** — botões no header (funcionalidade real a implementar).
-8. Filtros no topo: Loja (multi-seleção), Formato (Varejo/Atacado), Comprador,
-   Período Atual e Período de Comparação.
+8. Filtros no topo: Loja, Formato (Varejo/Atacado) e Comprador são todos
+   **multi-seleção**. Período Atual (fixo, calculado do arquivo) e Período de
+   Comparação (editável, dois seletores de data) mostrados no formato "DD a
+   DD/MMM Atual"/"... Comparação" (`lib/desempenho/format.ts`, `formatPeriodo`).
 9. Navegação entre os 5 módulos como abas no header (mesmo estando só o primeiro
    implementado).
+10. **Badge de cadastro pendente é clicável** — baixa um `.txt` com os códigos
+    (SKU) dos produtos descartados por hierarquia incompleta (ver "Regra de
+    negócio: qualidade de cadastro").
 
 ## Estrutura de pastas sugerida
 

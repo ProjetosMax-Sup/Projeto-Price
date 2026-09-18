@@ -21,7 +21,7 @@ function desvioTexto(valor: number | null): string {
   return `${valor >= 0 ? "+" : ""}${formatPercent(valor)}`;
 }
 
-function baixarBlob(blob: Blob, nomeArquivo: string) {
+export function baixarBlob(blob: Blob, nomeArquivo: string) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;

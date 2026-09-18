@@ -39,6 +39,7 @@ export function DesempenhoDashboard({
   lojas,
   compradores,
   produtosDescartados,
+  produtosDescartadosCodigos,
   resultadoInicial,
   periodoAtual,
   periodoComparacaoInicial,
@@ -46,6 +47,7 @@ export function DesempenhoDashboard({
   lojas: Loja[];
   compradores: string[];
   produtosDescartados: number;
+  produtosDescartadosCodigos: string[];
   resultadoInicial: ResultadoDesempenho;
   periodoAtual: string;
   periodoComparacaoInicial: string | null;
@@ -54,6 +56,9 @@ export function DesempenhoDashboard({
   // Breadcrumb do drill-down: Departamento → Seção → Categoria → Grupo → Sub
   // Grupo → Produto. O nível exibido é sempre o próximo depois do último nó.
   const [caminhoDrill, setCaminhoDrill] = useState<NoSelecionado[]>([]);
+  // Produto escolhido dentro da lista de Produtos (folha do drill-down) — filtra
+  // KPIs/Lojas por aquele SKU sem sair da lista de produtos irmãos.
+  const [produtoSelecionado, setProdutoSelecionado] = useState<string | null>(null);
   const [lojasSelecionadas, setLojasSelecionadas] = useState<string[]>([]);
   const [modoRanking, setModoRanking] = useState(false);
   const [nivelTopAltasQuedas, setNivelTopAltasQuedas] = useState<NivelHierarquia>("secao");
@@ -88,6 +93,7 @@ export function DesempenhoDashboard({
     const consulta: ConsultaDesempenho = {
       filtros,
       caminhoDrill,
+      produtoSelecionado,
       lojasSelecionadas,
       nivelTopAltasQuedas,
     };
@@ -102,17 +108,24 @@ export function DesempenhoDashboard({
         if (idRequisicaoRef.current === idDaRequisicao) setCarregando(false);
       });
     return () => controller.abort();
-  }, [filtros, caminhoDrill, lojasSelecionadas, nivelTopAltasQuedas]);
+  }, [filtros, caminhoDrill, produtoSelecionado, lojasSelecionadas, nivelTopAltasQuedas]);
 
   function aoClicarEstrutura(linha: EstruturaAgregada) {
-    // Cada clique desce um nível — Produto é a folha e não tem handler chamado
-    // (EstruturaPanel não dispara onClickLinha nesse nível).
+    if (linha.nivel === "produto") {
+      // Produto é a folha do drill-down: clicar seleciona (ou desmarca, se já
+      // selecionado) pra ver a performance daquele SKU por loja + nos cards,
+      // sem sair da lista de produtos irmãos.
+      setProdutoSelecionado((atual) => (atual === linha.chave ? null : linha.chave));
+      return;
+    }
     setCaminhoDrill((atual) => [...atual, { nivel: linha.nivel, chave: linha.chave, nome: linha.nome }]);
+    setProdutoSelecionado(null);
   }
 
   /** indice = -1 volta pra raiz (Departamentos); N volta pro nível do N-ésimo nó do caminho. */
   function aoVoltarPara(indice: number) {
     setCaminhoDrill((atual) => atual.slice(0, indice + 1));
+    setProdutoSelecionado(null);
   }
 
   /**
@@ -132,6 +145,7 @@ export function DesempenhoDashboard({
 
   function aoLimparSelecao() {
     setCaminhoDrill([]);
+    setProdutoSelecionado(null);
     setLojasSelecionadas([]);
   }
 
@@ -140,9 +154,15 @@ export function DesempenhoDashboard({
     .filter((nome): nome is string => Boolean(nome));
 
   const noAtivo = caminhoDrill.at(-1) ?? null;
+  const produtoSelecionadoLinha = produtoSelecionado
+    ? (resultado.linhasEstrutura.find((l) => l.chave === produtoSelecionado) ?? null)
+    : null;
   const partesRecorte: string[] = [];
   if (noAtivo) {
     partesRecorte.push(`${labelNivel(noAtivo.nivel)} ${noAtivo.nome}`);
+  }
+  if (produtoSelecionadoLinha) {
+    partesRecorte.push(`Produto ${produtoSelecionadoLinha.nome}`);
   }
   if (nomesLojasSelecionadas.length === 1) {
     partesRecorte.push(`Loja ${nomesLojasSelecionadas[0]}`);
@@ -191,6 +211,7 @@ export function DesempenhoDashboard({
         const consulta: ConsultaDesempenho = {
           filtros,
           caminhoDrill,
+          produtoSelecionado,
           lojasSelecionadas,
           nivelTopAltasQuedas,
         };
@@ -215,7 +236,7 @@ export function DesempenhoDashboard({
             <p className="mt-0.5 text-sm text-zinc-500">Vendas, margem e desvio por categoria e loja.</p>
           </div>
           <div className="flex items-center gap-3">
-            <CadastroIncompletoBadge quantidade={produtosDescartados} />
+            <CadastroIncompletoBadge quantidade={produtosDescartados} codigos={produtosDescartadosCodigos} />
             <span className="text-xs text-zinc-400">Última atualização: {formatarDataHora(dadosGeradoEm)}</span>
             <button
               type="button"
@@ -277,6 +298,7 @@ export function DesempenhoDashboard({
           nivel={resultado.estruturaNivel}
           linhas={resultado.linhasEstrutura}
           caminho={caminhoDrill}
+          produtoSelecionado={produtoSelecionado}
           modoRanking={modoRanking}
           onToggleModo={() => setModoRanking((m) => !m)}
           onClickLinha={aoClicarEstrutura}

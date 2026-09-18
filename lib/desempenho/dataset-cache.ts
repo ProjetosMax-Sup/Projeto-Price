@@ -28,6 +28,8 @@ interface Manifesto {
   chunksComparacao: number;
   produtosDescartadosAtual: number;
   produtosDescartadosComparacao: number;
+  produtosDescartadosCodigosAtual: string[];
+  produtosDescartadosCodigosComparacao: string[];
 }
 
 export interface DatasetProcessado {
@@ -38,6 +40,8 @@ export interface DatasetProcessado {
   registrosComparacao: RegistroDesempenho[];
   produtosDescartadosAtual: number;
   produtosDescartadosComparacao: number;
+  produtosDescartadosCodigosAtual: string[];
+  produtosDescartadosCodigosComparacao: string[];
 }
 
 function paraLinhaCompacta(m: MovimentoVendas): LinhaCompacta {
@@ -112,6 +116,8 @@ export async function salvarDataset(dados: {
     chunksComparacao: chunksComparacao.length,
     produtosDescartadosAtual: dados.atual.produtosDescartados,
     produtosDescartadosComparacao: dados.comparacao.produtosDescartados,
+    produtosDescartadosCodigosAtual: dados.atual.produtosDescartadosCodigos,
+    produtosDescartadosCodigosComparacao: dados.comparacao.produtosDescartadosCodigos,
   };
 
   const cliente = obterCliente();
@@ -184,6 +190,8 @@ export async function lerDataset(): Promise<DatasetProcessado | null> {
       registrosComparacao: reconstruir(bufsComparacao),
       produtosDescartadosAtual: manifesto.produtosDescartadosAtual,
       produtosDescartadosComparacao: manifesto.produtosDescartadosComparacao,
+      produtosDescartadosCodigosAtual: manifesto.produtosDescartadosCodigosAtual ?? [],
+      produtosDescartadosCodigosComparacao: manifesto.produtosDescartadosCodigosComparacao ?? [],
     };
   } finally {
     cliente.disconnect();

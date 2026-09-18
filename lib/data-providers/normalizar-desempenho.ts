@@ -104,6 +104,7 @@ export function normalizarPeriodo(
 ): PeriodoDesempenho {
   const linhas = parseTabela(conteudo, CAMPOS_MOVIMENTO, true);
   let produtosDescartados = 0;
+  const codigosDescartados = new Set<string>();
 
   const registros = linhas
     .map((l) => {
@@ -114,9 +115,12 @@ export function normalizarPeriodo(
     })
     .filter(({ movimento, produto }) => {
       const descartar = (produto?.cadastroIncompleto ?? false) && movimento.qtdeVendasTotal > 0;
-      if (descartar) produtosDescartados += 1;
+      if (descartar) {
+        produtosDescartados += 1;
+        codigosDescartados.add(movimento.codigo);
+      }
       return !descartar;
     });
 
-  return { registros, produtosDescartados };
+  return { registros, produtosDescartados, produtosDescartadosCodigos: Array.from(codigosDescartados) };
 }

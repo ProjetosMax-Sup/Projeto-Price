@@ -15,6 +15,7 @@ function montarPeriodo(
   const produtosPorCodigo = new Map(produtos.map((p) => [p.codigo, p]));
   const lojasPorCodigo = new Map(lojas.map((l) => [l.codUnid, l]));
   let produtosDescartados = 0;
+  const codigosDescartados = new Set<string>();
 
   const registros = movimentos
     .map((movimento) => ({
@@ -24,11 +25,14 @@ function montarPeriodo(
     }))
     .filter(({ movimento, produto }) => {
       const descartar = (produto?.cadastroIncompleto ?? false) && movimento.qtdeVendasTotal > 0;
-      if (descartar) produtosDescartados += 1;
+      if (descartar) {
+        produtosDescartados += 1;
+        codigosDescartados.add(movimento.codigo);
+      }
       return !descartar;
     });
 
-  return { registros, produtosDescartados };
+  return { registros, produtosDescartados, produtosDescartadosCodigos: Array.from(codigosDescartados) };
 }
 
 /** Dataset de exemplo — usado enquanto DESEMPENHO_COMERCIAL_DATA_DIR não estiver configurado. */

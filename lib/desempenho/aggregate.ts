@@ -259,3 +259,22 @@ export function agregarPorProduto(
 export function somarMetricas(registros: RegistroDesempenho[]): Metricas {
   return fecharMetricas(registros.reduce(somarRegistro, metricasVazias()));
 }
+
+/** Soma um conjunto de Metricas já fechadas (ex: linhas de uma tabela) num subtotal. */
+export function agregarMetricas(itens: Metricas[]): Metricas {
+  const soma = itens.reduce(
+    (acc, m) => ({
+      venda: acc.venda + m.venda,
+      vendaRegular: acc.vendaRegular + m.vendaRegular,
+      vendaOferta: acc.vendaOferta + m.vendaOferta,
+      lucro: acc.lucro + m.lucro,
+      lucroRegular: acc.lucroRegular + m.lucroRegular,
+      lucroOferta: acc.lucroOferta + m.lucroOferta,
+      qtdeVendas: acc.qtdeVendas + m.qtdeVendas,
+      percLucro: 0,
+      ticketMedio: 0,
+    }),
+    metricasVazias(),
+  );
+  return fecharMetricas(soma);
+}

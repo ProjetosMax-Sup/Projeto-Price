@@ -7,11 +7,13 @@ export function MultiSelect({
   opcoes,
   selecionados,
   onChange,
+  rotuloTodos = "Todos",
 }: {
   rotulo: string;
   opcoes: { value: string; label: string }[];
   selecionados: string[];
   onChange: (valores: string[]) => void;
+  rotuloTodos?: string;
 }) {
   const [aberto, setAberto] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -30,7 +32,7 @@ export function MultiSelect({
 
   const resumo =
     selecionados.length === 0
-      ? "Todas"
+      ? rotuloTodos
       : selecionados.length === 1
         ? (opcoes.find((o) => o.value === selecionados[0])?.label ?? "1 selecionada")
         : `${selecionados.length} selecionadas`;

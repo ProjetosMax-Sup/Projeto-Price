@@ -6,19 +6,17 @@ import { labelNivel, type EstruturaAgregada, type NivelHierarquia } from "@/lib/
 const NIVEIS_DISPONIVEIS: NivelHierarquia[] = ["secao", "categoria", "grupo"];
 const QTD_LINHAS = 5;
 
-/** "Nome (Departamento)" — departamento é sempre o primeiro segmento da chave. */
+/** "Departamento - Nome" — departamento é sempre o primeiro segmento da chave. */
 function rotuloItem(item: EstruturaAgregada): string {
   const partes = item.chave.split(" > ");
   if (partes.length <= 1) return item.nome;
-  return `${item.nome} (${partes[0]})`;
+  return `${partes[0]} - ${item.nome}`;
 }
 
 function Linha({ item }: { item: EstruturaAgregada }) {
   return (
     <div className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
-      <span className="truncate text-zinc-700">
-        {rotuloItem(item)} <span className="text-zinc-300">—</span>
-      </span>
+      <span className="truncate text-zinc-700">{rotuloItem(item)}</span>
       <Semaforo valor={item.desvioVenda} tamanho="sm" />
     </div>
   );

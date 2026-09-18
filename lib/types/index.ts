@@ -57,4 +57,5 @@ export interface RegistroDesempenho {
 export interface PeriodoDesempenho {
   registros: RegistroDesempenho[];
   produtosDescartados: number; // cadastro incompleto + movimentação > 0 (ver regra de negócio)
+  produtosDescartadosCodigos: string[]; // códigos (SKU) únicos dos produtos descartados
 }
