@@ -1,4 +1,3 @@
-import Redis from "ioredis";
 import type { RegistroDesempenho } from "@/lib/types";
 import { formatPeriodo } from "./format";
 
@@ -11,11 +10,10 @@ function parseDataBr(data: string): Date | null {
 }
 
 /**
- * Rótulo do período atual, derivado direto das datas em
- * bdDesempenhoComercialAtual.txt (único arquivo com grão diário). Ex:
- * "01/Set/2026 – 16/Set/2026".
+ * Rótulo de um período (Atual ou Comparação), derivado direto do min/máx da
+ * coluna `Data` do arquivo correspondente. Ex: "01 a 16/Set 2026".
  */
-export function calcularLabelPeriodoAtual(registros: RegistroDesempenho[]): string | null {
+export function calcularLabelPeriodo(registros: RegistroDesempenho[]): string | null {
   let min: Date | null = null;
   let max: Date | null = null;
   for (const r of registros) {
@@ -26,34 +24,4 @@ export function calcularLabelPeriodoAtual(registros: RegistroDesempenho[]): stri
   }
   if (!min || !max) return null;
   return formatPeriodo(min, max);
-}
-
-// bdDesempenhoComercialComparação.txt não tem coluna de data (vem já agregado
-// pro período inteiro) — não dá pra derivar do arquivo, por isso é configurável
-// manualmente (usuário informa o que aquele arquivo representa).
-const CHAVE_LABEL_COMPARACAO = "config:periodo_comparacao";
-
-function obterCliente(): Redis | null {
-  const url = process.env.REDIS_URL;
-  return url ? new Redis(url) : null;
-}
-
-export async function lerLabelPeriodoComparacao(): Promise<string | null> {
-  const cliente = obterCliente();
-  if (!cliente) return null;
-  try {
-    return await cliente.get(CHAVE_LABEL_COMPARACAO);
-  } finally {
-    cliente.disconnect();
-  }
-}
-
-export async function salvarLabelPeriodoComparacao(valor: string): Promise<void> {
-  const cliente = obterCliente();
-  if (!cliente) throw new Error("Redis não configurado (REDIS_URL).");
-  try {
-    await cliente.set(CHAVE_LABEL_COMPARACAO, valor);
-  } finally {
-    cliente.disconnect();
-  }
 }

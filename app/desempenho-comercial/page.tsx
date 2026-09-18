@@ -3,7 +3,7 @@ import { ModuleNav } from "@/components/ui/ModuleNav";
 import { getDataProvider } from "@/lib/data-providers";
 import { listaCompradores } from "@/lib/desempenho/compradores";
 import { CONSULTA_PADRAO, computarDesempenho } from "@/lib/desempenho/consulta";
-import { calcularLabelPeriodoAtual, lerLabelPeriodoComparacao } from "@/lib/desempenho/periodo";
+import { calcularLabelPeriodo } from "@/lib/desempenho/periodo";
 
 // Os arquivos-fonte mudam a cada atualização do time — nunca pré-renderizar
 // com dados presos ao momento do build.
@@ -26,8 +26,8 @@ export default async function DesempenhoComercialPage() {
   // cliente — os registros brutos (centenas de milhares de linhas) ficam no servidor.
   const resultadoInicial = computarDesempenho(atual.registros, comparacao.registros, lojas, CONSULTA_PADRAO);
 
-  const periodoAtual = calcularLabelPeriodoAtual(atual.registros) ?? "—";
-  const periodoComparacao = await lerLabelPeriodoComparacao().catch(() => null);
+  const periodoAtual = calcularLabelPeriodo(atual.registros) ?? "—";
+  const periodoComparacao = calcularLabelPeriodo(comparacao.registros);
 
   return (
     <div className="flex min-h-full flex-col">

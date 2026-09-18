@@ -101,24 +101,19 @@ Ficam em `05 - Bases` (irmã da pasta deste projeto, `06 - Projetos`), com exten
 | Arquivo | Conteúdo |
 |---|---|
 | `bdDesempenhoComercialAtual.txt` | Vendas/margem por produto — período atual, grão diário, **sem quebra por loja** (ver aviso abaixo) |
-| `bdDesempenhoComercialComparação.txt` | Vendas/margem por produto **e loja** — período de comparação inteiro, sem grão diário |
+| `bdDesempenhoComercialComparação.txt` | Vendas/margem por produto **e loja**, grão diário — período de comparação |
 | `bdCadastro.txt` | Cadastro de produtos: hierarquia mercadológica + comprador (~130 colunas no total, só usamos ~7) |
 | `bdLojas.txt` | As 11 lojas: nome, formato (Varejo/Atacado) |
 
 ✅ **Resolvido**: `bdDesempenhoComercialAtual.txt` foi reexportado incluindo
 `Unidade Código`/`Unidade Nome` — o painel "Lojas" já funciona pro período atual.
 
-⚠️ **Assimetria que continua**: só `bdDesempenhoComercialAtual.txt` tem coluna
-`Data` (grão diário); `bdDesempenhoComercialComparação.txt` não tem — vem já
-agregado pro período inteiro, sem como derivar automaticamente que período é
-esse. Por isso o rótulo do período:
-- **Atual**: calculado automaticamente a partir do min/máx de `Data` em
-  `bdDesempenhoComercialAtual.txt` (`lib/desempenho/periodo.ts`,
-  `calcularLabelPeriodoAtual`) — sempre correto, não precisa configurar.
-- **Comparação**: não dá pra derivar do arquivo — configurável manualmente
-  pelo botão "Comparação: …" no filtro (grava no Redis via
-  `app/api/periodo-comparacao`, chave `config:periodo_comparacao`). Precisa
-  ser atualizado à mão sempre que o arquivo de comparação mudar de período.
+✅ **Resolvido**: `bdDesempenhoComercialComparação.txt` também passou a vir com
+coluna `Data` (grão diário, igual ao Atual) — os dois períodos (Atual e
+Comparação) são calculados automaticamente a partir do min/máx de `Data` do
+respectivo arquivo (`lib/desempenho/periodo.ts`, `calcularLabelPeriodo`, usada
+pros dois). Não precisa (nem tem como, no momento) configurar manualmente —
+sempre pega a primeira e a última data de cada arquivo.
 
 ### Formato dos arquivos
 
@@ -155,7 +150,7 @@ Unidade Código (= código da loja) | Unidade Nome (= nome da loja)
 Qtde Vendas | Valor | Lucros
 Qtde Vendas Oferta | Vendas Oferta | Lucros Oferta
 Vendas Ct Empresa (descartar — não utilizado)
-(sem coluna Data — já agregado para o período inteiro)
+Data (grão diário — mesma estrutura do Atual)
 ```
 
 **Regular = Total − Oferta.** Não é uma coluna do arquivo, é campo calculado na
@@ -256,6 +251,11 @@ Se algum produto nessa situação aparecer com movimentação:
   facilitar levar a lista pra quem corrige o cadastro
 - excluir esses produtos dos números consolidados até serem corrigidos
 
+⚠️ A contagem é de **produtos (SKU) únicos**, não de linhas — o mesmo produto
+tem uma linha por loja/dia em `bdDesempenhoComercialAtual.txt`, então contar
+linhas infla o número (`lib/data-providers/normalizar-desempenho.ts`,
+`normalizarPeriodo`, usa um `Set` de códigos).
+
 ## Design system
 
 Cores extraídas da logo oficial da MAX:
@@ -318,13 +318,22 @@ Elementos a replicar:
      Comparação, %Lucro Of Atual/Comparação, %Lucro Regular Atual/Comparação,
      Part. (participação no total geral). Definidas em
      `lib/desempenho/colunas-tabela.ts` (única fonte, os dois painéis
-     reutilizam).
+     reutilizam) — inclui largura fixa por coluna (`table-fixed`, cabeçalho
+     quebra em vez de alargar a coluna, valores não quebram).
    - **Colunas clicáveis pra ordenar** — clique alterna asc/desc. Ordenação
      padrão (sem coluna escolhida) da 1ª coluna: por código em todos os
      níveis de Estrutura, exceto Produto, que ordena por nome/descrição
      (código de SKU não é uma sequência significativa); Lojas ordena por
      código da loja. Clicar explicitamente na 1ª coluna segue a mesma regra
      (código vs. nome conforme o nível).
+   - **1ª coluna fixa** (`sticky left-0`) em ambas as tabelas — rolando a
+     tabela pra o lado, o nome do Departamento/Produto/Loja nunca some de
+     vista. Usa cores sólidas (não translúcidas) nessa coluna pra não
+     "vazar" as colunas que passam por trás dela ao rolar.
+   - **Valores de Comparação marcados visualmente** (itálico + fundo
+     ligeiramente sombreado) em todas as colunas "…Comparação", pra não
+     confundir com os valores do período Atual ao ler a tabela
+     (`components/desempenho/CelulaMetrica.tsx`).
 3. **Toggle Tabela ↔ Ranking** no painel de Estrutura — Tabela é a visão detalhada
    com todas as colunas; Ranking é barras horizontais ordenadas por valor, mais
    rápidas de escanear.
@@ -344,13 +353,12 @@ Elementos a replicar:
 7. **Exportar Excel / PDF** — botões no header (funcionalidade real a implementar).
 8. Filtros no topo: Loja, Formato (Varejo/Atacado) e Comprador são todos
    **multi-seleção**. Período Atual e Período de Comparação mostrados como
-   texto estático (não clicável, sem seletor) no formato "DD a DD/MMM
-   Atual"/"... Comparação" (`lib/desempenho/format.ts`, `formatPeriodo`).
-   Editar a Comparação por enquanto só é possível via
-   `salvarLabelPeriodoComparacao` (`lib/desempenho/periodo.ts`) — chamado
-   pela rota `app/api/periodo-comparacao` (POST), não tem UI de edição no
-   momento (removida a pedido do usuário; a rota continua de pé pra permitir
-   atualizar manualmente).
+   texto estático (não clicável, sem seletor), sempre calculados a partir do
+   min/máx de `Data` do respectivo arquivo — nunca configurados manualmente
+   (ver "Assimetria" — resolvida — em Fonte de dados). Mesmo formato fixo
+   pros dois: "DD a DD/MMM AAAA Atual"/"... Comparação"
+   (`lib/desempenho/format.ts`, `formatPeriodo`; `lib/desempenho/periodo.ts`,
+   `calcularLabelPeriodo`).
 9. Navegação entre os 5 módulos como abas no header (mesmo estando só o primeiro
    implementado).
 10. **Badge de cadastro pendente é clicável** — baixa um `.txt` com os códigos

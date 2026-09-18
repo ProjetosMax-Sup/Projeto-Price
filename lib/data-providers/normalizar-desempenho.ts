@@ -103,7 +103,8 @@ export function normalizarPeriodo(
   lojasPorCodigo: Map<string, Loja>,
 ): PeriodoDesempenho {
   const linhas = parseTabela(conteudo, CAMPOS_MOVIMENTO, true);
-  let produtosDescartados = 0;
+  // Conta produtos (SKU) únicos descartados, não linhas — o mesmo produto pode
+  // aparecer em várias linhas (uma por loja/dia), o que inflava a contagem.
   const codigosDescartados = new Set<string>();
 
   const registros = linhas
@@ -115,12 +116,13 @@ export function normalizarPeriodo(
     })
     .filter(({ movimento, produto }) => {
       const descartar = (produto?.cadastroIncompleto ?? false) && movimento.qtdeVendasTotal > 0;
-      if (descartar) {
-        produtosDescartados += 1;
-        codigosDescartados.add(movimento.codigo);
-      }
+      if (descartar) codigosDescartados.add(movimento.codigo);
       return !descartar;
     });
 
-  return { registros, produtosDescartados, produtosDescartadosCodigos: Array.from(codigosDescartados) };
+  return {
+    registros,
+    produtosDescartados: codigosDescartados.size,
+    produtosDescartadosCodigos: Array.from(codigosDescartados),
+  };
 }

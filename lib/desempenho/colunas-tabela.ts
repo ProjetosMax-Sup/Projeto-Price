@@ -7,25 +7,30 @@ import { calcDesvio } from "./format";
  * layout de uma planilha de referência).
  */
 export const COLUNAS_METRICAS = [
-  { chave: "vAtual", rotulo: "R$ Valor Total Atual", tipo: "moeda" },
-  { chave: "lAtual", rotulo: "R$ Lucros Total Atual", tipo: "moeda" },
-  { chave: "vComp", rotulo: "R$ Valor Total Comparação", tipo: "moeda" },
-  { chave: "lComp", rotulo: "R$ Lucro Total Comparação", tipo: "moeda" },
-  { chave: "dVenda", rotulo: "% Desv. Valor", tipo: "desvio" },
-  { chave: "dLucro", rotulo: "% Desv. Lucro", tipo: "desvio" },
-  { chave: "percLucroAtual", rotulo: "% Lucro Total Atual", tipo: "percent" },
-  { chave: "percLucroComp", rotulo: "% Lucro Total Comparação", tipo: "percent" },
-  { chave: "ppDesvioLucro", rotulo: "P.P Desv. Lucro", tipo: "desvio" },
-  { chave: "percPartOfAtual", rotulo: "% Part. Of Atual", tipo: "percent" },
-  { chave: "percPartOfComp", rotulo: "% Part. Of Comparação", tipo: "percent" },
-  { chave: "percLucroOfAtual", rotulo: "% Lucro Of Atual", tipo: "percent" },
-  { chave: "percLucroOfComp", rotulo: "% Lucro Of Comparação", tipo: "percent" },
-  { chave: "percLucroRegularAtual", rotulo: "% Lucro Regular Atual", tipo: "percent" },
-  { chave: "percLucroRegularComp", rotulo: "% Lucro Regular Comparação", tipo: "percent" },
+  { chave: "vAtual", rotulo: "R$ Valor Total Atual", tipo: "moeda", largura: 110 },
+  { chave: "lAtual", rotulo: "R$ Lucros Total Atual", tipo: "moeda", largura: 110 },
+  { chave: "vComp", rotulo: "R$ Valor Total Comparação", tipo: "moeda", largura: 110 },
+  { chave: "lComp", rotulo: "R$ Lucro Total Comparação", tipo: "moeda", largura: 110 },
+  { chave: "dVenda", rotulo: "% Desv. Valor", tipo: "desvio", largura: 76 },
+  { chave: "dLucro", rotulo: "% Desv. Lucro", tipo: "desvio", largura: 76 },
+  { chave: "percLucroAtual", rotulo: "% Lucro Total Atual", tipo: "percent", largura: 84 },
+  { chave: "percLucroComp", rotulo: "% Lucro Total Comparação", tipo: "percent", largura: 84 },
+  { chave: "ppDesvioLucro", rotulo: "P.P Desv. Lucro", tipo: "desvio", largura: 76 },
+  { chave: "percPartOfAtual", rotulo: "% Part. Of Atual", tipo: "percent", largura: 84 },
+  { chave: "percPartOfComp", rotulo: "% Part. Of Comparação", tipo: "percent", largura: 84 },
+  { chave: "percLucroOfAtual", rotulo: "% Lucro Of Atual", tipo: "percent", largura: 84 },
+  { chave: "percLucroOfComp", rotulo: "% Lucro Of Comparação", tipo: "percent", largura: 84 },
+  { chave: "percLucroRegularAtual", rotulo: "% Lucro Regular Atual", tipo: "percent", largura: 84 },
+  { chave: "percLucroRegularComp", rotulo: "% Lucro Regular Comparação", tipo: "percent", largura: 84 },
 ] as const;
 
 export type ColunaMetrica = (typeof COLUNAS_METRICAS)[number]["chave"];
 export type TipoColuna = (typeof COLUNAS_METRICAS)[number]["tipo"];
+
+/** Colunas que mostram um valor do período de Comparação (marcadas visualmente diferente na tabela). */
+export function ehColunaComparacao(chave: ColunaMetrica): boolean {
+  return chave.endsWith("Comp");
+}
 
 const TIPO_POR_COLUNA: Record<ColunaMetrica, TipoColuna> = Object.fromEntries(
   COLUNAS_METRICAS.map((c) => [c.chave, c.tipo]),
