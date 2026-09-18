@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { hashSenha } from "@/middleware";
+import { hashSenha } from "@/proxy";
 
 export async function POST(request: Request) {
   const senhaConfigurada = process.env.SITE_PASSWORD;

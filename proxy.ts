@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const COOKIE = "max_auth";
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const senha = process.env.SITE_PASSWORD;
 
   // Sem senha configurada (ex: ambiente local de desenvolvimento) — não bloqueia.
