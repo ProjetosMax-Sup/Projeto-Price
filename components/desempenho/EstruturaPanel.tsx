@@ -161,7 +161,7 @@ export function EstruturaPanel({
       ) : (
         <div className="flex-1 overflow-auto">
           <table className="table-fixed text-sm">
-            <thead className="sticky top-0 z-20 bg-azul text-left text-[11px] font-medium tracking-wide text-white/80 uppercase">
+            <thead className="bg-azul text-left text-[11px] font-medium tracking-wide text-white/80 uppercase">
               <tr>
                 <ThOrdenavel<Coluna>
                   coluna="nome"
@@ -169,7 +169,7 @@ export function EstruturaPanel({
                   onClick={aoClicarColuna}
                   align="left"
                   largura={LARGURA_NOME}
-                  className="sticky left-0 z-30 bg-azul px-4 py-2 font-medium"
+                  className="sticky left-0 z-10 bg-azul px-4 py-2 font-medium"
                 >
                   {labelNivel(nivel)}
                 </ThOrdenavel>
