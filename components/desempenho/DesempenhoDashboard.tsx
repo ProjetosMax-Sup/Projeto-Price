@@ -218,86 +218,94 @@ export function DesempenhoDashboard({
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="font-display text-2xl font-bold text-zinc-900">Desempenho Comercial</h1>
-          <p className="mt-0.5 text-sm text-zinc-500">Vendas, margem e desvio por categoria e loja.</p>
+    <div className="flex h-full flex-col gap-4">
+      {/* Título + Filtros + KPIs: altura natural, nunca rola nem é coberto por
+          nada — só o bloco abaixo (Status/Top/tabelas) tem scroll próprio. */}
+      <div className="flex flex-shrink-0 flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="font-display text-2xl font-bold text-zinc-900">Desempenho Comercial</h1>
+            <p className="mt-0.5 text-sm text-zinc-500">Vendas, margem e desvio por categoria e loja.</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <CadastroIncompletoBadge quantidade={produtosDescartados} codigos={produtosDescartadosCodigos} />
+            <span className="text-xs text-zinc-400">Última atualização: {formatarDataHora(dadosGeradoEm)}</span>
+            <button
+              type="button"
+              onClick={aoAtualizarDados}
+              disabled={atualizandoDados}
+              title="Atualiza sozinho todo dia às 09h — clique pra forçar agora"
+              className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-600 hover:bg-zinc-50 disabled:opacity-50"
+            >
+              {atualizandoDados ? "Atualizando…" : "↻ Atualizar dados"}
+            </button>
+            <button
+              type="button"
+              disabled={exportando !== null}
+              onClick={() => aoExportar("excel")}
+              title="Exportar Excel"
+              className="rounded-md border border-zinc-300 bg-white p-2 text-zinc-600 hover:bg-zinc-50 disabled:opacity-50"
+            >
+              ⬇ Excel
+            </button>
+            <button
+              type="button"
+              disabled={exportando !== null}
+              onClick={() => aoExportar("pdf")}
+              title="Exportar PDF"
+              className="rounded-md border border-zinc-300 bg-white p-2 text-zinc-600 hover:bg-zinc-50 disabled:opacity-50"
+            >
+              ⬇ PDF
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <CadastroIncompletoBadge quantidade={produtosDescartados} codigos={produtosDescartadosCodigos} />
-          <span className="text-xs text-zinc-400">Última atualização: {formatarDataHora(dadosGeradoEm)}</span>
-          <button
-            type="button"
-            onClick={aoAtualizarDados}
-            disabled={atualizandoDados}
-            title="Atualiza sozinho todo dia às 09h — clique pra forçar agora"
-            className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-600 hover:bg-zinc-50 disabled:opacity-50"
-          >
-            {atualizandoDados ? "Atualizando…" : "↻ Atualizar dados"}
-          </button>
-          <button
-            type="button"
-            disabled={exportando !== null}
-            onClick={() => aoExportar("excel")}
-            title="Exportar Excel"
-            className="rounded-md border border-zinc-300 bg-white p-2 text-zinc-600 hover:bg-zinc-50 disabled:opacity-50"
-          >
-            ⬇ Excel
-          </button>
-          <button
-            type="button"
-            disabled={exportando !== null}
-            onClick={() => aoExportar("pdf")}
-            title="Exportar PDF"
-            className="rounded-md border border-zinc-300 bg-white p-2 text-zinc-600 hover:bg-zinc-50 disabled:opacity-50"
-          >
-            ⬇ PDF
-          </button>
+
+        <div className="-mx-6 flex flex-col gap-4 border-b border-zinc-200 bg-zinc-50 px-6 pb-3 pt-3">
+          <FilterBar
+            lojas={lojas}
+            compradores={compradores}
+            filtros={filtros}
+            onChange={setFiltros}
+            periodoAtual={periodoAtual}
+            periodoComparacao={periodoComparacaoInicial}
+          />
+
+          <KpiCards atual={resultado.kpiAtual} comparacao={resultado.kpiComparacao} />
         </div>
       </div>
 
-      <div className="sticky top-[52px] z-20 -mx-6 flex flex-col gap-4 border-b border-zinc-200 bg-zinc-50 px-6 pb-3 pt-3">
-        <FilterBar
-          lojas={lojas}
-          compradores={compradores}
-          filtros={filtros}
-          onChange={setFiltros}
-          periodoAtual={periodoAtual}
-          periodoComparacao={periodoComparacaoInicial}
+      {/* Status/Top/tabelas: única área que rola, num espaço próprio abaixo do
+          bloco fixo acima — nunca fica coberta por ele. */}
+      <div className="flex flex-1 flex-col gap-4 overflow-y-auto">
+        <StatusBar
+          descricaoRecorte={descricaoRecorte}
+          temSelecao={partesRecorte.length > 0}
+          onLimpar={aoLimparSelecao}
         />
 
-        <KpiCards atual={resultado.kpiAtual} comparacao={resultado.kpiComparacao} />
+        <div className={`transition-opacity ${carregando ? "pointer-events-none opacity-60" : ""}`}>
+          <TopAltasQuedas nivel={nivelTopAltasQuedas} onNivelChange={setNivelTopAltasQuedas} linhas={resultado.linhasTop} />
+        </div>
+
+        <div className={`flex flex-col gap-4 transition-opacity ${carregando ? "pointer-events-none opacity-60" : ""}`}>
+          <EstruturaPanel
+            nivel={resultado.estruturaNivel}
+            linhas={resultado.linhasEstrutura}
+            caminho={caminhoDrill}
+            produtoSelecionado={produtoSelecionado}
+            modoRanking={modoRanking}
+            onToggleModo={() => setModoRanking((m) => !m)}
+            onClickLinha={aoClicarEstrutura}
+            onVoltarPara={aoVoltarPara}
+          />
+          <LojasPanel linhas={resultado.linhasLojas} selecionadas={lojasSelecionadas} onClickLinha={aoClicarLoja} />
+        </div>
+
+        <p className="pb-2 text-center text-xs text-zinc-400">
+          Fonte: bdDesempenhoComercialAtual + bdDesempenhoComercialComparação + bdCadastro + bdLojas · Dados
+          atualizados em {formatarDataHora(dadosGeradoEm)}
+        </p>
       </div>
-
-      <StatusBar
-        descricaoRecorte={descricaoRecorte}
-        temSelecao={partesRecorte.length > 0}
-        onLimpar={aoLimparSelecao}
-      />
-
-      <div className={`transition-opacity ${carregando ? "pointer-events-none opacity-60" : ""}`}>
-        <TopAltasQuedas nivel={nivelTopAltasQuedas} onNivelChange={setNivelTopAltasQuedas} linhas={resultado.linhasTop} />
-      </div>
-
-      <div className={`flex flex-col gap-4 transition-opacity ${carregando ? "pointer-events-none opacity-60" : ""}`}>
-        <EstruturaPanel
-          nivel={resultado.estruturaNivel}
-          linhas={resultado.linhasEstrutura}
-          caminho={caminhoDrill}
-          produtoSelecionado={produtoSelecionado}
-          modoRanking={modoRanking}
-          onToggleModo={() => setModoRanking((m) => !m)}
-          onClickLinha={aoClicarEstrutura}
-          onVoltarPara={aoVoltarPara}
-        />
-        <LojasPanel linhas={resultado.linhasLojas} selecionadas={lojasSelecionadas} onClickLinha={aoClicarLoja} />
-      </div>
-
-      <p className="pb-2 text-center text-xs text-zinc-400">
-        Fonte: bdDesempenhoComercialAtual + bdDesempenhoComercialComparação + bdCadastro + bdLojas · Dados
-        atualizados em {formatarDataHora(dadosGeradoEm)}
-      </p>
     </div>
   );
 }
