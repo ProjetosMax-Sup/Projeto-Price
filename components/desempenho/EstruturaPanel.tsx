@@ -159,17 +159,16 @@ export function EstruturaPanel({
           ))}
         </div>
       ) : (
-        <div className="flex-1 overflow-auto">
+        <div className="max-h-[60vh] flex-1 overflow-auto">
           <table className="table-fixed text-sm">
-            <thead className="bg-azul text-left text-[11px] font-medium tracking-wide text-white/80 uppercase">
+            <thead className="sticky top-0 z-20 bg-azul text-[13px] font-medium tracking-wide text-white/80 uppercase">
               <tr>
                 <ThOrdenavel<Coluna>
                   coluna="nome"
                   ordenacao={ordenacao}
                   onClick={aoClicarColuna}
-                  align="left"
                   largura={LARGURA_NOME}
-                  className="sticky left-0 z-10 bg-azul px-4 py-2 font-medium"
+                  className="sticky left-0 z-30 bg-azul px-4 py-2 font-medium"
                 >
                   {labelNivel(nivel)}
                 </ThOrdenavel>
@@ -185,7 +184,7 @@ export function EstruturaPanel({
                     {c.rotulo}
                   </ThOrdenavel>
                 ))}
-                <th className="px-3 py-2 text-right font-medium" style={{ width: LARGURA_PART }}>
+                <th className="px-3 py-2 text-center font-medium" style={{ width: LARGURA_PART }}>
                   Part.
                 </th>
               </tr>

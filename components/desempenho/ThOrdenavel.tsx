@@ -4,7 +4,7 @@ export function ThOrdenavel<C extends string>({
   onClick,
   className,
   largura,
-  align = "right",
+  align = "center",
   children,
 }: {
   coluna: C;
@@ -13,17 +13,15 @@ export function ThOrdenavel<C extends string>({
   className: string;
   /** Largura fixa em px — permite o rótulo quebrar em vez de alargar a coluna. */
   largura?: number;
-  align?: "left" | "right";
+  align?: "left" | "center" | "right";
   children: React.ReactNode;
 }) {
   const ativo = ordenacao?.coluna === coluna;
+  const justifica =
+    align === "right" ? "justify-end text-right" : align === "left" ? "justify-start text-left" : "justify-center text-center";
   return (
     <th className={className} style={largura ? { width: largura, maxWidth: largura } : undefined}>
-      <button
-        type="button"
-        onClick={() => onClick(coluna)}
-        className={`flex w-full items-start gap-1 leading-tight hover:text-white ${align === "right" ? "justify-end text-right" : "justify-start text-left"}`}
-      >
+      <button type="button" onClick={() => onClick(coluna)} className={`flex w-full items-start gap-1 leading-tight hover:text-white ${justifica}`}>
         <span>{children}</span>
         <span className="mt-0.5 shrink-0 text-[9px] text-white/60">{ativo ? (ordenacao!.dir === 1 ? "▲" : "▼") : "⇅"}</span>
       </button>
