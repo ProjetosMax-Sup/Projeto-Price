@@ -1,6 +1,15 @@
-import { formatPercent } from "@/lib/desempenho/format";
+import { formatPercent, formatPontosPercentuais } from "@/lib/desempenho/format";
 
-export function Semaforo({ valor, tamanho = "md" }: { valor: number | null; tamanho?: "sm" | "md" }) {
+export function Semaforo({
+  valor,
+  tamanho = "md",
+  unidade = "percent",
+}: {
+  valor: number | null;
+  tamanho?: "sm" | "md";
+  /** "percent": variação % (padrão). "pp": diferença em pontos percentuais (ex: P.P Desv. Lucro). */
+  unidade?: "percent" | "pp";
+}) {
   const padding = tamanho === "sm" ? "px-1.5 py-0.5 text-xs" : "px-2 py-1 text-sm";
 
   if (valor === null) {
@@ -21,7 +30,7 @@ export function Semaforo({ valor, tamanho = "md" }: { valor: number | null; tama
       ].join(" ")}
     >
       {positivo ? "+" : ""}
-      {formatPercent(valor)}
+      {unidade === "pp" ? formatPontosPercentuais(valor) : formatPercent(valor)}
     </span>
   );
 }

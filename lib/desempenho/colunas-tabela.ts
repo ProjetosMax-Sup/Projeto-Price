@@ -15,7 +15,7 @@ export const COLUNAS_METRICAS = [
   { chave: "dLucro", rotulo: "% Desv. Lucro", tipo: "desvio", largura: 76 },
   { chave: "percLucroAtual", rotulo: "% Lucro Total Atual", tipo: "percent", largura: 84 },
   { chave: "percLucroComp", rotulo: "% Lucro Total Comparação", tipo: "percent", largura: 84 },
-  { chave: "ppDesvioLucro", rotulo: "P.P Desv. Lucro", tipo: "desvio", largura: 76 },
+  { chave: "ppDesvioLucro", rotulo: "P.P Desv. Lucro", tipo: "pp", largura: 76 },
   { chave: "percPartOfAtual", rotulo: "% Part. Of Atual", tipo: "percent", largura: 84 },
   { chave: "percPartOfComp", rotulo: "% Part. Of Comparação", tipo: "percent", largura: 84 },
   { chave: "percLucroOfAtual", rotulo: "% Lucro Of Atual", tipo: "percent", largura: 84 },

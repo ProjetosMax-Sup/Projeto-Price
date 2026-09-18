@@ -22,10 +22,10 @@ export function CelulaMetrica({
   const ehComparacao = ehColunaComparacao(coluna);
   const fundoComparacao = ehComparacao ? "bg-zinc-500/5 italic" : "";
 
-  if (tipo === "desvio") {
+  if (tipo === "desvio" || tipo === "pp") {
     return (
       <td className="px-3 py-2 text-right whitespace-nowrap">
-        <Semaforo valor={valor} tamanho="sm" />
+        <Semaforo valor={valor} tamanho="sm" unidade={tipo === "pp" ? "pp" : "percent"} />
       </td>
     );
   }

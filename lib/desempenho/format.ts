@@ -23,6 +23,14 @@ export function formatPercent(valor: number, casas = 1): string {
   })}%`;
 }
 
+/** Diferença entre dois percentuais (pontos percentuais) — não é uma variação %, então usa "pp". */
+export function formatPontosPercentuais(valor: number, casas = 1): string {
+  return `${valor.toLocaleString("pt-BR", {
+    minimumFractionDigits: casas,
+    maximumFractionDigits: casas,
+  })} pp`;
+}
+
 export function formatNumero(valor: number): string {
   return valor.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
 }
