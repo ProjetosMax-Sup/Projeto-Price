@@ -17,12 +17,43 @@ instrução explícita do usuário.**
 
 ## Stack técnica
 
-- **Next.js + TypeScript** (App Router), rodando localmente e depois hospedado em
-  free tier (Vercel ou Render — decidir na hora do deploy)
+- **Next.js + TypeScript** (App Router), rodando localmente e hospedado na
+  **Vercel** (free tier — decidido; ver seção "Deploy" abaixo)
 - **Tailwind CSS** com tokens de cor nomeados semanticamente (ver Design System)
 - **Recharts** para gráficos que forem além do que HTML/CSS resolve
 - Parser próprio para os arquivos-fonte (não é Excel/CSV — ver Fonte de Dados)
-- Sem autenticação complexa: proteção simples por senha, já que é uso interno do time
+- Proteção simples por senha (`SITE_PASSWORD`, cookie via `proxy.ts`) — sem
+  autenticação complexa, já que é uso interno do time
+
+## Deploy
+
+Hospedado na **Vercel**. Em produção o app lê os arquivos direto do **OneDrive
+via Microsoft Graph API** (não da pasta local sincronizada — um servidor na
+nuvem não enxerga o disco do computador do usuário). Em desenvolvimento local
+continua lendo da pasta local (`DESEMPENHO_COMERCIAL_DATA_DIR`), sem mudança.
+
+`lib/data-providers/index.ts` escolhe automaticamente, nessa ordem: OneDrive
+(Graph API, se `MICROSOFT_CLIENT_ID`/`MICROSOFT_CLIENT_SECRET` configurados) →
+pasta local (`DESEMPENHO_COMERCIAL_DATA_DIR`) → dataset de exemplo (mock).
+
+Peças da integração com o OneDrive (conta pessoal — tenant `consumers`):
+- `config/onedrive.ts` — credenciais/config do app Microsoft
+- `lib/onedrive/auth.ts` — troca/renovação de token (refresh token)
+- `lib/onedrive/graph.ts` — leitura de arquivo + versão (eTag) via Graph API
+- `lib/onedrive/token-store.ts` — refresh token persistido num Redis (integração
+  "Upstash"/KV do marketplace da Vercel), porque instâncias serverless não têm
+  disco persistente
+- `app/api/auth/onedrive/login` e `.../callback` — fluxo de autorização,
+  **feito manualmente uma única vez** por quem tem a conta Microsoft (ver
+  checklist no README.md); depois disso o refresh token renova sozinho
+
+`lib/data-providers/parse-tabela.ts` e `normalizar-desempenho.ts` contêm a
+lógica de parsing pura (compartilhada entre `file-provider.ts` e
+`onedrive-provider.ts`) — qualquer ajuste no formato dos arquivos deve mudar
+só ali, nunca duplicar entre os dois providers.
+
+Checklist completo dos passos manuais (registro do app na Microsoft, criação
+do projeto na Vercel, Redis, variáveis de ambiente) está no README.md.
 
 ## Fonte de dados (fase atual: arquivos)
 
@@ -224,15 +255,25 @@ Elementos a replicar:
 /app
   /desempenho-comercial
   /api/desempenho-comercial  (route.ts — filtra/agrega no servidor, chamado pelo cliente)
+  /api/auth/onedrive         (login/callback — autorização única com a Microsoft)
+  /api/login                 (proteção por senha)
+  /login                     (tela de senha)
   /entradas-saidas        (placeholder)
   /compra-venda           (placeholder)
   /perdas-quebras         (placeholder)
   /raio-x-fornecedor      (placeholder)
 /lib
   /data-providers
-    file-provider.ts      (parser TXT + normalização + joins + cache por mtime)
-    mock-provider.ts      (dataset de exemplo, usado sem DESEMPENHO_COMERCIAL_DATA_DIR)
-    api-provider.ts       (placeholder para o futuro ERP)
+    parse-tabela.ts             (parser TXT puro — só string in, objetos out)
+    normalizar-desempenho.ts    (normalização + joins, também puro)
+    file-provider.ts            (lê do disco local + cache por mtime — dev)
+    onedrive-provider.ts        (lê do OneDrive via Graph API + cache por eTag — produção)
+    mock-provider.ts            (dataset de exemplo, fallback sem nenhuma fonte configurada)
+    api-provider.ts             (placeholder para o futuro ERP)
+  /onedrive
+    auth.ts               (troca/renovação de token)
+    graph.ts               (leitura de arquivo/versão via Microsoft Graph)
+    token-store.ts          (refresh token no Redis/Upstash)
   /desempenho
     aggregate.ts           (agregação por loja/estrutura)
     consulta.ts             (filtros + orquestração — roda no servidor)
@@ -243,6 +284,8 @@ Elementos a replicar:
   /ui                     (design system compartilhado)
 /config
   data-sources.ts         (caminhos via env var, nomes de arquivo esperados)
+  onedrive.ts             (credenciais/config do app Microsoft)
+/proxy.ts                 (proteção por senha — SITE_PASSWORD)
 ```
 
 ## Em aberto / a validar com o usuário
