@@ -46,7 +46,7 @@ export function LojasPanel({
                   selecionadas.includes(linha.loja.codUnid) ? "bg-azul/5" : "",
                 ].join(" ")}
               >
-                <td className="px-4 py-2 text-zinc-800">
+                <td className="whitespace-nowrap px-4 py-2 text-zinc-800">
                   <span className="text-zinc-400">{linha.loja.codUnid} - </span>
                   {linha.loja.nomeLoja}
                   <span className="ml-1.5 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500">

@@ -1,5 +1,6 @@
 import { ARQUIVOS_DESEMPENHO_COMERCIAL } from "@/config/data-sources";
 import { baixarArquivo, obterVersaoArquivo } from "@/lib/onedrive/graph";
+import { criarCacheVersionado } from "./cache-versionado";
 import { normalizarLojas, normalizarPeriodo, normalizarProdutos } from "./normalizar-desempenho";
 import type { Loja, Produto } from "@/lib/types";
 import type { DataProvider } from "./types";
@@ -9,16 +10,11 @@ interface ArquivoConfig {
   encoding: BufferEncoding;
 }
 
-/** Cache em memória do processo, invalidado quando o eTag do arquivo no OneDrive muda. */
-function criarCacheArquivo<T>(carregar: (conteudo: string) => Promise<T> | T, arquivo: ArquivoConfig) {
-  let cache: { versao: string; valor: Promise<T> } | null = null;
-  return async (): Promise<T> => {
-    const versao = await obterVersaoArquivo(arquivo.nome).catch(() => "erro");
-    if (cache && cache.versao === versao) return cache.valor;
-    const valor = baixarArquivo(arquivo.nome, arquivo.encoding).then(carregar);
-    cache = { versao, valor };
-    return valor;
-  };
+function criarCacheArquivo<T>(carregar: (conteudo: string) => T, arquivo: ArquivoConfig) {
+  return criarCacheVersionado(
+    () => obterVersaoArquivo(arquivo.nome).catch(() => "erro"),
+    async () => carregar(await baixarArquivo(arquivo.nome, arquivo.encoding)),
+  );
 }
 
 const getLojasCache = criarCacheArquivo(normalizarLojas, ARQUIVOS_DESEMPENHO_COMERCIAL.lojas);
@@ -32,15 +28,21 @@ async function indices() {
   };
 }
 
-const getAtualCache = criarCacheArquivo(async (conteudo) => {
-  const { produtosPorCodigo, lojasPorCodigo } = await indices();
-  return normalizarPeriodo(conteudo, produtosPorCodigo, lojasPorCodigo);
-}, ARQUIVOS_DESEMPENHO_COMERCIAL.atual);
+function criarCachePeriodo(arquivo: ArquivoConfig) {
+  return criarCacheVersionado(
+    () => obterVersaoArquivo(arquivo.nome).catch(() => "erro"),
+    async () => {
+      const [conteudo, { produtosPorCodigo, lojasPorCodigo }] = await Promise.all([
+        baixarArquivo(arquivo.nome, arquivo.encoding),
+        indices(),
+      ]);
+      return normalizarPeriodo(conteudo, produtosPorCodigo, lojasPorCodigo);
+    },
+  );
+}
 
-const getComparacaoCache = criarCacheArquivo(async (conteudo) => {
-  const { produtosPorCodigo, lojasPorCodigo } = await indices();
-  return normalizarPeriodo(conteudo, produtosPorCodigo, lojasPorCodigo);
-}, ARQUIVOS_DESEMPENHO_COMERCIAL.comparacao);
+const getAtualCache = criarCachePeriodo(ARQUIVOS_DESEMPENHO_COMERCIAL.atual);
+const getComparacaoCache = criarCachePeriodo(ARQUIVOS_DESEMPENHO_COMERCIAL.comparacao);
 
 /** Lê os arquivos direto do OneDrive via Microsoft Graph — usado em produção (Vercel). */
 export function createOneDriveDataProvider(): DataProvider {

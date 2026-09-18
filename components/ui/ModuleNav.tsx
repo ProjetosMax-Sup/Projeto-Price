@@ -17,7 +17,7 @@ const MODULOS: Modulo[] = [
 export function ModuleNav({ active }: { active?: string }) {
   return (
     <header className="bg-azul text-white">
-      <div className="mx-auto flex max-w-7xl items-center gap-1 px-6">
+      <div className="mx-auto flex max-w-[1800px] items-center gap-1 px-6">
         <span className="mr-6 font-display text-lg font-bold tracking-tight py-4">
           MAX <span className="text-vermelho">Supermercados</span>
         </span>

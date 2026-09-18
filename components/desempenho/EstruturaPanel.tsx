@@ -109,7 +109,7 @@ export function EstruturaPanel({
                     selecionado?.chave === linha.chave ? "bg-azul/5" : "",
                   ].join(" ")}
                 >
-                  <td className="px-4 py-2 text-zinc-800">
+                  <td className="whitespace-nowrap px-4 py-2 text-zinc-800">
                     {linha.codigo && <span className="text-zinc-400">{linha.codigo} - </span>}
                     {linha.nome}
                   </td>

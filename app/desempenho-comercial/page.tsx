@@ -6,6 +6,9 @@ import { CONSULTA_PADRAO, computarDesempenho } from "@/lib/desempenho/consulta";
 // Os arquivos-fonte mudam a cada atualização do time — nunca pré-renderizar
 // com dados presos ao momento do build.
 export const dynamic = "force-dynamic";
+// Arquivos grandes vindos do OneDrive (dezenas de MB) podem demorar mais que
+// o padrão de 10s em requisições "frias" — 60s é o teto do plano Hobby.
+export const maxDuration = 60;
 
 export default async function DesempenhoComercialPage() {
   const provider = getDataProvider();
@@ -31,7 +34,7 @@ export default async function DesempenhoComercialPage() {
   return (
     <div className="flex min-h-full flex-col">
       <ModuleNav active="desempenho-comercial" />
-      <main className="mx-auto w-full max-w-7xl flex-1 px-6 py-6">
+      <main className="mx-auto w-full max-w-[1800px] flex-1 px-6 py-6">
         <DesempenhoDashboard
           lojas={lojas}
           compradores={compradores}

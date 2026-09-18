@@ -1,6 +1,7 @@
 import { readFile, stat } from "fs/promises";
 import path from "path";
 import { ARQUIVOS_DESEMPENHO_COMERCIAL, DESEMPENHO_COMERCIAL_DATA_DIR } from "@/config/data-sources";
+import { criarCacheVersionado } from "./cache-versionado";
 import { normalizarLojas, normalizarPeriodo, normalizarProdutos } from "./normalizar-desempenho";
 import type { Loja, Produto } from "@/lib/types";
 import type { DataProvider } from "./types";
@@ -17,31 +18,20 @@ async function lerConteudo(arquivo: ArquivoConfig): Promise<string> {
   return buffer.toString(arquivo.encoding);
 }
 
-/** Cache em memória do processo, invalidado quando o arquivo muda (mtime). */
-function criarCacheArquivo<T>(carregar: () => Promise<T>, arquivo: ArquivoConfig) {
-  let cache: { mtimeMs: number; valor: Promise<T> } | null = null;
-  return async (): Promise<T> => {
-    const stats = await stat(caminho(arquivo)).catch(() => null);
-    const mtimeMs = stats?.mtimeMs ?? -1;
-    if (cache && cache.mtimeMs === mtimeMs) return cache.valor;
-    const valor = carregar();
-    cache = { mtimeMs, valor };
-    return valor;
-  };
+async function mtime(arquivo: ArquivoConfig): Promise<number> {
+  const stats = await stat(caminho(arquivo)).catch(() => null);
+  return stats?.mtimeMs ?? -1;
 }
 
-// Caches em nível de módulo (não por instância) para persistir entre requisições
-// do mesmo processo — os arquivos reais são grandes (dezenas de MB, centenas de
-// milhares de linhas) e reprocessá-los a cada requisição seria muito lento.
-const getLojasCache = criarCacheArquivo(
-  async () => normalizarLojas(await lerConteudo(ARQUIVOS_DESEMPENHO_COMERCIAL.lojas)),
-  ARQUIVOS_DESEMPENHO_COMERCIAL.lojas,
-);
+function criarCacheArquivo<T>(carregar: (conteudo: string) => T, arquivo: ArquivoConfig) {
+  return criarCacheVersionado(
+    () => mtime(arquivo),
+    async () => carregar(await lerConteudo(arquivo)),
+  );
+}
 
-const getProdutosCache = criarCacheArquivo(
-  async () => normalizarProdutos(await lerConteudo(ARQUIVOS_DESEMPENHO_COMERCIAL.cadastro)),
-  ARQUIVOS_DESEMPENHO_COMERCIAL.cadastro,
-);
+const getLojasCache = criarCacheArquivo(normalizarLojas, ARQUIVOS_DESEMPENHO_COMERCIAL.lojas);
+const getProdutosCache = criarCacheArquivo(normalizarProdutos, ARQUIVOS_DESEMPENHO_COMERCIAL.cadastro);
 
 async function indices() {
   const [produtos, lojas] = await Promise.all([getProdutosCache(), getLojasCache()]);
@@ -51,21 +41,21 @@ async function indices() {
   };
 }
 
-const getAtualCache = criarCacheArquivo(async () => {
-  const [conteudo, { produtosPorCodigo, lojasPorCodigo }] = await Promise.all([
-    lerConteudo(ARQUIVOS_DESEMPENHO_COMERCIAL.atual),
-    indices(),
-  ]);
-  return normalizarPeriodo(conteudo, produtosPorCodigo, lojasPorCodigo);
-}, ARQUIVOS_DESEMPENHO_COMERCIAL.atual);
+function criarCachePeriodo(arquivo: ArquivoConfig) {
+  return criarCacheVersionado(
+    () => mtime(arquivo),
+    async () => {
+      const [conteudo, { produtosPorCodigo, lojasPorCodigo }] = await Promise.all([
+        lerConteudo(arquivo),
+        indices(),
+      ]);
+      return normalizarPeriodo(conteudo, produtosPorCodigo, lojasPorCodigo);
+    },
+  );
+}
 
-const getComparacaoCache = criarCacheArquivo(async () => {
-  const [conteudo, { produtosPorCodigo, lojasPorCodigo }] = await Promise.all([
-    lerConteudo(ARQUIVOS_DESEMPENHO_COMERCIAL.comparacao),
-    indices(),
-  ]);
-  return normalizarPeriodo(conteudo, produtosPorCodigo, lojasPorCodigo);
-}, ARQUIVOS_DESEMPENHO_COMERCIAL.comparacao);
+const getAtualCache = criarCachePeriodo(ARQUIVOS_DESEMPENHO_COMERCIAL.atual);
+const getComparacaoCache = criarCachePeriodo(ARQUIVOS_DESEMPENHO_COMERCIAL.comparacao);
 
 /** Lê os arquivos direto do disco — usado em desenvolvimento local (DESEMPENHO_COMERCIAL_DATA_DIR). */
 export function createFileDataProvider(): DataProvider {
