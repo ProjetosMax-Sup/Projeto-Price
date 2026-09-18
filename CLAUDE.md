@@ -105,12 +105,10 @@ Ficam em `05 - Bases` (irmã da pasta deste projeto, `06 - Projetos`), com exten
 | `bdCadastro.txt` | Cadastro de produtos: hierarquia mercadológica + comprador (~130 colunas no total, só usamos ~7) |
 | `bdLojas.txt` | As 11 lojas: nome, formato (Varejo/Atacado) |
 
-✅ **Resolvido**: `bdDesempenhoComercialAtual.txt` foi reexportado incluindo
-`Unidade Código`/`Unidade Nome` — o painel "Lojas" já funciona pro período atual.
-
-✅ **Resolvido**: `bdDesempenhoComercialComparação.txt` também passou a vir com
-coluna `Data` (grão diário, igual ao Atual) — os dois períodos (Atual e
-Comparação) são calculados automaticamente a partir do min/máx de `Data` do
+`bdDesempenhoComercialAtual.txt` inclui `Unidade Código`/`Unidade Nome`, então
+o painel "Lojas" funciona também pro período atual. Os dois arquivos de
+movimento (Atual e Comparação) têm coluna `Data` (grão diário) — os dois
+períodos são calculados automaticamente a partir do min/máx de `Data` do
 respectivo arquivo (`lib/desempenho/periodo.ts`, `calcularLabelPeriodo`, usada
 pros dois). Não precisa (nem tem como, no momento) configurar manualmente —
 sempre pega a primeira e a última data de cada arquivo.
@@ -275,14 +273,11 @@ barra de título do site, os painéis internos também carregam a cor da marca.
 Linha de subtotal em `azul/10` com números em `azul` negrito; linha
 selecionada (produto/loja) em `vermelho/10`; zebra sutil nas linhas pares.
 
-## Padrões de UX validados no mockup (módulo Desempenho Comercial)
+## Padrões de UX (módulo Desempenho Comercial)
 
-O protótipo interativo foi validado em:
-https://claude.ai/artifact/HqygHGp2du7aMt62x8xjam
-(useR como referência visual e de interação — screenshots ou re-implementação, já
-que o Claude Code não acessa esse link diretamente)
-
-Elementos a replicar:
+Validados a partir de um protótipo interativo inicial
+(https://claude.ai/artifact/HqygHGp2du7aMt62x8xjam) e refinados depois durante
+a implementação real. Lista abaixo reflete o comportamento atual:
 
 1. **KPI cards reativos ao filtro** — Venda, Lucro, %Lucro sempre refletem o recorte
    ativo (categoria × loja × produto selecionados), não um total fixo da empresa.
@@ -319,7 +314,10 @@ Elementos a replicar:
      Part. (participação no total geral). Definidas em
      `lib/desempenho/colunas-tabela.ts` (única fonte, os dois painéis
      reutilizam) — inclui largura fixa por coluna (`table-fixed`, cabeçalho
-     quebra em vez de alargar a coluna, valores não quebram).
+     quebra em vez de alargar a coluna, valores não quebram). P.P Desv. Lucro
+     é diferença entre dois percentuais (pontos percentuais) — mostrado com
+     sufixo "pp", não "%", pra não confundir com uma variação relativa
+     (`components/ui/Semaforo.tsx`).
    - **Colunas clicáveis pra ordenar** — clique alterna asc/desc. Ordenação
      padrão (sem coluna escolhida) da 1ª coluna: por código em todos os
      níveis de Estrutura, exceto Produto, que ordena por nome/descrição
@@ -330,6 +328,18 @@ Elementos a replicar:
      tabela pra o lado, o nome do Departamento/Produto/Loja nunca some de
      vista. Usa cores sólidas (não translúcidas) nessa coluna pra não
      "vazar" as colunas que passam por trás dela ao rolar.
+   - **Cabeçalho da tabela travado ao rolar** — títulos das colunas ficam
+     fixos verticalmente dentro do próprio container com scroll
+     (`overflow-auto` com altura limitada, `max-h-[65vh]`), via
+     `position: sticky` em cada `<th>` (não no `<thead>` — suporte
+     inconsistente entre navegadores). Bloco de Filtros+KPIs no topo da
+     página também é fixo (`sticky`), mas só enquanto Barra de Status e Top
+     Altas/Quedas ainda estão passando pela tela — solta e rola pra fora
+     assim que a 1ª tabela (Estrutura) chega, abrindo espaço pro cabeçalho
+     dela (mecanismo puramente CSS: os três elementos compartilham um
+     wrapper que termina logo antes das tabelas). Ver
+     `components/desempenho/DesempenhoDashboard.tsx`, `EstruturaPanel.tsx`,
+     `LojasPanel.tsx` e `ThOrdenavel.tsx`.
    - **Valores de Comparação marcados visualmente** (itálico + fundo
      ligeiramente sombreado) em todas as colunas "…Comparação", pra não
      confundir com os valores do período Atual ao ler a tabela
@@ -350,12 +360,12 @@ Elementos a replicar:
 6. **Ordenação em modo Tabela por código** (`003 - Bazar`, `002 - Vila Mutirão`)
    por padrão — ver "Colunas clicáveis pra ordenar" acima. Modo Ranking continua
    ordenado por valor (maior → menor).
-7. **Exportar Excel / PDF** — botões no header (funcionalidade real a implementar).
+7. **Exportar Excel / PDF** — botões no header (implementado, ver seção "Exportação" abaixo).
 8. Filtros no topo: Loja, Formato (Varejo/Atacado) e Comprador são todos
    **multi-seleção**. Período Atual e Período de Comparação mostrados como
    texto estático (não clicável, sem seletor), sempre calculados a partir do
    min/máx de `Data` do respectivo arquivo — nunca configurados manualmente
-   (ver "Assimetria" — resolvida — em Fonte de dados). Mesmo formato fixo
+   (ver "Fonte de dados" acima). Mesmo formato fixo
    pros dois: "DD a DD/MMM AAAA Atual"/"... Comparação"
    (`lib/desempenho/format.ts`, `formatPeriodo`; `lib/desempenho/periodo.ts`,
    `calcularLabelPeriodo`).
@@ -365,44 +375,15 @@ Elementos a replicar:
     (SKU) dos produtos descartados por hierarquia incompleta (ver "Regra de
     negócio: qualidade de cadastro").
 
-## Estrutura de pastas sugerida
+## Estrutura de pastas
 
-```
-/app
-  /desempenho-comercial
-  /api/desempenho-comercial  (route.ts — filtra/agrega no servidor, chamado pelo cliente)
-  /api/auth/onedrive         (login/callback — autorização única com a Microsoft)
-  /api/login                 (proteção por senha)
-  /login                     (tela de senha)
-  /entradas-saidas        (placeholder)
-  /compra-venda           (placeholder)
-  /perdas-quebras         (placeholder)
-  /raio-x-fornecedor      (placeholder)
-/lib
-  /data-providers
-    parse-tabela.ts             (parser TXT puro — só string in, objetos out)
-    normalizar-desempenho.ts    (normalização + joins, também puro)
-    file-provider.ts            (lê do disco local + cache por mtime — dev)
-    onedrive-provider.ts        (lê do OneDrive via Graph API + cache por eTag — produção)
-    mock-provider.ts            (dataset de exemplo, fallback sem nenhuma fonte configurada)
-    api-provider.ts             (placeholder para o futuro ERP)
-  /onedrive
-    auth.ts               (troca/renovação de token)
-    graph.ts               (leitura de arquivo/versão via Microsoft Graph)
-    token-store.ts          (refresh token no Redis/Upstash)
-  /desempenho
-    aggregate.ts           (agregação por loja/estrutura)
-    consulta.ts             (filtros + orquestração — roda no servidor)
-    export.ts               (Excel/PDF)
-  /types
-/components
-  /charts
-  /ui                     (design system compartilhado)
-/config
-  data-sources.ts         (caminhos via env var, nomes de arquivo esperados)
-  onedrive.ts             (credenciais/config do app Microsoft)
-/proxy.ts                 (proteção por senha — SITE_PASSWORD)
-```
+Visão geral em [README.md](./README.md#estrutura). Resumo: `/app` (páginas,
+uma por módulo, + rotas de API), `/lib/data-providers` (implementações de
+`DataProvider` — file/OneDrive/mock/api-futuro — e o parser puro dos TXT),
+`/lib/desempenho` (regras de negócio do módulo: agregação, consulta, export,
+compradores, período), `/lib/onedrive` (integração Graph API),
+`/components/desempenho` (UI específica do módulo), `/components/ui` (design
+system compartilhado), `/config` (caminhos/credenciais via env var).
 
 ## Em aberto / a validar com o usuário
 
