@@ -82,12 +82,11 @@ function PeriodoComparacaoPill({
     <button
       type="button"
       onClick={() => setEditando(true)}
-      title="Este período não vem com data no arquivo — defina manualmente de quanto até quando ele vai"
-      className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 hover:border-zinc-400"
+      title="Este período não vem com data no arquivo — clique para definir manualmente de quanto até quando ele vai"
+      className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700"
     >
       <span className="font-medium text-zinc-800">{label ?? "definir…"}</span>
       <span className="text-zinc-500"> Comparação</span>
-      <span className="ml-1 text-zinc-400">▾</span>
     </button>
   );
 }

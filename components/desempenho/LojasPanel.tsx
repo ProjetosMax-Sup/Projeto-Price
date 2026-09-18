@@ -1,59 +1,25 @@
 "use client";
 
 import { useState, type MouseEvent } from "react";
-import { Semaforo } from "@/components/ui/Semaforo";
+import { CelulaMetrica } from "@/components/desempenho/CelulaMetrica";
+import { ThOrdenavel } from "@/components/desempenho/ThOrdenavel";
 import { agregarMetricas, type LojaAgregada } from "@/lib/desempenho/aggregate";
-import { calcDesvio, formatMoeda, formatPercent } from "@/lib/desempenho/format";
+import { COLUNAS_METRICAS, valorColunaMetrica, type ColunaMetrica } from "@/lib/desempenho/colunas-tabela";
+import { formatPercent } from "@/lib/desempenho/format";
 
-type Coluna = "nome" | "vAtual" | "dVenda" | "part";
-
-function valorColuna(linha: LojaAgregada, coluna: Coluna): string | number {
-  switch (coluna) {
-    case "nome":
-      return linha.loja.nomeLoja;
-    case "vAtual":
-    case "part":
-      return linha.atual.venda;
-    case "dVenda":
-      return linha.desvioVenda ?? -Infinity;
-  }
-}
+type Coluna = "nome" | ColunaMetrica;
 
 function ordenar(linhas: LojaAgregada[], ordenacao: { coluna: Coluna; dir: 1 | -1 } | null): LojaAgregada[] {
   if (!ordenacao) return [...linhas].sort((a, b) => a.loja.codUnid.localeCompare(b.loja.codUnid));
   const { coluna, dir } = ordenacao;
   return [...linhas].sort((a, b) => {
-    const va = valorColuna(a, coluna);
-    const vb = valorColuna(b, coluna);
-    if (typeof va === "string" || typeof vb === "string") {
-      return dir * String(va).localeCompare(String(vb), "pt-BR");
+    if (coluna === "nome") {
+      return dir * a.loja.nomeLoja.localeCompare(b.loja.nomeLoja, "pt-BR");
     }
+    const va = valorColunaMetrica(a.atual, a.comparacao, coluna) ?? -Infinity;
+    const vb = valorColunaMetrica(b.atual, b.comparacao, coluna) ?? -Infinity;
     return dir * (va - vb);
   });
-}
-
-function ThOrdenavel({
-  coluna,
-  ordenacao,
-  onClick,
-  className,
-  children,
-}: {
-  coluna: Coluna;
-  ordenacao: { coluna: Coluna; dir: 1 | -1 } | null;
-  onClick: (coluna: Coluna) => void;
-  className: string;
-  children: React.ReactNode;
-}) {
-  const ativo = ordenacao?.coluna === coluna;
-  return (
-    <th className={className}>
-      <button type="button" onClick={() => onClick(coluna)} className="inline-flex items-center gap-0.5 hover:text-zinc-800">
-        {children}
-        <span className="text-[9px] text-zinc-400">{ativo ? (ordenacao!.dir === 1 ? "▲" : "▼") : "⇅"}</span>
-      </button>
-    </th>
-  );
 }
 
 export function LojasPanel({
@@ -79,7 +45,6 @@ export function LojasPanel({
   const subtotalAtual = agregarMetricas(linhas.map((l) => l.atual));
   const linhasComComparacao = linhas.filter((l): l is LojaAgregada & { comparacao: NonNullable<LojaAgregada["comparacao"]> } => l.comparacao !== null);
   const subtotalComparacao = linhasComComparacao.length > 0 ? agregarMetricas(linhasComComparacao.map((l) => l.comparacao)) : null;
-  const subtotalDesvioVenda = subtotalComparacao ? calcDesvio(subtotalAtual.venda, subtotalComparacao.venda) : null;
 
   return (
     <div className="flex flex-1 flex-col rounded-lg border border-zinc-200 bg-white">
@@ -93,21 +58,33 @@ export function LojasPanel({
         <table className="w-full text-sm">
           <thead className="sticky top-0 bg-zinc-50 text-left text-[11px] font-medium tracking-wide text-zinc-500 uppercase">
             <tr>
-              <ThOrdenavel coluna="nome" ordenacao={ordenacao} onClick={aoClicarColuna} className="px-4 py-2 font-medium">
+              <ThOrdenavel<Coluna> coluna="nome" ordenacao={ordenacao} onClick={aoClicarColuna} className="px-4 py-2 font-medium">
                 Loja
               </ThOrdenavel>
-              <ThOrdenavel coluna="vAtual" ordenacao={ordenacao} onClick={aoClicarColuna} className="px-3 py-2 text-right font-medium">
-                V. Atual
-              </ThOrdenavel>
-              <ThOrdenavel coluna="dVenda" ordenacao={ordenacao} onClick={aoClicarColuna} className="px-3 py-2 text-right font-medium">
-                %D
-              </ThOrdenavel>
-              <ThOrdenavel coluna="part" ordenacao={ordenacao} onClick={aoClicarColuna} className="px-4 py-2 text-right font-medium">
-                Part.
-              </ThOrdenavel>
+              {COLUNAS_METRICAS.map((c) => (
+                <ThOrdenavel<Coluna>
+                  key={c.chave}
+                  coluna={c.chave}
+                  ordenacao={ordenacao}
+                  onClick={aoClicarColuna}
+                  className="px-3 py-2 text-right font-medium"
+                >
+                  {c.rotulo}
+                </ThOrdenavel>
+              ))}
+              <th className="px-4 py-2 text-right font-medium">Part.</th>
             </tr>
           </thead>
           <tbody>
+            {ordenadas.length > 0 && (
+              <tr className="border-t-2 border-zinc-200 bg-zinc-50 font-semibold text-zinc-800">
+                <td className="px-4 py-2">Total</td>
+                {COLUNAS_METRICAS.map((c) => (
+                  <CelulaMetrica key={c.chave} atual={subtotalAtual} comparacao={subtotalComparacao} coluna={c.chave} />
+                ))}
+                <td className="px-4 py-2 text-right tabular-nums">100%</td>
+              </tr>
+            )}
             {ordenadas.map((linha) => (
               <tr
                 key={linha.loja.codUnid}
@@ -124,10 +101,9 @@ export function LojasPanel({
                     {linha.loja.formato}
                   </span>
                 </td>
-                <td className="px-3 py-2 text-right tabular-nums text-zinc-700">{formatMoeda(linha.atual.venda)}</td>
-                <td className="px-3 py-2 text-right">
-                  <Semaforo valor={linha.desvioVenda} tamanho="sm" />
-                </td>
+                {COLUNAS_METRICAS.map((c) => (
+                  <CelulaMetrica key={c.chave} atual={linha.atual} comparacao={linha.comparacao} coluna={c.chave} />
+                ))}
                 <td className="px-4 py-2 text-right tabular-nums text-zinc-500">
                   {formatPercent(totalVenda !== 0 ? (linha.atual.venda / totalVenda) * 100 : 0, 1)}
                 </td>
@@ -135,24 +111,12 @@ export function LojasPanel({
             ))}
             {ordenadas.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-zinc-400">
+                <td colSpan={COLUNAS_METRICAS.length + 2} className="px-4 py-8 text-center text-zinc-400">
                   Nenhum dado para o recorte selecionado.
                 </td>
               </tr>
             )}
           </tbody>
-          {ordenadas.length > 0 && (
-            <tfoot>
-              <tr className="border-t-2 border-zinc-200 bg-zinc-50 font-semibold text-zinc-800">
-                <td className="px-4 py-2">Total</td>
-                <td className="px-3 py-2 text-right tabular-nums">{formatMoeda(subtotalAtual.venda)}</td>
-                <td className="px-3 py-2 text-right">
-                  <Semaforo valor={subtotalDesvioVenda} tamanho="sm" />
-                </td>
-                <td className="px-4 py-2 text-right tabular-nums">100%</td>
-              </tr>
-            </tfoot>
-          )}
         </table>
       </div>
     </div>

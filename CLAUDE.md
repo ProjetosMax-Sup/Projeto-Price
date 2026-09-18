@@ -286,7 +286,8 @@ Elementos a replicar:
 2. **Duas tabelas que se filtram mutuamente**: Estrutura Mercadológica (com
    drill-down completo Departamento → Seção → Categoria → Grupo → Sub Grupo →
    **Produto**, via breadcrumb clicável pra voltar a qualquer nível) e Lojas,
-   lado a lado.
+   **empilhadas** (Lojas abaixo de Estrutura, não lado a lado — as duas
+   ocupam a largura toda pra caber o conjunto grande de colunas abaixo).
    - Produto (folha do drill-down) é rotulado no padrão "Código - Descrição -
      Complemento" e agrupado por SKU (não faz parte da Hierarquia de Grupos).
    - Clicar numa linha de Departamento/Seção/Categoria/Grupo/Sub Grupo desce um
@@ -302,13 +303,22 @@ Elementos a replicar:
    - Cliques nas tabelas (e no breadcrumb) ficam bloqueados enquanto uma busca
      está em andamento (`pointer-events-none`) — evita que um clique numa
      tabela desatualizada empurre um nó errado/duplicado pro breadcrumb.
-   - **Subtotal** no rodapé de cada tabela (Estrutura e Lojas), somando as
-     linhas visíveis (V./L. Atual e Comparação, %Desvio do total, Part. 100%).
-   - **Colunas clicáveis pra ordenar** (nome/código, V. Atual, V. Comp., %D,
-     L. Atual, L. Comp., %D, Part.) — clique alterna asc/desc. Ordenação
-     padrão (sem coluna escolhida): por código em todos os níveis, exceto
-     Produto, que ordena por nome (alfabético — código de SKU não é uma
-     sequência significativa).
+   - **Subtotal como primeira linha** de cada tabela (Estrutura e Lojas, não no
+     rodapé), somando as linhas visíveis.
+   - **Conjunto rico de colunas** (mesmo em Estrutura e em Lojas — layout
+     inspirado numa planilha de referência do usuário): R$ Valor/Lucro Total
+     Atual e Comparação, %Desv. Valor/Lucro, %Lucro Total Atual/Comparação,
+     P.P Desv. Lucro, %Part. Of (participação da Oferta no Valor) Atual/
+     Comparação, %Lucro Of Atual/Comparação, %Lucro Regular Atual/Comparação,
+     Part. (participação no total geral). Definidas em
+     `lib/desempenho/colunas-tabela.ts` (única fonte, os dois painéis
+     reutilizam).
+   - **Colunas clicáveis pra ordenar** — clique alterna asc/desc. Ordenação
+     padrão (sem coluna escolhida) da 1ª coluna: por código em todos os
+     níveis de Estrutura, exceto Produto, que ordena por nome/descrição
+     (código de SKU não é uma sequência significativa); Lojas ordena por
+     código da loja. Clicar explicitamente na 1ª coluna segue a mesma regra
+     (código vs. nome conforme o nível).
 3. **Toggle Tabela ↔ Ranking** no painel de Estrutura — Tabela é a visão detalhada
    com todas as colunas; Ranking é barras horizontais ordenadas por valor, mais
    rápidas de escanear.
@@ -325,8 +335,10 @@ Elementos a replicar:
 7. **Exportar Excel / PDF** — botões no header (funcionalidade real a implementar).
 8. Filtros no topo: Loja, Formato (Varejo/Atacado) e Comprador são todos
    **multi-seleção**. Período Atual (fixo, calculado do arquivo) e Período de
-   Comparação (editável, dois seletores de data) mostrados no formato "DD a
-   DD/MMM Atual"/"... Comparação" (`lib/desempenho/format.ts`, `formatPeriodo`).
+   Comparação (editável, dois seletores de data ao clicar) mostrados no mesmo
+   estilo visual — só texto, sem indicação de "selecionável" — no formato
+   "DD a DD/MMM Atual"/"... Comparação" (`lib/desempenho/format.ts`,
+   `formatPeriodo`).
 9. Navegação entre os 5 módulos como abas no header (mesmo estando só o primeiro
    implementado).
 10. **Badge de cadastro pendente é clicável** — baixa um `.txt` com os códigos

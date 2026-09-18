@@ -2,51 +2,32 @@
 
 import { useState } from "react";
 import { RankingBar } from "@/components/charts/RankingBar";
-import { Semaforo } from "@/components/ui/Semaforo";
+import { CelulaMetrica } from "@/components/desempenho/CelulaMetrica";
+import { ThOrdenavel } from "@/components/desempenho/ThOrdenavel";
 import { agregarMetricas, labelNivel, type EstruturaAgregada, type NivelEstrutura, type NoSelecionado } from "@/lib/desempenho/aggregate";
-import { calcDesvio, formatMoeda, formatPercent } from "@/lib/desempenho/format";
+import { COLUNAS_METRICAS, valorColunaMetrica, type ColunaMetrica } from "@/lib/desempenho/colunas-tabela";
+import { formatPercent } from "@/lib/desempenho/format";
 
-type Coluna = "nome" | "vAtual" | "vComp" | "dVenda" | "lAtual" | "lComp" | "dLucro" | "part";
+type Coluna = "nome" | ColunaMetrica;
+
+/** Chave de ordenação da 1ª coluna: código pra todo mundo, exceto Produto (SKU não é sequência
+ * significativa) — aí ordena pela descrição. */
+function chaveNome(linha: EstruturaAgregada, nivel: NivelEstrutura): string {
+  if (nivel === "produto") return linha.nome;
+  return linha.codigo ?? linha.nome;
+}
 
 function ordenarPadrao(linhas: EstruturaAgregada[], nivel: NivelEstrutura): EstruturaAgregada[] {
-  // Produto ordena por nome (alfabético) por padrão — código de produto (SKU)
-  // não é uma sequência significativa, diferente do código de Departamento/Seção/etc.
-  if (nivel === "produto") {
-    return [...linhas].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
-  }
-  return [...linhas].sort((a, b) => {
-    if (a.codigo && b.codigo) return a.codigo.localeCompare(b.codigo);
-    return a.nome.localeCompare(b.nome, "pt-BR");
-  });
+  return [...linhas].sort((a, b) => chaveNome(a, nivel).localeCompare(chaveNome(b, nivel), "pt-BR"));
 }
 
-function valorColuna(linha: EstruturaAgregada, coluna: Coluna): string | number {
-  switch (coluna) {
-    case "nome":
-      return linha.nome;
-    case "vAtual":
-    case "part":
-      return linha.atual.venda;
-    case "vComp":
-      return linha.comparacao?.venda ?? -Infinity;
-    case "dVenda":
-      return linha.desvioVenda ?? -Infinity;
-    case "lAtual":
-      return linha.atual.lucro;
-    case "lComp":
-      return linha.comparacao?.lucro ?? -Infinity;
-    case "dLucro":
-      return linha.desvioLucro ?? -Infinity;
-  }
-}
-
-function ordenarPor(linhas: EstruturaAgregada[], coluna: Coluna, dir: 1 | -1): EstruturaAgregada[] {
+function ordenarPor(linhas: EstruturaAgregada[], nivel: NivelEstrutura, coluna: Coluna, dir: 1 | -1): EstruturaAgregada[] {
   return [...linhas].sort((a, b) => {
-    const va = valorColuna(a, coluna);
-    const vb = valorColuna(b, coluna);
-    if (typeof va === "string" || typeof vb === "string") {
-      return dir * String(va).localeCompare(String(vb), "pt-BR");
+    if (coluna === "nome") {
+      return dir * chaveNome(a, nivel).localeCompare(chaveNome(b, nivel), "pt-BR");
     }
+    const va = valorColunaMetrica(a.atual, a.comparacao, coluna) ?? -Infinity;
+    const vb = valorColunaMetrica(b.atual, b.comparacao, coluna) ?? -Infinity;
     return dir * (va - vb);
   });
 }
@@ -63,30 +44,6 @@ const TITULO_NIVEL: Record<NivelEstrutura, string> = {
   subGrupo: "Sub Grupos",
   produto: "Produtos",
 };
-
-function ThOrdenavel({
-  coluna,
-  ordenacao,
-  onClick,
-  className,
-  children,
-}: {
-  coluna: Coluna;
-  ordenacao: { coluna: Coluna; dir: 1 | -1 } | null;
-  onClick: (coluna: Coluna) => void;
-  className: string;
-  children: React.ReactNode;
-}) {
-  const ativo = ordenacao?.coluna === coluna;
-  return (
-    <th className={className}>
-      <button type="button" onClick={() => onClick(coluna)} className="inline-flex items-center gap-0.5 hover:text-zinc-800">
-        {children}
-        <span className="text-[9px] text-zinc-400">{ativo ? (ordenacao!.dir === 1 ? "▲" : "▼") : "⇅"}</span>
-      </button>
-    </th>
-  );
-}
 
 export function EstruturaPanel({
   nivel,
@@ -125,7 +82,7 @@ export function EstruturaPanel({
   const ordenadas = modoRanking
     ? ordenarRanking(linhas)
     : ordenacao
-      ? ordenarPor(linhas, ordenacao.coluna, ordenacao.dir)
+      ? ordenarPor(linhas, nivel, ordenacao.coluna, ordenacao.dir)
       : ordenarPadrao(linhas, nivel);
   const valorMax = Math.max(1, ...linhas.map((l) => l.atual.venda));
   const totalVenda = linhas.reduce((soma, l) => soma + l.atual.venda, 0);
@@ -133,8 +90,6 @@ export function EstruturaPanel({
   const subtotalAtual = agregarMetricas(linhas.map((l) => l.atual));
   const linhasComComparacao = linhas.filter((l): l is EstruturaAgregada & { comparacao: NonNullable<EstruturaAgregada["comparacao"]> } => l.comparacao !== null);
   const subtotalComparacao = linhasComComparacao.length > 0 ? agregarMetricas(linhasComComparacao.map((l) => l.comparacao)) : null;
-  const subtotalDesvioVenda = subtotalComparacao ? calcDesvio(subtotalAtual.venda, subtotalComparacao.venda) : null;
-  const subtotalDesvioLucro = subtotalComparacao ? calcDesvio(subtotalAtual.lucro, subtotalComparacao.lucro) : null;
 
   return (
     <div className="flex flex-1 flex-col rounded-lg border border-zinc-200 bg-white">
@@ -199,33 +154,33 @@ export function EstruturaPanel({
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-zinc-50 text-left text-[11px] font-medium tracking-wide text-zinc-500 uppercase">
               <tr>
-                <ThOrdenavel coluna="nome" ordenacao={ordenacao} onClick={aoClicarColuna} className="px-4 py-2 font-medium">
+                <ThOrdenavel<Coluna> coluna="nome" ordenacao={ordenacao} onClick={aoClicarColuna} className="px-4 py-2 font-medium">
                   {labelNivel(nivel)}
                 </ThOrdenavel>
-                <ThOrdenavel coluna="vAtual" ordenacao={ordenacao} onClick={aoClicarColuna} className="px-3 py-2 text-right font-medium">
-                  V. Atual
-                </ThOrdenavel>
-                <ThOrdenavel coluna="vComp" ordenacao={ordenacao} onClick={aoClicarColuna} className="px-3 py-2 text-right font-medium">
-                  V. Comp.
-                </ThOrdenavel>
-                <ThOrdenavel coluna="dVenda" ordenacao={ordenacao} onClick={aoClicarColuna} className="px-3 py-2 text-right font-medium">
-                  %D
-                </ThOrdenavel>
-                <ThOrdenavel coluna="lAtual" ordenacao={ordenacao} onClick={aoClicarColuna} className="px-3 py-2 text-right font-medium">
-                  L. Atual
-                </ThOrdenavel>
-                <ThOrdenavel coluna="lComp" ordenacao={ordenacao} onClick={aoClicarColuna} className="px-3 py-2 text-right font-medium">
-                  L. Comp.
-                </ThOrdenavel>
-                <ThOrdenavel coluna="dLucro" ordenacao={ordenacao} onClick={aoClicarColuna} className="px-3 py-2 text-right font-medium">
-                  %D
-                </ThOrdenavel>
-                <ThOrdenavel coluna="part" ordenacao={ordenacao} onClick={aoClicarColuna} className="px-4 py-2 text-right font-medium">
-                  Part.
-                </ThOrdenavel>
+                {COLUNAS_METRICAS.map((c) => (
+                  <ThOrdenavel<Coluna>
+                    key={c.chave}
+                    coluna={c.chave}
+                    ordenacao={ordenacao}
+                    onClick={aoClicarColuna}
+                    className="px-3 py-2 text-right font-medium"
+                  >
+                    {c.rotulo}
+                  </ThOrdenavel>
+                ))}
+                <th className="px-4 py-2 text-right font-medium">Part.</th>
               </tr>
             </thead>
             <tbody>
+              {ordenadas.length > 0 && (
+                <tr className="border-t-2 border-zinc-200 bg-zinc-50 font-semibold text-zinc-800">
+                  <td className="px-4 py-2">Total</td>
+                  {COLUNAS_METRICAS.map((c) => (
+                    <CelulaMetrica key={c.chave} atual={subtotalAtual} comparacao={subtotalComparacao} coluna={c.chave} />
+                  ))}
+                  <td className="px-4 py-2 text-right tabular-nums">100%</td>
+                </tr>
+              )}
               {ordenadas.map((linha) => (
                 <tr
                   key={linha.chave}
@@ -239,20 +194,9 @@ export function EstruturaPanel({
                     {linha.codigo && <span className="font-normal text-zinc-400">{linha.codigo} - </span>}
                     {linha.nome}
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-zinc-700">{formatMoeda(linha.atual.venda)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-zinc-400">
-                    {linha.comparacao ? formatMoeda(linha.comparacao.venda) : "—"}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <Semaforo valor={linha.desvioVenda} tamanho="sm" />
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-zinc-700">{formatMoeda(linha.atual.lucro)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-zinc-400">
-                    {linha.comparacao ? formatMoeda(linha.comparacao.lucro) : "—"}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <Semaforo valor={linha.desvioLucro} tamanho="sm" />
-                  </td>
+                  {COLUNAS_METRICAS.map((c) => (
+                    <CelulaMetrica key={c.chave} atual={linha.atual} comparacao={linha.comparacao} coluna={c.chave} />
+                  ))}
                   <td className="px-4 py-2 text-right tabular-nums text-zinc-500">
                     {formatPercent(totalVenda !== 0 ? (linha.atual.venda / totalVenda) * 100 : 0, 1)}
                   </td>
@@ -260,34 +204,12 @@ export function EstruturaPanel({
               ))}
               {ordenadas.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-zinc-400">
+                  <td colSpan={COLUNAS_METRICAS.length + 2} className="px-4 py-8 text-center text-zinc-400">
                     Nenhum dado para o recorte selecionado.
                   </td>
                 </tr>
               )}
             </tbody>
-            {ordenadas.length > 0 && (
-              <tfoot>
-                <tr className="border-t-2 border-zinc-200 bg-zinc-50 font-semibold text-zinc-800">
-                  <td className="px-4 py-2">Total</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{formatMoeda(subtotalAtual.venda)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-zinc-500">
-                    {subtotalComparacao ? formatMoeda(subtotalComparacao.venda) : "—"}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <Semaforo valor={subtotalDesvioVenda} tamanho="sm" />
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">{formatMoeda(subtotalAtual.lucro)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-zinc-500">
-                    {subtotalComparacao ? formatMoeda(subtotalComparacao.lucro) : "—"}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <Semaforo valor={subtotalDesvioLucro} tamanho="sm" />
-                  </td>
-                  <td className="px-4 py-2 text-right tabular-nums">100%</td>
-                </tr>
-              </tfoot>
-            )}
           </table>
         </div>
       )}

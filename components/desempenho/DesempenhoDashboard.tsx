@@ -291,9 +291,7 @@ export function DesempenhoDashboard({
         <TopAltasQuedas nivel={nivelTopAltasQuedas} onNivelChange={setNivelTopAltasQuedas} linhas={resultado.linhasTop} />
       </div>
 
-      <div
-        className={`grid grid-cols-1 gap-4 lg:grid-cols-2 transition-opacity ${carregando ? "pointer-events-none opacity-60" : ""}`}
-      >
+      <div className={`flex flex-col gap-4 transition-opacity ${carregando ? "pointer-events-none opacity-60" : ""}`}>
         <EstruturaPanel
           nivel={resultado.estruturaNivel}
           linhas={resultado.linhasEstrutura}
