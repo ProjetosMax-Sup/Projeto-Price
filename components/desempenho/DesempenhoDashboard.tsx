@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from "react";
 import { CadastroIncompletoBadge } from "@/components/desempenho/CadastroIncompletoBadge";
 import { FilterBar } from "@/components/desempenho/FilterBar";
 import { KpiCards } from "@/components/desempenho/KpiCards";
@@ -35,6 +35,9 @@ function formatarDataHora(iso: string | null): string {
   return new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
 }
 
+/** Altura do ModuleNav (components/ui/ModuleNav.tsx) — fixa, não muda com o conteúdo. */
+const ALTURA_MODULE_NAV = 52;
+
 export function DesempenhoDashboard({
   lojas,
   compradores,
@@ -65,6 +68,26 @@ export function DesempenhoDashboard({
   const [exportando, setExportando] = useState<"excel" | "pdf" | null>(null);
   const [atualizandoDados, setAtualizandoDados] = useState(false);
   const [dadosGeradoEm, setDadosGeradoEm] = useState<string | null>(null);
+
+  // Filtros+KPIs ficam grudados (sticky) enquanto Status/Top/tabelas passam
+  // por baixo, soltando só depois da última tabela. Pra o cabeçalho de cada
+  // tabela (Estrutura/Lojas) grudar logo abaixo — sem sobrepor os cards — ele
+  // precisa saber a altura real desse bloco fixo, que varia (filtros
+  // quebrando linha, badge de cadastro pendente aparecendo/sumindo).
+  const cardsFixosRef = useRef<HTMLDivElement>(null);
+  const [alturaCardsFixos, setAlturaCardsFixos] = useState(0);
+
+  useLayoutEffect(() => {
+    const elemento = cardsFixosRef.current;
+    if (!elemento) return;
+    const observer = new ResizeObserver(([entrada]) =>
+      setAlturaCardsFixos(entrada.borderBoxSize[0]?.blockSize ?? entrada.contentRect.height),
+    );
+    observer.observe(elemento);
+    return () => observer.disconnect();
+  }, []);
+
+  const topoTabela = ALTURA_MODULE_NAV + alturaCardsFixos;
 
   const [resultado, setResultado] = useState<ResultadoDesempenho>(resultadoInicial);
   const [carregando, setCarregando] = useState(false);
@@ -257,14 +280,19 @@ export function DesempenhoDashboard({
         </div>
       </div>
 
-      {/* Filtros+KPIs (sticky) some StatusBar e Top Altas/Quedas dentro do MESMO
-          wrapper: um elemento sticky só fica "grudado" enquanto o próprio
-          wrapper que o contém ainda está passando pela tela. Como esse wrapper
-          termina logo depois do Top Altas/Quedas (não inclui as tabelas), o
-          bloco solta e rola pra fora bem na hora em que a 1ª tabela chega —
-          abrindo espaço pro cabeçalho dela (já fixo por conta própria). */}
+      {/* Filtros+KPIs (sticky) some StatusBar, Top Altas/Quedas E as duas
+          tabelas dentro do MESMO wrapper: um elemento sticky só fica
+          "grudado" enquanto o próprio wrapper que o contém ainda está
+          passando pela tela. Como esse wrapper vai até o fim de Lojas, os
+          cards ficam visíveis a rolagem inteira das tabelas, só soltando
+          depois da última linha (não sobra nenhum trecho "sem cards"). O
+          cabeçalho de cada tabela gruda logo abaixo dos cards (não no topo
+          da tela) via o offset medido em alturaCardsFixos. */}
       <div className="flex flex-col gap-4">
-        <div className="sticky top-[52px] z-20 -mx-6 flex flex-col gap-4 border-b border-zinc-200 bg-zinc-50 px-6 pb-3 pt-3">
+        <div
+          ref={cardsFixosRef}
+          className="sticky top-[52px] z-20 -mx-6 flex flex-col gap-4 border-b border-zinc-200 bg-zinc-50 px-6 pb-3 pt-3"
+        >
           <FilterBar
             lojas={lojas}
             compradores={compradores}
@@ -286,20 +314,26 @@ export function DesempenhoDashboard({
         <div className={`transition-opacity ${carregando ? "pointer-events-none opacity-60" : ""}`}>
           <TopAltasQuedas nivel={nivelTopAltasQuedas} onNivelChange={setNivelTopAltasQuedas} linhas={resultado.linhasTop} />
         </div>
-      </div>
 
-      <div className={`flex flex-col gap-4 transition-opacity ${carregando ? "pointer-events-none opacity-60" : ""}`}>
-        <EstruturaPanel
-          nivel={resultado.estruturaNivel}
-          linhas={resultado.linhasEstrutura}
-          caminho={caminhoDrill}
-          produtoSelecionado={produtoSelecionado}
-          modoRanking={modoRanking}
-          onToggleModo={() => setModoRanking((m) => !m)}
-          onClickLinha={aoClicarEstrutura}
-          onVoltarPara={aoVoltarPara}
-        />
-        <LojasPanel linhas={resultado.linhasLojas} selecionadas={lojasSelecionadas} onClickLinha={aoClicarLoja} />
+        <div className={`flex flex-col gap-4 transition-opacity ${carregando ? "pointer-events-none opacity-60" : ""}`}>
+          <EstruturaPanel
+            nivel={resultado.estruturaNivel}
+            linhas={resultado.linhasEstrutura}
+            caminho={caminhoDrill}
+            produtoSelecionado={produtoSelecionado}
+            modoRanking={modoRanking}
+            onToggleModo={() => setModoRanking((m) => !m)}
+            onClickLinha={aoClicarEstrutura}
+            onVoltarPara={aoVoltarPara}
+            topoFixo={topoTabela}
+          />
+          <LojasPanel
+            linhas={resultado.linhasLojas}
+            selecionadas={lojasSelecionadas}
+            onClickLinha={aoClicarLoja}
+            topoFixo={topoTabela}
+          />
+        </div>
       </div>
 
       <p className="pb-2 text-center text-xs text-zinc-400">
