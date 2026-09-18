@@ -30,9 +30,9 @@ export default async function DesempenhoComercialPage() {
   const periodoComparacao = calcularLabelPeriodo(comparacao.registros);
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex min-h-full flex-col">
       <ModuleNav active="desempenho-comercial" />
-      <main className="mx-auto flex w-full max-w-[1800px] flex-1 flex-col overflow-hidden px-6 py-6">
+      <main className="mx-auto w-full max-w-[1800px] flex-1 px-6 py-6">
         <DesempenhoDashboard
           lojas={lojas}
           compradores={compradores}

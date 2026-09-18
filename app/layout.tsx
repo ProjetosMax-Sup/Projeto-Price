@@ -24,7 +24,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="pt-BR"
       className={`${manrope.variable} ${ibmPlexSans.variable} h-full antialiased`}
     >
-      <body className="h-full flex flex-col overflow-hidden bg-zinc-50">{children}</body>
+      <body className="min-h-full flex flex-col bg-zinc-50">{children}</body>
     </html>
   );
 }
