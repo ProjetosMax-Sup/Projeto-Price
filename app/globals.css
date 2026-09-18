@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+
+  /* MAX Supermercados — design tokens (ver CLAUDE.md > Design system) */
+  --color-azul: #004c97; /* primário: header, ações primárias, destaque */
+  --color-vermelho: #e30000; /* marca/alerta: badge, alertas, desvio negativo */
+  --color-verde: #1e9e62; /* semáforo: desvio positivo */
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-azul: var(--color-azul);
+  --color-vermelho: var(--color-vermelho);
+  --color-verde: var(--color-verde);
+  --font-sans: var(--font-plex-sans);
+  --font-display: var(--font-manrope);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-plex-sans), Arial, sans-serif;
+}
