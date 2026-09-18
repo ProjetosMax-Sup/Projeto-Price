@@ -33,10 +33,13 @@ export function LojasPanel({
   linhas,
   selecionadas,
   onClickLinha,
+  topoFixo,
 }: {
   linhas: LojaAgregada[];
   selecionadas: string[];
   onClickLinha: (loja: LojaAgregada, evento: MouseEvent) => void;
+  /** Distância do topo (px) do bloco Filtros+KPIs fixo — o cabeçalho da tabela gruda logo abaixo dele ao rolar. */
+  topoFixo: number;
 }) {
   const [ordenacao, setOrdenacao] = useState<{ coluna: Coluna; dir: 1 | -1 } | null>(null);
 
@@ -61,9 +64,12 @@ export function LojasPanel({
           Clique para selecionar uma loja · Shift+clique para selecionar várias
         </p>
       </div>
-      <div className="max-h-[60vh] flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto">
         <table className="table-fixed text-sm">
-          <thead className="sticky top-0 z-20 bg-azul text-[13px] font-medium tracking-wide text-white/80 uppercase">
+          <thead
+            className="sticky z-[15] bg-azul text-[13px] font-medium tracking-wide text-white/80 uppercase"
+            style={{ top: topoFixo }}
+          >
             <tr>
               <ThOrdenavel<Coluna>
                 coluna="nome"
