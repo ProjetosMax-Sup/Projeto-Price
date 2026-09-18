@@ -47,16 +47,16 @@ export function LojasPanel({
   const subtotalComparacao = linhasComComparacao.length > 0 ? agregarMetricas(linhasComComparacao.map((l) => l.comparacao)) : null;
 
   return (
-    <div className="flex flex-1 flex-col rounded-lg border border-zinc-200 bg-white">
-      <div className="border-b border-zinc-100 px-4 py-3">
-        <h2 className="font-display font-semibold text-zinc-900">Lojas · performance geral</h2>
-        <p className="mt-0.5 text-xs text-zinc-400">
+    <div className="flex flex-1 flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
+      <div className="bg-azul px-4 py-3">
+        <h2 className="font-display font-semibold text-white">Lojas · performance geral</h2>
+        <p className="mt-0.5 text-xs text-white/70">
           Clique para selecionar uma loja · Shift+clique para selecionar várias
         </p>
       </div>
       <div className="flex-1 overflow-auto">
         <table className="w-full text-sm">
-          <thead className="sticky top-0 bg-zinc-50 text-left text-[11px] font-medium tracking-wide text-zinc-500 uppercase">
+          <thead className="sticky top-0 bg-azul text-left text-[11px] font-medium tracking-wide text-white/80 uppercase">
             <tr>
               <ThOrdenavel<Coluna> coluna="nome" ordenacao={ordenacao} onClick={aoClicarColuna} className="px-4 py-2 font-medium">
                 Loja
@@ -77,27 +77,32 @@ export function LojasPanel({
           </thead>
           <tbody>
             {ordenadas.length > 0 && (
-              <tr className="border-t-2 border-zinc-200 bg-zinc-50 font-semibold text-zinc-800">
-                <td className="px-4 py-2">Total</td>
+              <tr className="border-b-2 border-azul/20 bg-azul/10">
+                <td className="px-4 py-2 font-semibold text-azul">Total</td>
                 {COLUNAS_METRICAS.map((c) => (
-                  <CelulaMetrica key={c.chave} atual={subtotalAtual} comparacao={subtotalComparacao} coluna={c.chave} />
+                  <CelulaMetrica key={c.chave} atual={subtotalAtual} comparacao={subtotalComparacao} coluna={c.chave} enfase />
                 ))}
-                <td className="px-4 py-2 text-right tabular-nums">100%</td>
+                <td className="px-4 py-2 text-right font-semibold tabular-nums text-azul">100%</td>
               </tr>
             )}
-            {ordenadas.map((linha) => (
+            {ordenadas.map((linha, i) => (
               <tr
                 key={linha.loja.codUnid}
                 onClick={(evento) => onClickLinha(linha, evento)}
                 className={[
-                  "cursor-pointer border-t border-zinc-100 hover:bg-zinc-50 select-none",
-                  selecionadas.includes(linha.loja.codUnid) ? "bg-azul/5" : "",
+                  "cursor-pointer border-t border-zinc-100 hover:bg-azul/5 select-none",
+                  selecionadas.includes(linha.loja.codUnid) ? "bg-vermelho/10" : i % 2 === 1 ? "bg-zinc-50/70" : "",
                 ].join(" ")}
               >
                 <td className="whitespace-nowrap px-4 py-2 font-medium text-zinc-800">
                   <span className="font-normal text-zinc-400">{linha.loja.codUnid} - </span>
                   {linha.loja.nomeLoja}
-                  <span className="ml-1.5 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500">
+                  <span
+                    className={[
+                      "ml-1.5 rounded px-1.5 py-0.5 text-[10px] font-medium",
+                      linha.loja.formato === "Atacado" ? "bg-vermelho/10 text-vermelho" : "bg-azul/10 text-azul",
+                    ].join(" ")}
+                  >
                     {linha.loja.formato}
                   </span>
                 </td>

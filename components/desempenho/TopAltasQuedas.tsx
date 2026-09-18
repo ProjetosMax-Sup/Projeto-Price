@@ -15,7 +15,7 @@ function rotuloItem(item: EstruturaAgregada): string {
 
 function Linha({ item }: { item: EstruturaAgregada }) {
   return (
-    <div className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
+    <div className="flex items-center justify-between gap-3 px-4 py-2 text-sm hover:bg-azul/5">
       <span className="truncate text-zinc-700">{rotuloItem(item)}</span>
       <Semaforo valor={item.desvioVenda} tamanho="sm" />
     </div>
@@ -39,18 +39,18 @@ export function TopAltasQuedas({
   const quedas = [...emQueda].sort((a, b) => (a.desvioVenda ?? 0) - (b.desvioVenda ?? 0)).slice(0, QTD_LINHAS);
 
   return (
-    <div className="flex flex-col rounded-lg border border-zinc-200 bg-white">
-      <div className="flex items-center justify-between border-b border-zinc-100 px-4 py-3">
-        <h2 className="text-xs font-semibold tracking-wide text-zinc-500 uppercase">
+    <div className="flex flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
+      <div className="flex items-center justify-between bg-azul px-4 py-3">
+        <h2 className="text-xs font-semibold tracking-wide text-white/90 uppercase">
           Top por %Desvio de Venda · {labelNivel(nivel)} (visão geral)
         </h2>
-        <div className="flex overflow-hidden rounded-md border border-zinc-200 text-xs font-medium">
+        <div className="flex overflow-hidden rounded-md border border-white/30 text-xs font-medium">
           {NIVEIS_DISPONIVEIS.map((n) => (
             <button
               key={n}
               type="button"
               onClick={() => onNivelChange(n)}
-              className={`px-2.5 py-1.5 ${n === nivel ? "bg-azul text-white" : "bg-white text-zinc-600 hover:bg-zinc-50"}`}
+              className={`px-2.5 py-1.5 ${n === nivel ? "bg-white text-azul" : "text-white/80 hover:bg-white/10"}`}
             >
               {labelNivel(n)}
             </button>
@@ -59,18 +59,22 @@ export function TopAltasQuedas({
       </div>
 
       <div className="grid grid-cols-1 divide-y divide-zinc-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-        <div>
-          <div className="px-4 pt-3 pb-1 text-xs font-medium text-verde">Top {QTD_LINHAS} Altas</div>
-          <div className="divide-y divide-zinc-50">
+        <div className="bg-verde/[0.03]">
+          <div className="border-b-2 border-verde/20 px-4 pt-3 pb-1 text-xs font-bold tracking-wide text-verde uppercase">
+            Top {QTD_LINHAS} Altas
+          </div>
+          <div className="divide-y divide-zinc-100">
             {altas.map((item) => (
               <Linha key={item.chave} item={item} />
             ))}
             {altas.length === 0 && <div className="px-4 py-4 text-sm text-zinc-400">Sem dados comparáveis.</div>}
           </div>
         </div>
-        <div>
-          <div className="px-4 pt-3 pb-1 text-xs font-medium text-vermelho">Top {QTD_LINHAS} Quedas</div>
-          <div className="divide-y divide-zinc-50">
+        <div className="bg-vermelho/[0.03]">
+          <div className="border-b-2 border-vermelho/20 px-4 pt-3 pb-1 text-xs font-bold tracking-wide text-vermelho uppercase">
+            Top {QTD_LINHAS} Quedas
+          </div>
+          <div className="divide-y divide-zinc-100">
             {quedas.map((item) => (
               <Linha key={item.chave} item={item} />
             ))}

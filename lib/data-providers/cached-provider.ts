@@ -42,13 +42,3 @@ export function createCachedDataProvider(): DataProvider {
     },
   };
 }
-
-/** true quando existe um dataset em cache pronto pra uso (sem tentar carregar tudo). */
-export async function datasetCacheDisponivel(): Promise<boolean> {
-  if (!process.env.REDIS_URL) return false;
-  try {
-    return (await lerVersaoDataset()) !== null;
-  } catch {
-    return false;
-  }
-}

@@ -92,22 +92,22 @@ export function EstruturaPanel({
   const subtotalComparacao = linhasComComparacao.length > 0 ? agregarMetricas(linhasComComparacao.map((l) => l.comparacao)) : null;
 
   return (
-    <div className="flex flex-1 flex-col rounded-lg border border-zinc-200 bg-white">
-      <div className="flex items-center justify-between border-b border-zinc-100 px-4 py-3">
+    <div className="flex flex-1 flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
+      <div className="flex items-center justify-between bg-azul px-4 py-3">
         <div className="text-sm">
-          <h2 className="font-display font-semibold text-zinc-900">{TITULO_NIVEL[nivel]}</h2>
+          <h2 className="font-display font-semibold text-white">{TITULO_NIVEL[nivel]}</h2>
           {caminho.length > 0 && (
-            <div className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-zinc-500">
-              <button type="button" onClick={() => onVoltarPara(-1)} className="text-azul hover:underline">
+            <div className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-white/70">
+              <button type="button" onClick={() => onVoltarPara(-1)} className="text-white hover:underline">
                 {TITULO_NIVEL.departamento}
               </button>
               {caminho.map((no, i) => (
                 <span key={no.chave} className="flex items-center gap-1">
                   <span>{">"}</span>
                   {i === caminho.length - 1 ? (
-                    <span className="text-zinc-700">{no.nome}</span>
+                    <span className="text-white/90">{no.nome}</span>
                   ) : (
-                    <button type="button" onClick={() => onVoltarPara(i)} className="text-azul hover:underline">
+                    <button type="button" onClick={() => onVoltarPara(i)} className="text-white hover:underline">
                       {no.nome}
                     </button>
                   )}
@@ -116,18 +116,18 @@ export function EstruturaPanel({
             </div>
           )}
         </div>
-        <div className="flex overflow-hidden rounded-md border border-zinc-200 text-xs font-medium">
+        <div className="flex overflow-hidden rounded-md border border-white/30 text-xs font-medium">
           <button
             type="button"
             onClick={() => modoRanking && onToggleModo()}
-            className={`px-3 py-1.5 ${!modoRanking ? "bg-azul text-white" : "bg-white text-zinc-600 hover:bg-zinc-50"}`}
+            className={`px-3 py-1.5 ${!modoRanking ? "bg-white text-azul" : "text-white/80 hover:bg-white/10"}`}
           >
             Tabela
           </button>
           <button
             type="button"
             onClick={() => !modoRanking && onToggleModo()}
-            className={`px-3 py-1.5 ${modoRanking ? "bg-azul text-white" : "bg-white text-zinc-600 hover:bg-zinc-50"}`}
+            className={`px-3 py-1.5 ${modoRanking ? "bg-white text-azul" : "text-white/80 hover:bg-white/10"}`}
           >
             Ranking
           </button>
@@ -152,7 +152,7 @@ export function EstruturaPanel({
       ) : (
         <div className="flex-1 overflow-auto">
           <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-zinc-50 text-left text-[11px] font-medium tracking-wide text-zinc-500 uppercase">
+            <thead className="sticky top-0 bg-azul text-left text-[11px] font-medium tracking-wide text-white/80 uppercase">
               <tr>
                 <ThOrdenavel<Coluna> coluna="nome" ordenacao={ordenacao} onClick={aoClicarColuna} className="px-4 py-2 font-medium">
                   {labelNivel(nivel)}
@@ -173,21 +173,25 @@ export function EstruturaPanel({
             </thead>
             <tbody>
               {ordenadas.length > 0 && (
-                <tr className="border-t-2 border-zinc-200 bg-zinc-50 font-semibold text-zinc-800">
-                  <td className="px-4 py-2">Total</td>
+                <tr className="border-b-2 border-azul/20 bg-azul/10">
+                  <td className="px-4 py-2 font-semibold text-azul">Total</td>
                   {COLUNAS_METRICAS.map((c) => (
-                    <CelulaMetrica key={c.chave} atual={subtotalAtual} comparacao={subtotalComparacao} coluna={c.chave} />
+                    <CelulaMetrica key={c.chave} atual={subtotalAtual} comparacao={subtotalComparacao} coluna={c.chave} enfase />
                   ))}
-                  <td className="px-4 py-2 text-right tabular-nums">100%</td>
+                  <td className="px-4 py-2 text-right font-semibold tabular-nums text-azul">100%</td>
                 </tr>
               )}
-              {ordenadas.map((linha) => (
+              {ordenadas.map((linha, i) => (
                 <tr
                   key={linha.chave}
                   onClick={() => onClickLinha(linha)}
                   className={[
-                    "cursor-pointer border-t border-zinc-100 hover:bg-zinc-50",
-                    nivel === "produto" && linha.chave === produtoSelecionado ? "bg-azul/5" : "",
+                    "cursor-pointer border-t border-zinc-100 hover:bg-azul/5",
+                    nivel === "produto" && linha.chave === produtoSelecionado
+                      ? "bg-vermelho/10"
+                      : i % 2 === 1
+                        ? "bg-zinc-50/70"
+                        : "",
                   ].join(" ")}
                 >
                   <td className="whitespace-nowrap px-4 py-2 font-medium text-zinc-800">

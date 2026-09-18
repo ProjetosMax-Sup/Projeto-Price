@@ -63,7 +63,6 @@ export function DesempenhoDashboard({
   const [modoRanking, setModoRanking] = useState(false);
   const [nivelTopAltasQuedas, setNivelTopAltasQuedas] = useState<NivelHierarquia>("secao");
   const [exportando, setExportando] = useState<"excel" | "pdf" | null>(null);
-  const [periodoComparacao, setPeriodoComparacao] = useState(periodoComparacaoInicial);
   const [atualizandoDados, setAtualizandoDados] = useState(false);
   const [dadosGeradoEm, setDadosGeradoEm] = useState<string | null>(null);
 
@@ -189,15 +188,6 @@ export function DesempenhoDashboard({
     }
   }
 
-  async function aoSalvarPeriodoComparacao(label: string) {
-    const resposta = await fetch("/api/periodo-comparacao", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ label }),
-    });
-    if (resposta.ok) setPeriodoComparacao(label);
-  }
-
   async function aoAtualizarDados() {
     setAtualizandoDados(true);
     try {
@@ -274,8 +264,7 @@ export function DesempenhoDashboard({
           filtros={filtros}
           onChange={setFiltros}
           periodoAtual={periodoAtual}
-          periodoComparacao={periodoComparacao}
-          onSalvarPeriodoComparacao={aoSalvarPeriodoComparacao}
+          periodoComparacao={periodoComparacaoInicial}
         />
 
         <KpiCards atual={resultado.kpiAtual} comparacao={resultado.kpiComparacao} />

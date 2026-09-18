@@ -269,6 +269,12 @@ Cores extraídas da logo oficial da MAX:
 Tipografia: **Manrope** (display/headings) + **IBM Plex Sans** (corpo) via Google
 Fonts. Evitar Inter/Roboto/Arial (padrão genérico de IA).
 
+Painéis de tabela (Estrutura Mercadológica, Lojas, Top Altas/Quedas) usam
+cabeçalho sólido `azul` com texto branco (igual ao header do site) — não só a
+barra de título do site, os painéis internos também carregam a cor da marca.
+Linha de subtotal em `azul/10` com números em `azul` negrito; linha
+selecionada (produto/loja) em `vermelho/10`; zebra sutil nas linhas pares.
+
 ## Padrões de UX validados no mockup (módulo Desempenho Comercial)
 
 O protótipo interativo foi validado em:
@@ -324,9 +330,12 @@ Elementos a replicar:
    rápidas de escanear.
 4. **Painel Top Altas/Quedas** com **toggle de nível independente** (Seção /
    Categoria / Grupo) — ranqueia por %Desvio de Venda no nível escolhido, escopado
-   pela loja selecionada (se houver). Rótulo no formato "Departamento - Nome";
-   um item nunca aparece nos dois grupos ao mesmo tempo (quem caiu não entra em
-   Altas, quem subiu não entra em Quedas).
+   pela loja selecionada (se houver) e **preso só ao Departamento** selecionado
+   (1º nó do caminho de drill-down) — continua mostrando a visão daquele
+   departamento mesmo descendo mais fundo (Seção → Categoria → Grupo → Sub
+   Grupo → Produto), não precisa acompanhar o drill-down inteiro. Rótulo no
+   formato "Departamento - Nome"; um item nunca aparece nos dois grupos ao
+   mesmo tempo (quem caiu não entra em Altas, quem subiu não entra em Quedas).
 5. **Semaforização automática**: todo %Desvio (venda e lucro) fica verde
    (positivo) ou vermelho (negativo) — cor + fundo leve, nunca só a cor do texto.
 6. **Ordenação em modo Tabela por código** (`003 - Bazar`, `002 - Vila Mutirão`)
@@ -334,11 +343,14 @@ Elementos a replicar:
    ordenado por valor (maior → menor).
 7. **Exportar Excel / PDF** — botões no header (funcionalidade real a implementar).
 8. Filtros no topo: Loja, Formato (Varejo/Atacado) e Comprador são todos
-   **multi-seleção**. Período Atual (fixo, calculado do arquivo) e Período de
-   Comparação (editável, dois seletores de data ao clicar) mostrados no mesmo
-   estilo visual — só texto, sem indicação de "selecionável" — no formato
-   "DD a DD/MMM Atual"/"... Comparação" (`lib/desempenho/format.ts`,
-   `formatPeriodo`).
+   **multi-seleção**. Período Atual e Período de Comparação mostrados como
+   texto estático (não clicável, sem seletor) no formato "DD a DD/MMM
+   Atual"/"... Comparação" (`lib/desempenho/format.ts`, `formatPeriodo`).
+   Editar a Comparação por enquanto só é possível via
+   `salvarLabelPeriodoComparacao` (`lib/desempenho/periodo.ts`) — chamado
+   pela rota `app/api/periodo-comparacao` (POST), não tem UI de edição no
+   momento (removida a pedido do usuário; a rota continua de pé pra permitir
+   atualizar manualmente).
 9. Navegação entre os 5 módulos como abas no header (mesmo estando só o primeiro
    implementado).
 10. **Badge de cadastro pendente é clicável** — baixa um `.txt` com os códigos

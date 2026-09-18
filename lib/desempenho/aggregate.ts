@@ -73,13 +73,6 @@ export interface Metricas {
   ticketMedio: number;
 }
 
-export interface ComDesvio<T> {
-  atual: T;
-  comparacao: T | null;
-  desvioVenda: number | null;
-  desvioLucro: number | null;
-}
-
 function metricasVazias(): Metricas {
   return {
     venda: 0,

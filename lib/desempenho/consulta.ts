@@ -118,8 +118,15 @@ export function computarDesempenho(
   const lojasComparacaoBase = baseComparacao.filter(filtroEstrutura);
   const linhasLojas = agregarPorLoja(lojasAtualBase, lojasComparacaoBase, lojas);
 
-  // Top Altas/Quedas: segue o recorte completo (filtros + seleção de lojas/estrutura).
-  const linhasTop = agregarPorEstrutura(recorteAtual, recorteComparacao, nivelTopAltasQuedas);
+  // Top Altas/Quedas: fica preso só no Departamento selecionado (1º nó do
+  // caminho) + lojas selecionadas — não desce mais que isso junto com o
+  // drill-down de Seção/Categoria/Grupo/Sub Grupo/Produto, pra continuar
+  // mostrando uma visão ampla do departamento mesmo depois de descer mais.
+  const departamentoAtivo = caminhoDrill[0] ?? null;
+  const filtroTop = (r: RegistroDesempenho) =>
+    (lojasSelecionadas.length === 0 || (r.loja && lojasSelecionadas.includes(r.loja.codUnid))) &&
+    (!departamentoAtivo || pertenceAoNo(r, departamentoAtivo));
+  const linhasTop = agregarPorEstrutura(baseAtual.filter(filtroTop), baseComparacao.filter(filtroTop), nivelTopAltasQuedas);
 
   const kpiAtual = somarMetricas(recorteAtual);
   const kpiComparacao = recorteComparacao.length > 0 ? somarMetricas(recorteComparacao) : null;

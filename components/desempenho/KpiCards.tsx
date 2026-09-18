@@ -16,8 +16,8 @@ function KpiCard({
   linhaDetalhe?: string;
 }) {
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white px-5 py-4">
-      <div className="text-xs font-medium tracking-wide text-zinc-500 uppercase">{titulo}</div>
+    <div className="rounded-lg border border-zinc-200 border-t-4 border-t-azul bg-white px-5 py-4 shadow-sm">
+      <div className="text-xs font-bold tracking-wide text-azul uppercase">{titulo}</div>
       <div className="mt-1 flex items-baseline gap-3">
         <span className="font-display text-2xl font-bold tabular-nums text-zinc-900">{valor}</span>
         <Semaforo valor={desvio} />
