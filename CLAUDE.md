@@ -27,51 +27,23 @@ instrução explícita do usuário.**
 
 ## Deploy
 
-Hospedado na **Vercel**. Em produção o app lê os arquivos direto do **OneDrive
-via Microsoft Graph API** (não da pasta local sincronizada — um servidor na
-nuvem não enxerga o disco do computador do usuário). Em desenvolvimento local
-continua lendo da pasta local (`DESEMPENHO_COMERCIAL_DATA_DIR`), sem mudança.
+Hospedado na **Vercel**, repo no GitHub — push na branch `master` publica
+direto em produção (sem branch de staging). Em produção o app lê os arquivos
+direto do **OneDrive via Microsoft Graph API** (não da pasta local — um
+servidor na nuvem não enxerga o disco do usuário); em dev local continua
+lendo da pasta local (`DESEMPENHO_COMERCIAL_DATA_DIR`).
 
-`lib/data-providers/index.ts` escolhe automaticamente, nessa ordem: dataset em
-cache no Redis (produção, ver "Atualização agendada" abaixo, com fallback pro
-OneDrive direto se o cache ainda não existir) → OneDrive direto (Graph API, sem
-Redis) → pasta local (`DESEMPENHO_COMERCIAL_DATA_DIR`) → dataset de exemplo (mock).
+Requisições normais (navegar, filtrar, clicar) **nunca tocam o OneDrive
+direto** — lento demais numa função serverless. Um **cron da Vercel roda
+1x/dia às 09:00** (America/Sao_Paulo), busca os 4 arquivos, processa e grava
+num **cache Redis**; o botão "Atualizar dados" no header roda a mesma rotina
+sob demanda. Toda leitura normal só lê esse cache. Ordem de fallback (sem
+Redis configurado, ou fora do ar): OneDrive direto → pasta local → dataset de
+exemplo (arquitetura `DataProvider`, ver "Fonte de dados" abaixo).
 
-### Atualização agendada (evita reprocessar os arquivos a cada clique)
-
-⚠️ Requisições normais (navegar no site, mudar filtro, clicar numa loja) **nunca
-tocam o OneDrive** — isso é lento demais pra rodar a cada interação numa função
-serverless que pode "esfriar" a qualquer momento. Em vez disso:
-
-- Um **Cron da Vercel** (`vercel.json`, `app/api/cron/atualizar-dados`) roda
-  1x/dia às 09:00 (America/Sao_Paulo), busca os 4 arquivos no OneDrive,
-  processa tudo e grava o resultado (já normalizado, em pedaços gzipados) no
-  Redis — ver `lib/desempenho/dataset-cache.ts` e `atualizar-dataset.ts`.
-- O botão "Atualizar dados" no header (`app/api/atualizar-dados`, POST) roda a
-  mesma rotina sob demanda, pra quando não dá pra esperar o cron.
-- Toda leitura normal (`lib/data-providers/cached-provider.ts`) só lê esse
-  cache — rápido e não depende de instância "quente" do servidor.
-- Alterar `CRON_SECRET` (opcional) protege a rota do cron contra chamadas
-  externas — a Vercel manda esse segredo automaticamente quando configurado.
-
-Peças da integração com o OneDrive (conta pessoal — tenant `consumers`):
-- `config/onedrive.ts` — credenciais/config do app Microsoft
-- `lib/onedrive/auth.ts` — troca/renovação de token (refresh token)
-- `lib/onedrive/graph.ts` — leitura de arquivo + versão (eTag) via Graph API
-- `lib/onedrive/token-store.ts` — refresh token persistido num Redis (integração
-  "Upstash"/KV do marketplace da Vercel), porque instâncias serverless não têm
-  disco persistente
-- `app/api/auth/onedrive/login` e `.../callback` — fluxo de autorização,
-  **feito manualmente uma única vez** por quem tem a conta Microsoft (ver
-  checklist no README.md); depois disso o refresh token renova sozinho
-
-`lib/data-providers/parse-tabela.ts` e `normalizar-desempenho.ts` contêm a
-lógica de parsing pura (compartilhada entre `file-provider.ts` e
-`onedrive-provider.ts`) — qualquer ajuste no formato dos arquivos deve mudar
-só ali, nunca duplicar entre os dois providers.
-
-Checklist completo dos passos manuais (registro do app na Microsoft, criação
-do projeto na Vercel, Redis, variáveis de ambiente) está no README.md.
+Checklist completo dos passos manuais (registro do app na Microsoft, projeto
+na Vercel, Redis, variáveis de ambiente, conexão inicial com o OneDrive) está
+no README.md.
 
 ## Fonte de dados (fase atual: arquivos)
 
@@ -275,9 +247,7 @@ selecionada (produto/loja) em `vermelho/10`; zebra sutil nas linhas pares.
 
 ## Padrões de UX (módulo Desempenho Comercial)
 
-Validados a partir de um protótipo interativo inicial
-(https://claude.ai/artifact/HqygHGp2du7aMt62x8xjam) e refinados depois durante
-a implementação real. Lista abaixo reflete o comportamento atual:
+Referência de comportamento pra manter consistência nos próximos módulos:
 
 1. **KPI cards reativos ao filtro** — Venda, Lucro, %Lucro sempre refletem o recorte
    ativo (categoria × loja × produto selecionados), não um total fixo da empresa.
@@ -302,8 +272,8 @@ a implementação real. Lista abaixo reflete o comportamento atual:
      daquela loja (clique de novo para desmarcar).
    - Barra de status mostrando o recorte ativo + botão "Limpar seleção".
    - Cliques nas tabelas (e no breadcrumb) ficam bloqueados enquanto uma busca
-     está em andamento (`pointer-events-none`) — evita que um clique numa
-     tabela desatualizada empurre um nó errado/duplicado pro breadcrumb.
+     está em andamento — evita que um clique numa tabela desatualizada empurre
+     um nó errado/duplicado pro breadcrumb.
    - **Subtotal como primeira linha** de cada tabela (Estrutura e Lojas, não no
      rodapé), somando as linhas visíveis.
    - **Conjunto rico de colunas** (mesmo em Estrutura e em Lojas — layout
@@ -311,39 +281,25 @@ a implementação real. Lista abaixo reflete o comportamento atual:
      Atual e Comparação, %Desv. Valor/Lucro, %Lucro Total Atual/Comparação,
      P.P Desv. Lucro, %Part. Of (participação da Oferta no Valor) Atual/
      Comparação, %Lucro Of Atual/Comparação, %Lucro Regular Atual/Comparação,
-     Part. (participação no total geral). Definidas em
-     `lib/desempenho/colunas-tabela.ts` (única fonte, os dois painéis
-     reutilizam) — inclui largura fixa por coluna (`table-fixed`, cabeçalho
-     quebra em vez de alargar a coluna, valores não quebram). P.P Desv. Lucro
-     é diferença entre dois percentuais (pontos percentuais) — mostrado com
-     sufixo "pp", não "%", pra não confundir com uma variação relativa
-     (`components/ui/Semaforo.tsx`).
+     Part. (participação no total geral) — mesmo conjunto nos dois painéis,
+     largura fixa por coluna (cabeçalho quebra em vez de alargar). P.P Desv.
+     Lucro é diferença entre dois percentuais (pontos percentuais) — mostrado
+     com sufixo "pp", não "%", pra não confundir com uma variação relativa.
    - **Colunas clicáveis pra ordenar** — clique alterna asc/desc. Ordenação
      padrão (sem coluna escolhida) da 1ª coluna: por código em todos os
      níveis de Estrutura, exceto Produto, que ordena por nome/descrição
      (código de SKU não é uma sequência significativa); Lojas ordena por
      código da loja. Clicar explicitamente na 1ª coluna segue a mesma regra
      (código vs. nome conforme o nível).
-   - **1ª coluna fixa** (`sticky left-0`) em ambas as tabelas — rolando a
-     tabela pra o lado, o nome do Departamento/Produto/Loja nunca some de
-     vista. Usa cores sólidas (não translúcidas) nessa coluna pra não
-     "vazar" as colunas que passam por trás dela ao rolar.
+   - **1ª coluna fixa** em ambas as tabelas — rolando a tabela pra o lado, o
+     nome do Departamento/Produto/Loja nunca some de vista.
    - **Cabeçalho da tabela travado ao rolar** — títulos das colunas ficam
-     fixos verticalmente dentro do próprio container com scroll
-     (`overflow-auto` com altura limitada, `max-h-[65vh]`), via
-     `position: sticky` em cada `<th>` (não no `<thead>` — suporte
-     inconsistente entre navegadores). Bloco de Filtros+KPIs no topo da
-     página também é fixo (`sticky`), mas só enquanto Barra de Status e Top
-     Altas/Quedas ainda estão passando pela tela — solta e rola pra fora
-     assim que a 1ª tabela (Estrutura) chega, abrindo espaço pro cabeçalho
-     dela (mecanismo puramente CSS: os três elementos compartilham um
-     wrapper que termina logo antes das tabelas). Ver
-     `components/desempenho/DesempenhoDashboard.tsx`, `EstruturaPanel.tsx`,
-     `LojasPanel.tsx` e `ThOrdenavel.tsx`.
+     fixos no topo do próprio container da tabela. Bloco de Filtros+KPIs no
+     topo da página também fica fixo, soltando só quando a 1ª tabela
+     (Estrutura) chega, pra abrir espaço pro cabeçalho dela.
    - **Valores de Comparação marcados visualmente** (itálico + fundo
      ligeiramente sombreado) em todas as colunas "…Comparação", pra não
-     confundir com os valores do período Atual ao ler a tabela
-     (`components/desempenho/CelulaMetrica.tsx`).
+     confundir com os valores do período Atual ao ler a tabela.
 3. **Toggle Tabela ↔ Ranking** no painel de Estrutura — Tabela é a visão detalhada
    com todas as colunas; Ranking é barras horizontais ordenadas por valor, mais
    rápidas de escanear.
@@ -365,25 +321,13 @@ a implementação real. Lista abaixo reflete o comportamento atual:
    **multi-seleção**. Período Atual e Período de Comparação mostrados como
    texto estático (não clicável, sem seletor), sempre calculados a partir do
    min/máx de `Data` do respectivo arquivo — nunca configurados manualmente
-   (ver "Fonte de dados" acima). Mesmo formato fixo
-   pros dois: "DD a DD/MMM AAAA Atual"/"... Comparação"
-   (`lib/desempenho/format.ts`, `formatPeriodo`; `lib/desempenho/periodo.ts`,
-   `calcularLabelPeriodo`).
+   (ver "Fonte de dados" acima). Formato fixo pros dois: "DD a DD/MMM AAAA
+   Atual"/"... Comparação".
 9. Navegação entre os 5 módulos como abas no header (mesmo estando só o primeiro
    implementado).
 10. **Badge de cadastro pendente é clicável** — baixa um `.txt` com os códigos
     (SKU) dos produtos descartados por hierarquia incompleta (ver "Regra de
     negócio: qualidade de cadastro").
-
-## Estrutura de pastas
-
-Visão geral em [README.md](./README.md#estrutura). Resumo: `/app` (páginas,
-uma por módulo, + rotas de API), `/lib/data-providers` (implementações de
-`DataProvider` — file/OneDrive/mock/api-futuro — e o parser puro dos TXT),
-`/lib/desempenho` (regras de negócio do módulo: agregação, consulta, export,
-compradores, período), `/lib/onedrive` (integração Graph API),
-`/components/desempenho` (UI específica do módulo), `/components/ui` (design
-system compartilhado), `/config` (caminhos/credenciais via env var).
 
 ## Em aberto / a validar com o usuário
 
