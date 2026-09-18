@@ -8,7 +8,7 @@ import { EstruturaPanel } from "@/components/desempenho/EstruturaPanel";
 import { LojasPanel } from "@/components/desempenho/LojasPanel";
 import { StatusBar } from "@/components/desempenho/StatusBar";
 import { TopAltasQuedas } from "@/components/desempenho/TopAltasQuedas";
-import type { EstruturaAgregada, LojaAgregada, NivelEstrutura } from "@/lib/desempenho/aggregate";
+import { labelNivel, type EstruturaAgregada, type LojaAgregada, type NivelHierarquia } from "@/lib/desempenho/aggregate";
 import {
   CONSULTA_PADRAO,
   type ConsultaDesempenho,
@@ -44,19 +44,19 @@ export function DesempenhoDashboard({
   periodoComparacaoInicial,
 }: {
   lojas: Loja[];
-  compradores: { codigo: string; nome: string }[];
+  compradores: string[];
   produtosDescartados: number;
   resultadoInicial: ResultadoDesempenho;
   periodoAtual: string;
   periodoComparacaoInicial: string | null;
 }) {
   const [filtros, setFiltros] = useState<Filtros>(CONSULTA_PADRAO.filtros);
-  const [estruturaNivel, setEstruturaNivel] = useState<NivelEstrutura>("departamento");
-  const [departamentoAtivo, setDepartamentoAtivo] = useState<NoSelecionado | null>(null);
-  const [estruturaSelecionada, setEstruturaSelecionada] = useState<NoSelecionado | null>(null);
+  // Breadcrumb do drill-down: Departamento → Seção → Categoria → Grupo → Sub
+  // Grupo → Produto. O nível exibido é sempre o próximo depois do último nó.
+  const [caminhoDrill, setCaminhoDrill] = useState<NoSelecionado[]>([]);
   const [lojasSelecionadas, setLojasSelecionadas] = useState<string[]>([]);
   const [modoRanking, setModoRanking] = useState(false);
-  const [nivelTopAltasQuedas, setNivelTopAltasQuedas] = useState<NivelEstrutura>("secao");
+  const [nivelTopAltasQuedas, setNivelTopAltasQuedas] = useState<NivelHierarquia>("secao");
   const [exportando, setExportando] = useState<"excel" | "pdf" | null>(null);
   const [periodoComparacao, setPeriodoComparacao] = useState(periodoComparacaoInicial);
   const [atualizandoDados, setAtualizandoDados] = useState(false);
@@ -87,9 +87,7 @@ export function DesempenhoDashboard({
     setCarregando(true);
     const consulta: ConsultaDesempenho = {
       filtros,
-      estruturaNivel,
-      departamentoAtivo,
-      estruturaSelecionada,
+      caminhoDrill,
       lojasSelecionadas,
       nivelTopAltasQuedas,
     };
@@ -104,25 +102,17 @@ export function DesempenhoDashboard({
         if (idRequisicaoRef.current === idDaRequisicao) setCarregando(false);
       });
     return () => controller.abort();
-  }, [filtros, estruturaNivel, departamentoAtivo, estruturaSelecionada, lojasSelecionadas, nivelTopAltasQuedas]);
+  }, [filtros, caminhoDrill, lojasSelecionadas, nivelTopAltasQuedas]);
 
   function aoClicarEstrutura(linha: EstruturaAgregada) {
-    if (estruturaNivel === "departamento") {
-      const no: NoSelecionado = { nivel: "departamento", chave: linha.chave, nome: linha.nome };
-      setDepartamentoAtivo(no);
-      setEstruturaNivel("secao");
-      setEstruturaSelecionada(no);
-    } else if (estruturaSelecionada?.chave === linha.chave) {
-      setEstruturaSelecionada(departamentoAtivo);
-    } else {
-      setEstruturaSelecionada({ nivel: "secao", chave: linha.chave, nome: linha.nome });
-    }
+    // Cada clique desce um nível — Produto é a folha e não tem handler chamado
+    // (EstruturaPanel não dispara onClickLinha nesse nível).
+    setCaminhoDrill((atual) => [...atual, { nivel: linha.nivel, chave: linha.chave, nome: linha.nome }]);
   }
 
-  function aoVoltarDepartamentos() {
-    setEstruturaNivel("departamento");
-    setDepartamentoAtivo(null);
-    setEstruturaSelecionada(null);
+  /** indice = -1 volta pra raiz (Departamentos); N volta pro nível do N-ésimo nó do caminho. */
+  function aoVoltarPara(indice: number) {
+    setCaminhoDrill((atual) => atual.slice(0, indice + 1));
   }
 
   /**
@@ -141,9 +131,7 @@ export function DesempenhoDashboard({
   }
 
   function aoLimparSelecao() {
-    setEstruturaNivel("departamento");
-    setDepartamentoAtivo(null);
-    setEstruturaSelecionada(null);
+    setCaminhoDrill([]);
     setLojasSelecionadas([]);
   }
 
@@ -151,11 +139,10 @@ export function DesempenhoDashboard({
     .map((codigo) => lojas.find((l) => l.codUnid === codigo)?.nomeLoja)
     .filter((nome): nome is string => Boolean(nome));
 
+  const noAtivo = caminhoDrill.at(-1) ?? null;
   const partesRecorte: string[] = [];
-  if (estruturaSelecionada) {
-    partesRecorte.push(
-      `${estruturaSelecionada.nivel === "departamento" ? "Departamento" : "Seção"} ${estruturaSelecionada.nome}`,
-    );
+  if (noAtivo) {
+    partesRecorte.push(`${labelNivel(noAtivo.nivel)} ${noAtivo.nome}`);
   }
   if (nomesLojasSelecionadas.length === 1) {
     partesRecorte.push(`Loja ${nomesLojasSelecionadas[0]}`);
@@ -169,7 +156,7 @@ export function DesempenhoDashboard({
   async function aoExportar(formato: "excel" | "pdf") {
     setExportando(formato);
     try {
-      const dados = { descricaoRecorte, nivelEstrutura: estruturaNivel, ...resultado };
+      const dados = { descricaoRecorte, nivelEstrutura: resultado.estruturaNivel, ...resultado };
       if (formato === "excel") {
         await exportarExcel(dados);
       } else {
@@ -203,9 +190,7 @@ export function DesempenhoDashboard({
         const idDaRequisicao = idRequisicaoRef.current;
         const consulta: ConsultaDesempenho = {
           filtros,
-          estruturaNivel,
-          departamentoAtivo,
-          estruturaSelecionada,
+          caminhoDrill,
           lojasSelecionadas,
           nivelTopAltasQuedas,
         };
@@ -223,53 +208,57 @@ export function DesempenhoDashboard({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="font-display text-2xl font-bold text-zinc-900">Desempenho Comercial</h1>
-          <p className="mt-0.5 text-sm text-zinc-500">Vendas, margem e desvio por categoria e loja.</p>
+      <div className="sticky top-[52px] z-20 -mx-6 flex flex-col gap-4 border-b border-zinc-200 bg-zinc-50 px-6 pb-3 pt-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="font-display text-2xl font-bold text-zinc-900">Desempenho Comercial</h1>
+            <p className="mt-0.5 text-sm text-zinc-500">Vendas, margem e desvio por categoria e loja.</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <CadastroIncompletoBadge quantidade={produtosDescartados} />
+            <span className="text-xs text-zinc-400">Última atualização: {formatarDataHora(dadosGeradoEm)}</span>
+            <button
+              type="button"
+              onClick={aoAtualizarDados}
+              disabled={atualizandoDados}
+              title="Atualiza sozinho todo dia às 09h — clique pra forçar agora"
+              className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-600 hover:bg-zinc-50 disabled:opacity-50"
+            >
+              {atualizandoDados ? "Atualizando…" : "↻ Atualizar dados"}
+            </button>
+            <button
+              type="button"
+              disabled={exportando !== null}
+              onClick={() => aoExportar("excel")}
+              title="Exportar Excel"
+              className="rounded-md border border-zinc-300 bg-white p-2 text-zinc-600 hover:bg-zinc-50 disabled:opacity-50"
+            >
+              ⬇ Excel
+            </button>
+            <button
+              type="button"
+              disabled={exportando !== null}
+              onClick={() => aoExportar("pdf")}
+              title="Exportar PDF"
+              className="rounded-md border border-zinc-300 bg-white p-2 text-zinc-600 hover:bg-zinc-50 disabled:opacity-50"
+            >
+              ⬇ PDF
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <CadastroIncompletoBadge quantidade={produtosDescartados} />
-          <button
-            type="button"
-            onClick={aoAtualizarDados}
-            disabled={atualizandoDados}
-            title={`Dados de: ${formatarDataHora(dadosGeradoEm)} · atualiza sozinho todo dia às 09h`}
-            className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-600 hover:bg-zinc-50 disabled:opacity-50"
-          >
-            {atualizandoDados ? "Atualizando…" : "↻ Atualizar dados"}
-          </button>
-          <button
-            type="button"
-            disabled={exportando !== null}
-            onClick={() => aoExportar("excel")}
-            title="Exportar Excel"
-            className="rounded-md border border-zinc-300 bg-white p-2 text-zinc-600 hover:bg-zinc-50 disabled:opacity-50"
-          >
-            ⬇ Excel
-          </button>
-          <button
-            type="button"
-            disabled={exportando !== null}
-            onClick={() => aoExportar("pdf")}
-            title="Exportar PDF"
-            className="rounded-md border border-zinc-300 bg-white p-2 text-zinc-600 hover:bg-zinc-50 disabled:opacity-50"
-          >
-            ⬇ PDF
-          </button>
-        </div>
+
+        <FilterBar
+          lojas={lojas}
+          compradores={compradores}
+          filtros={filtros}
+          onChange={setFiltros}
+          periodoAtual={periodoAtual}
+          periodoComparacao={periodoComparacao}
+          onSalvarPeriodoComparacao={aoSalvarPeriodoComparacao}
+        />
+
+        <KpiCards atual={resultado.kpiAtual} comparacao={resultado.kpiComparacao} />
       </div>
-
-      <FilterBar
-        compradores={compradores}
-        filtros={filtros}
-        onChange={setFiltros}
-        periodoAtual={periodoAtual}
-        periodoComparacao={periodoComparacao}
-        onSalvarPeriodoComparacao={aoSalvarPeriodoComparacao}
-      />
-
-      <KpiCards atual={resultado.kpiAtual} comparacao={resultado.kpiComparacao} />
 
       <StatusBar
         descricaoRecorte={descricaoRecorte}
@@ -277,22 +266,21 @@ export function DesempenhoDashboard({
         onLimpar={aoLimparSelecao}
       />
 
-      <div className={`transition-opacity ${carregando ? "opacity-60" : ""}`}>
+      <div className={`transition-opacity ${carregando ? "pointer-events-none opacity-60" : ""}`}>
         <TopAltasQuedas nivel={nivelTopAltasQuedas} onNivelChange={setNivelTopAltasQuedas} linhas={resultado.linhasTop} />
       </div>
 
       <div
-        className={`grid grid-cols-1 gap-4 lg:grid-cols-2 transition-opacity ${carregando ? "opacity-60" : ""}`}
+        className={`grid grid-cols-1 gap-4 lg:grid-cols-2 transition-opacity ${carregando ? "pointer-events-none opacity-60" : ""}`}
       >
         <EstruturaPanel
-          nivel={estruturaNivel}
+          nivel={resultado.estruturaNivel}
           linhas={resultado.linhasEstrutura}
-          departamentoAtivo={departamentoAtivo}
-          selecionado={estruturaSelecionada}
+          caminho={caminhoDrill}
           modoRanking={modoRanking}
           onToggleModo={() => setModoRanking((m) => !m)}
           onClickLinha={aoClicarEstrutura}
-          onVoltar={aoVoltarDepartamentos}
+          onVoltarPara={aoVoltarPara}
         />
         <LojasPanel linhas={resultado.linhasLojas} selecionadas={lojasSelecionadas} onClickLinha={aoClicarLoja} />
       </div>

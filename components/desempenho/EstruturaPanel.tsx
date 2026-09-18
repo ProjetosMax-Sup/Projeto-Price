@@ -2,7 +2,7 @@
 
 import { RankingBar } from "@/components/charts/RankingBar";
 import { Semaforo } from "@/components/ui/Semaforo";
-import type { EstruturaAgregada, NivelEstrutura } from "@/lib/desempenho/aggregate";
+import { labelNivel, type EstruturaAgregada, type NivelEstrutura, type NoSelecionado } from "@/lib/desempenho/aggregate";
 import { formatMoeda, formatPercent } from "@/lib/desempenho/format";
 
 function ordenarTabela(linhas: EstruturaAgregada[]): EstruturaAgregada[] {
@@ -22,27 +22,27 @@ const TITULO_NIVEL: Record<NivelEstrutura, string> = {
   categoria: "Categorias",
   grupo: "Grupos",
   subGrupo: "Sub Grupos",
+  produto: "Produtos",
 };
 
 export function EstruturaPanel({
   nivel,
   linhas,
-  departamentoAtivo,
-  selecionado,
+  caminho,
   modoRanking,
   onToggleModo,
   onClickLinha,
-  onVoltar,
+  onVoltarPara,
 }: {
   nivel: NivelEstrutura;
   linhas: EstruturaAgregada[];
-  departamentoAtivo: { nome: string } | null;
-  selecionado: { chave: string } | null;
+  caminho: NoSelecionado[];
   modoRanking: boolean;
   onToggleModo: () => void;
   onClickLinha: (linha: EstruturaAgregada) => void;
-  onVoltar: () => void;
+  onVoltarPara: (indice: number) => void;
 }) {
+  const ehFolha = nivel === "produto";
   const ordenadas = modoRanking ? ordenarRanking(linhas) : ordenarTabela(linhas);
   const valorMax = Math.max(1, ...linhas.map((l) => l.atual.venda));
   const totalVenda = linhas.reduce((soma, l) => soma + l.atual.venda, 0);
@@ -52,13 +52,23 @@ export function EstruturaPanel({
       <div className="flex items-center justify-between border-b border-zinc-100 px-4 py-3">
         <div className="text-sm">
           <h2 className="font-display font-semibold text-zinc-900">{TITULO_NIVEL[nivel]}</h2>
-          {nivel === "secao" && departamentoAtivo && (
-            <div className="mt-0.5 text-xs text-zinc-500">
-              <button type="button" onClick={onVoltar} className="text-azul hover:underline">
-                Departamentos
+          {caminho.length > 0 && (
+            <div className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-zinc-500">
+              <button type="button" onClick={() => onVoltarPara(-1)} className="text-azul hover:underline">
+                {TITULO_NIVEL.departamento}
               </button>
-              {" > "}
-              <span className="text-zinc-700">{departamentoAtivo.nome}</span>
+              {caminho.map((no, i) => (
+                <span key={no.chave} className="flex items-center gap-1">
+                  <span>{">"}</span>
+                  {i === caminho.length - 1 ? (
+                    <span className="text-zinc-700">{no.nome}</span>
+                  ) : (
+                    <button type="button" onClick={() => onVoltarPara(i)} className="text-azul hover:underline">
+                      {no.nome}
+                    </button>
+                  )}
+                </span>
+              ))}
             </div>
           )}
         </div>
@@ -90,8 +100,8 @@ export function EstruturaPanel({
               valor={linha.atual.venda}
               valorMax={valorMax}
               desvio={linha.desvioVenda}
-              ativo={selecionado?.chave === linha.chave}
-              onClick={() => onClickLinha(linha)}
+              ativo={false}
+              onClick={ehFolha ? undefined : () => onClickLinha(linha)}
             />
           ))}
         </div>
@@ -100,7 +110,7 @@ export function EstruturaPanel({
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-zinc-50 text-left text-[11px] font-medium tracking-wide text-zinc-500 uppercase">
               <tr>
-                <th className="px-4 py-2 font-medium">{nivel === "departamento" ? "Departamento" : "Seção"}</th>
+                <th className="px-4 py-2 font-medium">{labelNivel(nivel)}</th>
                 <th className="px-3 py-2 text-right font-medium">V. Atual</th>
                 <th className="px-3 py-2 text-right font-medium">V. Comp.</th>
                 <th className="px-3 py-2 text-right font-medium">%D</th>
@@ -114,11 +124,8 @@ export function EstruturaPanel({
               {ordenadas.map((linha) => (
                 <tr
                   key={linha.chave}
-                  onClick={() => onClickLinha(linha)}
-                  className={[
-                    "cursor-pointer border-t border-zinc-100 hover:bg-zinc-50",
-                    selecionado?.chave === linha.chave ? "bg-azul/5" : "",
-                  ].join(" ")}
+                  onClick={() => !ehFolha && onClickLinha(linha)}
+                  className={`border-t border-zinc-100 hover:bg-zinc-50 ${ehFolha ? "" : "cursor-pointer"}`}
                 >
                   <td className="whitespace-nowrap px-4 py-2 font-medium text-zinc-800">
                     {linha.codigo && <span className="font-normal text-zinc-400">{linha.codigo} - </span>}

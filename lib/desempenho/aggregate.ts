@@ -1,8 +1,14 @@
 import type { Loja, RegistroDesempenho } from "@/lib/types";
 import { calcDesvio } from "./format";
 
-export const NIVEIS_ESTRUTURA = ["departamento", "secao", "categoria", "grupo", "subGrupo"] as const;
+export const NIVEIS_ESTRUTURA = ["departamento", "secao", "categoria", "grupo", "subGrupo", "produto"] as const;
 export type NivelEstrutura = (typeof NIVEIS_ESTRUTURA)[number];
+
+/** Níveis que vêm da "Hierarquia de Grupos" (Produto não — é agrupado por SKU). */
+export const NIVEIS_HIERARQUIA = NIVEIS_ESTRUTURA.filter((n) => n !== "produto") as Exclude<
+  NivelEstrutura,
+  "produto"
+>[];
 
 const LABEL_NIVEL: Record<NivelEstrutura, string> = {
   departamento: "Departamento",
@@ -10,6 +16,7 @@ const LABEL_NIVEL: Record<NivelEstrutura, string> = {
   categoria: "Categoria",
   grupo: "Grupo",
   subGrupo: "Sub Grupo",
+  produto: "Produto",
 };
 
 export function labelNivel(nivel: NivelEstrutura): string {
@@ -24,12 +31,34 @@ export function parseHierarquia(hierarquiaGrupos: string): string[] {
     .filter(Boolean);
 }
 
+export type NivelHierarquia = (typeof NIVEIS_HIERARQUIA)[number];
+
 /** Caminho (chave de agrupamento) até o nível pedido, ex: "Mercearia > Enlatados". */
-function caminhoAteNivel(hierarquiaGrupos: string, nivel: NivelEstrutura): string | null {
+function caminhoAteNivel(hierarquiaGrupos: string, nivel: NivelHierarquia): string | null {
   const niveis = parseHierarquia(hierarquiaGrupos);
   const idx = NIVEIS_ESTRUTURA.indexOf(nivel);
   if (niveis.length <= idx) return null;
   return niveis.slice(0, idx + 1).join(" > ");
+}
+
+export interface NoSelecionado {
+  nivel: NivelEstrutura;
+  chave: string;
+  nome: string;
+}
+
+/**
+ * Se um registro pertence ao nó selecionado — usado tanto pra descer no
+ * drill-down (filtrar os filhos do nó ativo) quanto pra aplicar o recorte nos
+ * KPIs/Lojas/Top Altas-Quedas. Produto não faz parte da Hierarquia de Grupos
+ * (é agrupado por SKU), então tem checagem própria.
+ */
+export function pertenceAoNo(registro: RegistroDesempenho, no: NoSelecionado): boolean {
+  if (no.nivel === "produto") return registro.movimento.codigo === no.chave;
+  if (!registro.produto) return false;
+  const niveis = parseHierarquia(registro.produto.hierarquiaGrupos);
+  const profundidade = NIVEIS_ESTRUTURA.indexOf(no.nivel) + 1;
+  return niveis.slice(0, profundidade).join(" > ") === no.chave;
 }
 
 export interface Metricas {
@@ -141,7 +170,7 @@ export interface EstruturaAgregada {
 export function agregarPorEstrutura(
   registrosAtual: RegistroDesempenho[],
   registrosComparacao: RegistroDesempenho[],
-  nivel: NivelEstrutura,
+  nivel: NivelHierarquia,
 ): EstruturaAgregada[] {
   const acumular = (registros: RegistroDesempenho[]) => {
     const mapa = new Map<string, { nome: string; codigo: string | null; metricas: Metricas }>();
@@ -173,6 +202,52 @@ export function agregarPorEstrutura(
       codigo: dadosAtual.codigo,
       nome: dadosAtual.nome,
       nivel,
+      atual,
+      comparacao,
+      desvioVenda: comparacao ? calcDesvio(atual.venda, comparacao.venda) : null,
+      desvioLucro: comparacao ? calcDesvio(atual.lucro, comparacao.lucro) : null,
+    };
+  });
+}
+
+/**
+ * Nível "Produto" — folha do drill-down, depois de Sub Grupo. Não vem da
+ * Hierarquia de Grupos, é agrupado por SKU (movimento.codigo). Rótulo
+ * padronizado "Código" - "Descrição" - "Complemento" (o mesmo formato de
+ * "codigo - nome" que a tabela já usa pros outros níveis cobre isso, já que
+ * `nome` aqui é montado como "Descrição - Complemento").
+ */
+export function agregarPorProduto(
+  registrosAtual: RegistroDesempenho[],
+  registrosComparacao: RegistroDesempenho[],
+): EstruturaAgregada[] {
+  const acumular = (registros: RegistroDesempenho[]) => {
+    const mapa = new Map<string, { nome: string; metricas: Metricas }>();
+    for (const r of registros) {
+      const chave = r.movimento.codigo;
+      if (!chave) continue;
+      const nome = [r.movimento.descricao, r.movimento.complemento].filter(Boolean).join(" - ");
+      const atual = mapa.get(chave);
+      mapa.set(chave, {
+        nome,
+        metricas: somarRegistro(atual?.metricas ?? metricasVazias(), r),
+      });
+    }
+    return mapa;
+  };
+
+  const mapaAtual = acumular(registrosAtual);
+  const mapaComp = acumular(registrosComparacao);
+
+  return Array.from(mapaAtual.entries()).map(([chave, dadosAtual]) => {
+    const dadosComp = mapaComp.get(chave);
+    const atual = fecharMetricas(dadosAtual.metricas);
+    const comparacao = dadosComp ? fecharMetricas(dadosComp.metricas) : null;
+    return {
+      chave,
+      codigo: chave,
+      nome: dadosAtual.nome,
+      nivel: "produto" as const,
       atual,
       comparacao,
       desvioVenda: comparacao ? calcDesvio(atual.venda, comparacao.venda) : null,

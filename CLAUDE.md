@@ -173,7 +173,37 @@ Hierarquia de Grupos → string única, níveis separados por vírgula:
     ⚠️ NEM SEMPRE tem os 5 níveis — parser precisa tratar isso sem quebrar
     ✅ Confirmado com o usuário: não existe fonte estruturada separada para
     Categoria/Grupo — basta dividir esta string pelo delimitador ","
-Compr / Nome Comprador → comprador é atributo do PRODUTO, não da loja
+Compr / Nome Comprador → NÃO USADO — ver "Compradores padronizados" abaixo
+```
+
+#### Compradores padronizados por Departamento
+
+✅ Confirmado com o usuário: a coluna `Compr`/`Nome Comprador` de `bdCadastro`
+não é confiável — o comprador exibido no app vem de uma tabela fixa por Dpto
+(`lib/desempenho/compradores.ts`), não do arquivo. Dois departamentos (Açougue
+e Hortifruti) têm comprador diferente por Formato de loja (Varejo × Atacado);
+os demais têm um único comprador nos dois formatos.
+
+```
+001 - Acougue         - Johathan (Varejo) / Jairo (Atacado)
+002 - Peixaria         - Johathan
+003 - Hortifruti       - Marrone (Varejo) / Jairo (Atacado)
+004 - Padaria Propria  - Nil
+005 - Padaria Industria- Nil
+006 - Pereciveis Frios e Congelados - Johathan
+007 - Pereciveis Lacteos - Bruna
+008 - Mercearia Basica - Divino
+009 - Mercearia Leite  - Manoel
+010 - Mercearia Doce   - Bruna
+011 - Mercearia Salgada- Ricardo
+012 - Mercearia Saudavel - Bruna
+013 - Bebidas          - Sandro
+014 - Limpeza          - Manoel
+015 - Perfumaria       - Manoel
+016 - Bazar            - Edvaldo
+017 - Eletro           - Edvaldo
+018 - Sazonais         - Bruna
+099 - Apropriacoes     - S/ Comprador
 ```
 
 #### Códigos de Departamento (Dpto) confirmados
@@ -251,12 +281,20 @@ Elementos a replicar:
    claramente que os números refletem o recorte quando ele não é "toda a empresa ×
    todas as lojas".
 2. **Duas tabelas que se filtram mutuamente**: Estrutura Mercadológica (com
-   drill-down Departamento → Seção) e Lojas, lado a lado.
-   - Clicar num departamento/seção filtra a tabela de Lojas para mostrar a
-     performance daquela categoria em cada loja.
+   drill-down completo Departamento → Seção → Categoria → Grupo → Sub Grupo →
+   **Produto**, via breadcrumb clicável pra voltar a qualquer nível) e Lojas,
+   lado a lado.
+   - Produto (folha do drill-down) é rotulado no padrão "Código - Descrição -
+     Complemento" e agrupado por SKU (não faz parte da Hierarquia de Grupos).
+   - Clicar numa linha (exceto no nível Produto, que é folha) desce um nível e
+     também filtra a tabela de Lojas pra mostrar a performance daquele nó em
+     cada loja.
    - Clicar numa loja filtra a tabela de Estrutura para mostrar só a performance
      daquela loja (clique de novo para desmarcar).
    - Barra de status mostrando o recorte ativo + botão "Limpar seleção".
+   - Cliques nas tabelas (e no breadcrumb) ficam bloqueados enquanto uma busca
+     está em andamento (`pointer-events-none`) — evita que um clique numa
+     tabela desatualizada empurre um nó errado/duplicado pro breadcrumb.
 3. **Toggle Tabela ↔ Ranking** no painel de Estrutura — Tabela é a visão detalhada
    com todas as colunas; Ranking é barras horizontais ordenadas por valor, mais
    rápidas de escanear.

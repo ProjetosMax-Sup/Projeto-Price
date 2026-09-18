@@ -16,7 +16,7 @@ const MODULOS: Modulo[] = [
 
 export function ModuleNav({ active }: { active?: string }) {
   return (
-    <header className="bg-azul text-white">
+    <header className="sticky top-0 z-30 bg-azul text-white">
       <div className="mx-auto flex max-w-[1800px] items-center gap-1 px-6 py-2.5">
         <span className="mr-6 flex items-center gap-2 font-display text-lg font-bold tracking-tight">
           MAX

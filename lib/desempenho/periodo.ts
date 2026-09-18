@@ -1,9 +1,6 @@
 import Redis from "ioredis";
 import type { RegistroDesempenho } from "@/lib/types";
-
-const MESES = [
-  "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez",
-];
+import { formatPeriodo } from "./format";
 
 /** "DD/MM/AA" → Date (ano assumido 20XX). */
 function parseDataBr(data: string): Date | null {
@@ -15,7 +12,8 @@ function parseDataBr(data: string): Date | null {
 
 /**
  * Rótulo do período atual, derivado direto das datas em
- * bdDesempenhoComercialAtual.txt (único arquivo com grão diário). Ex: "1–16 Set/2026".
+ * bdDesempenhoComercialAtual.txt (único arquivo com grão diário). Ex:
+ * "01/Set/2026 – 16/Set/2026".
  */
 export function calcularLabelPeriodoAtual(registros: RegistroDesempenho[]): string | null {
   let min: Date | null = null;
@@ -27,12 +25,7 @@ export function calcularLabelPeriodoAtual(registros: RegistroDesempenho[]): stri
     if (!max || d > max) max = d;
   }
   if (!min || !max) return null;
-
-  const mesAno = `${MESES[max.getMonth()]}/${max.getFullYear()}`;
-  if (min.getMonth() === max.getMonth() && min.getFullYear() === max.getFullYear()) {
-    return min.getDate() === max.getDate() ? `${min.getDate()} ${mesAno}` : `${min.getDate()}–${max.getDate()} ${mesAno}`;
-  }
-  return `${min.getDate()} ${MESES[min.getMonth()]}–${max.getDate()} ${mesAno}`;
+  return formatPeriodo(min, max);
 }
 
 // bdDesempenhoComercialComparação.txt não tem coluna de data (vem já agregado

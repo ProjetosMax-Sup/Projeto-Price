@@ -72,8 +72,10 @@ export function KpiCards({
         titulo="Ticket Médio"
         valor={formatMoedaDetalhada(atual.ticketMedio)}
         desvio={desvioTicket}
-        linhaComparacao={`${formatNumero(atual.qtdeVendas)} unidades vendidas`}
-        linhaDetalhe="Venda ÷ quantidade vendida"
+        linhaComparacao={
+          comparacao ? `vs. ${formatMoedaDetalhada(comparacao.ticketMedio)} na comparação` : undefined
+        }
+        linhaDetalhe={`${formatNumero(atual.qtdeVendas)} unidades vendidas · Venda ÷ quantidade`}
       />
     </div>
   );
