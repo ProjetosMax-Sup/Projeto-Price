@@ -16,6 +16,14 @@ function ordenarRanking(linhas: EstruturaAgregada[]): EstruturaAgregada[] {
   return [...linhas].sort((a, b) => b.atual.venda - a.atual.venda);
 }
 
+const TITULO_NIVEL: Record<NivelEstrutura, string> = {
+  departamento: "Departamentos",
+  secao: "Seções",
+  categoria: "Categorias",
+  grupo: "Grupos",
+  subGrupo: "Sub Grupos",
+};
+
 export function EstruturaPanel({
   nivel,
   linhas,
@@ -37,12 +45,13 @@ export function EstruturaPanel({
 }) {
   const ordenadas = modoRanking ? ordenarRanking(linhas) : ordenarTabela(linhas);
   const valorMax = Math.max(1, ...linhas.map((l) => l.atual.venda));
+  const totalVenda = linhas.reduce((soma, l) => soma + l.atual.venda, 0);
 
   return (
     <div className="flex flex-1 flex-col rounded-lg border border-zinc-200 bg-white">
       <div className="flex items-center justify-between border-b border-zinc-100 px-4 py-3">
         <div className="text-sm">
-          <h2 className="font-display font-semibold text-zinc-900">Estrutura Mercadológica</h2>
+          <h2 className="font-display font-semibold text-zinc-900">{TITULO_NIVEL[nivel]}</h2>
           {nivel === "secao" && departamentoAtivo && (
             <div className="mt-0.5 text-xs text-zinc-500">
               <button type="button" onClick={onVoltar} className="text-azul hover:underline">
@@ -89,14 +98,16 @@ export function EstruturaPanel({
       ) : (
         <div className="flex-1 overflow-auto">
           <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-zinc-50 text-left text-xs font-medium text-zinc-500">
+            <thead className="sticky top-0 bg-zinc-50 text-left text-[11px] font-medium tracking-wide text-zinc-500 uppercase">
               <tr>
                 <th className="px-4 py-2 font-medium">{nivel === "departamento" ? "Departamento" : "Seção"}</th>
-                <th className="px-4 py-2 text-right font-medium">Venda</th>
-                <th className="px-4 py-2 text-right font-medium">%Desvio Venda</th>
-                <th className="px-4 py-2 text-right font-medium">Lucro</th>
-                <th className="px-4 py-2 text-right font-medium">%Lucro</th>
-                <th className="px-4 py-2 text-right font-medium">%Desvio Lucro</th>
+                <th className="px-3 py-2 text-right font-medium">V. Atual</th>
+                <th className="px-3 py-2 text-right font-medium">V. Comp.</th>
+                <th className="px-3 py-2 text-right font-medium">%D</th>
+                <th className="px-3 py-2 text-right font-medium">L. Atual</th>
+                <th className="px-3 py-2 text-right font-medium">L. Comp.</th>
+                <th className="px-3 py-2 text-right font-medium">%D</th>
+                <th className="px-4 py-2 text-right font-medium">Part.</th>
               </tr>
             </thead>
             <tbody>
@@ -109,30 +120,32 @@ export function EstruturaPanel({
                     selecionado?.chave === linha.chave ? "bg-azul/5" : "",
                   ].join(" ")}
                 >
-                  <td className="whitespace-nowrap px-4 py-2 text-zinc-800">
-                    {linha.codigo && <span className="text-zinc-400">{linha.codigo} - </span>}
+                  <td className="whitespace-nowrap px-4 py-2 font-medium text-zinc-800">
+                    {linha.codigo && <span className="font-normal text-zinc-400">{linha.codigo} - </span>}
                     {linha.nome}
                   </td>
-                  <td className="px-4 py-2 text-right tabular-nums text-zinc-700">
-                    {formatMoeda(linha.atual.venda)}
+                  <td className="px-3 py-2 text-right tabular-nums text-zinc-700">{formatMoeda(linha.atual.venda)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-zinc-400">
+                    {linha.comparacao ? formatMoeda(linha.comparacao.venda) : "—"}
                   </td>
-                  <td className="px-4 py-2 text-right">
+                  <td className="px-3 py-2 text-right">
                     <Semaforo valor={linha.desvioVenda} tamanho="sm" />
                   </td>
-                  <td className="px-4 py-2 text-right tabular-nums text-zinc-700">
-                    {formatMoeda(linha.atual.lucro)}
+                  <td className="px-3 py-2 text-right tabular-nums text-zinc-700">{formatMoeda(linha.atual.lucro)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-zinc-400">
+                    {linha.comparacao ? formatMoeda(linha.comparacao.lucro) : "—"}
                   </td>
-                  <td className="px-4 py-2 text-right tabular-nums text-zinc-700">
-                    {formatPercent(linha.atual.percLucro)}
-                  </td>
-                  <td className="px-4 py-2 text-right">
+                  <td className="px-3 py-2 text-right">
                     <Semaforo valor={linha.desvioLucro} tamanho="sm" />
+                  </td>
+                  <td className="px-4 py-2 text-right tabular-nums text-zinc-500">
+                    {formatPercent(totalVenda !== 0 ? (linha.atual.venda / totalVenda) * 100 : 0, 1)}
                   </td>
                 </tr>
               ))}
               {ordenadas.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-zinc-400">
+                  <td colSpan={8} className="px-4 py-8 text-center text-zinc-400">
                     Nenhum dado para o recorte selecionado.
                   </td>
                 </tr>

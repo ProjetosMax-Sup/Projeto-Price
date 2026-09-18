@@ -564,6 +564,7 @@ function gerarMovimentosPeriodo(fatorTendencia: (seedProduto: number) => number)
         codigoBarras: gerarCodigoBarras(produtoIdx),
         unidadeCodigo: loja.codUnid,
         unidadeNome: loja.nomeLoja,
+        data: "01/09/26",
         qtdeVendasTotal,
         valorTotal,
         lucrosTotal,

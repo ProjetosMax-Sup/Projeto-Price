@@ -6,6 +6,16 @@ export function formatMoeda(valor: number): string {
   });
 }
 
+/** Valores tipicamente pequenos (ex: ticket médio) precisam de casas decimais. */
+export function formatMoedaDetalhada(valor: number): string {
+  return valor.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 export function formatPercent(valor: number, casas = 1): string {
   return `${valor.toLocaleString("pt-BR", {
     minimumFractionDigits: casas,

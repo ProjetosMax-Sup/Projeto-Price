@@ -31,6 +31,8 @@ export interface MovimentoVendas {
   codigoBarras: string;
   unidadeCodigo: string; // join com Loja.codUnid
   unidadeNome: string;
+  /** "DD/MM/AA" — só existe em bdDesempenhoComercialAtual.txt (Comparação não tem grão diário). */
+  data: string;
 
   qtdeVendasTotal: number;
   valorTotal: number;

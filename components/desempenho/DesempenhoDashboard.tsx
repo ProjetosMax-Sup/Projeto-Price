@@ -30,16 +30,25 @@ async function buscarResultado(consulta: ConsultaDesempenho, signal: AbortSignal
   return resposta.json();
 }
 
+function formatarDataHora(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+}
+
 export function DesempenhoDashboard({
   lojas,
   compradores,
   produtosDescartados,
   resultadoInicial,
+  periodoAtual,
+  periodoComparacaoInicial,
 }: {
   lojas: Loja[];
   compradores: { codigo: string; nome: string }[];
   produtosDescartados: number;
   resultadoInicial: ResultadoDesempenho;
+  periodoAtual: string;
+  periodoComparacaoInicial: string | null;
 }) {
   const [filtros, setFiltros] = useState<Filtros>(CONSULTA_PADRAO.filtros);
   const [estruturaNivel, setEstruturaNivel] = useState<NivelEstrutura>("departamento");
@@ -49,10 +58,23 @@ export function DesempenhoDashboard({
   const [modoRanking, setModoRanking] = useState(false);
   const [nivelTopAltasQuedas, setNivelTopAltasQuedas] = useState<NivelEstrutura>("secao");
   const [exportando, setExportando] = useState<"excel" | "pdf" | null>(null);
+  const [periodoComparacao, setPeriodoComparacao] = useState(periodoComparacaoInicial);
+  const [atualizandoDados, setAtualizandoDados] = useState(false);
+  const [dadosGeradoEm, setDadosGeradoEm] = useState<string | null>(null);
 
   const [resultado, setResultado] = useState<ResultadoDesempenho>(resultadoInicial);
   const [carregando, setCarregando] = useState(false);
   const primeiraRenderizacao = useRef(true);
+  // Só o request mais recente pode atualizar a tela — evita que uma resposta
+  // atrasada de um filtro antigo sobrescreva o resultado de um filtro mais novo.
+  const idRequisicaoRef = useRef(0);
+
+  useEffect(() => {
+    fetch("/api/atualizar-dados")
+      .then((r) => r.json())
+      .then((d) => setDadosGeradoEm(d.geradoEm ?? null))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     // O resultado da renderização inicial (servidor) já cobre o estado padrão.
@@ -60,6 +82,7 @@ export function DesempenhoDashboard({
       primeiraRenderizacao.current = false;
       return;
     }
+    const idDaRequisicao = ++idRequisicaoRef.current;
     const controller = new AbortController();
     setCarregando(true);
     const consulta: ConsultaDesempenho = {
@@ -71,11 +94,15 @@ export function DesempenhoDashboard({
       nivelTopAltasQuedas,
     };
     buscarResultado(consulta, controller.signal)
-      .then(setResultado)
+      .then((dados) => {
+        if (idRequisicaoRef.current === idDaRequisicao) setResultado(dados);
+      })
       .catch((erro) => {
         if (erro.name !== "AbortError") console.error("Falha ao buscar dados", erro);
       })
-      .finally(() => setCarregando(false));
+      .finally(() => {
+        if (idRequisicaoRef.current === idDaRequisicao) setCarregando(false);
+      });
     return () => controller.abort();
   }, [filtros, estruturaNivel, departamentoAtivo, estruturaSelecionada, lojasSelecionadas, nivelTopAltasQuedas]);
 
@@ -136,7 +163,8 @@ export function DesempenhoDashboard({
     partesRecorte.push(`${nomesLojasSelecionadas.length} lojas (${nomesLojasSelecionadas.join(", ")})`);
   }
 
-  const descricaoRecorte = partesRecorte.length > 0 ? partesRecorte.join(" × ") : "Toda a empresa × Todas as lojas";
+  const descricaoRecorte =
+    partesRecorte.length > 0 ? partesRecorte.join(" × ") : "toda a empresa × todas as lojas";
 
   async function aoExportar(formato: "excel" | "pdf") {
     setExportando(formato);
@@ -154,6 +182,45 @@ export function DesempenhoDashboard({
     }
   }
 
+  async function aoSalvarPeriodoComparacao(label: string) {
+    const resposta = await fetch("/api/periodo-comparacao", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label }),
+    });
+    if (resposta.ok) setPeriodoComparacao(label);
+  }
+
+  async function aoAtualizarDados() {
+    setAtualizandoDados(true);
+    try {
+      const resposta = await fetch("/api/atualizar-dados", { method: "POST" });
+      const dados = await resposta.json();
+      if (dados.ok) {
+        setDadosGeradoEm(dados.geradoEm);
+        // Recarrega o recorte atual com os dados novos.
+        idRequisicaoRef.current += 1;
+        const idDaRequisicao = idRequisicaoRef.current;
+        const consulta: ConsultaDesempenho = {
+          filtros,
+          estruturaNivel,
+          departamentoAtivo,
+          estruturaSelecionada,
+          lojasSelecionadas,
+          nivelTopAltasQuedas,
+        };
+        const resultadoNovo = await buscarResultado(consulta, new AbortController().signal);
+        if (idRequisicaoRef.current === idDaRequisicao) setResultado(resultadoNovo);
+      } else {
+        console.error("Falha ao atualizar dados:", dados.erro);
+      }
+    } catch (erro) {
+      console.error("Falha ao atualizar dados", erro);
+    } finally {
+      setAtualizandoDados(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -165,24 +232,42 @@ export function DesempenhoDashboard({
           <CadastroIncompletoBadge quantidade={produtosDescartados} />
           <button
             type="button"
-            disabled={exportando !== null}
-            onClick={() => aoExportar("excel")}
+            onClick={aoAtualizarDados}
+            disabled={atualizandoDados}
+            title={`Dados de: ${formatarDataHora(dadosGeradoEm)} · atualiza sozinho todo dia às 09h`}
             className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-600 hover:bg-zinc-50 disabled:opacity-50"
           >
-            {exportando === "excel" ? "Exportando…" : "Exportar Excel"}
+            {atualizandoDados ? "Atualizando…" : "↻ Atualizar dados"}
+          </button>
+          <button
+            type="button"
+            disabled={exportando !== null}
+            onClick={() => aoExportar("excel")}
+            title="Exportar Excel"
+            className="rounded-md border border-zinc-300 bg-white p-2 text-zinc-600 hover:bg-zinc-50 disabled:opacity-50"
+          >
+            ⬇ Excel
           </button>
           <button
             type="button"
             disabled={exportando !== null}
             onClick={() => aoExportar("pdf")}
-            className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-600 hover:bg-zinc-50 disabled:opacity-50"
+            title="Exportar PDF"
+            className="rounded-md border border-zinc-300 bg-white p-2 text-zinc-600 hover:bg-zinc-50 disabled:opacity-50"
           >
-            {exportando === "pdf" ? "Exportando…" : "Exportar PDF"}
+            ⬇ PDF
           </button>
         </div>
       </div>
 
-      <FilterBar lojas={lojas} compradores={compradores} filtros={filtros} onChange={setFiltros} />
+      <FilterBar
+        compradores={compradores}
+        filtros={filtros}
+        onChange={setFiltros}
+        periodoAtual={periodoAtual}
+        periodoComparacao={periodoComparacao}
+        onSalvarPeriodoComparacao={aoSalvarPeriodoComparacao}
+      />
 
       <KpiCards atual={resultado.kpiAtual} comparacao={resultado.kpiComparacao} />
 
@@ -191,6 +276,10 @@ export function DesempenhoDashboard({
         temSelecao={partesRecorte.length > 0}
         onLimpar={aoLimparSelecao}
       />
+
+      <div className={`transition-opacity ${carregando ? "opacity-60" : ""}`}>
+        <TopAltasQuedas nivel={nivelTopAltasQuedas} onNivelChange={setNivelTopAltasQuedas} linhas={resultado.linhasTop} />
+      </div>
 
       <div
         className={`grid grid-cols-1 gap-4 lg:grid-cols-2 transition-opacity ${carregando ? "opacity-60" : ""}`}
@@ -208,9 +297,10 @@ export function DesempenhoDashboard({
         <LojasPanel linhas={resultado.linhasLojas} selecionadas={lojasSelecionadas} onClickLinha={aoClicarLoja} />
       </div>
 
-      <div className={`transition-opacity ${carregando ? "opacity-60" : ""}`}>
-        <TopAltasQuedas nivel={nivelTopAltasQuedas} onNivelChange={setNivelTopAltasQuedas} linhas={resultado.linhasTop} />
-      </div>
+      <p className="pb-2 text-center text-xs text-zinc-400">
+        Fonte: bdDesempenhoComercialAtual + bdDesempenhoComercialComparação + bdCadastro + bdLojas · Dados
+        atualizados em {formatarDataHora(dadosGeradoEm)}
+      </p>
     </div>
   );
 }

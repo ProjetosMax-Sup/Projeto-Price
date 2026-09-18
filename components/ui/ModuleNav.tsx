@@ -17,9 +17,12 @@ const MODULOS: Modulo[] = [
 export function ModuleNav({ active }: { active?: string }) {
   return (
     <header className="bg-azul text-white">
-      <div className="mx-auto flex max-w-[1800px] items-center gap-1 px-6">
-        <span className="mr-6 font-display text-lg font-bold tracking-tight py-4">
-          MAX <span className="text-vermelho">Supermercados</span>
+      <div className="mx-auto flex max-w-[1800px] items-center gap-1 px-6 py-2.5">
+        <span className="mr-6 flex items-center gap-2 font-display text-lg font-bold tracking-tight">
+          MAX
+          <span className="rounded bg-vermelho px-1.5 py-0.5 text-[11px] font-bold tracking-wide">
+            SUPERMERCADOS
+          </span>
         </span>
         <nav className="flex flex-1 gap-1">
           {MODULOS.map((modulo) => (
@@ -28,10 +31,8 @@ export function ModuleNav({ active }: { active?: string }) {
               href={`/${modulo.slug}`}
               aria-disabled={!modulo.implementado}
               className={[
-                "px-4 py-4 text-sm font-medium transition-colors border-b-2",
-                active === modulo.slug
-                  ? "border-white text-white"
-                  : "border-transparent text-white/70 hover:text-white",
+                "rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors",
+                active === modulo.slug ? "bg-white/15 text-white" : "text-white/70 hover:text-white",
                 !modulo.implementado && "pointer-events-none opacity-40",
               ]
                 .filter(Boolean)

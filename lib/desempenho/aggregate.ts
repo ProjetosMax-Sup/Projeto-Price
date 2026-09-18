@@ -34,8 +34,14 @@ function caminhoAteNivel(hierarquiaGrupos: string, nivel: NivelEstrutura): strin
 
 export interface Metricas {
   venda: number;
+  vendaRegular: number;
+  vendaOferta: number;
   lucro: number;
+  lucroRegular: number;
+  lucroOferta: number;
+  qtdeVendas: number;
   percLucro: number;
+  ticketMedio: number;
 }
 
 export interface ComDesvio<T> {
@@ -46,19 +52,38 @@ export interface ComDesvio<T> {
 }
 
 function metricasVazias(): Metricas {
-  return { venda: 0, lucro: 0, percLucro: 0 };
+  return {
+    venda: 0,
+    vendaRegular: 0,
+    vendaOferta: 0,
+    lucro: 0,
+    lucroRegular: 0,
+    lucroOferta: 0,
+    qtdeVendas: 0,
+    percLucro: 0,
+    ticketMedio: 0,
+  };
 }
 
 function somarRegistro(acc: Metricas, r: RegistroDesempenho): Metricas {
   return {
+    ...acc,
     venda: acc.venda + r.movimento.valorTotal,
+    vendaRegular: acc.vendaRegular + r.movimento.vendasRegular,
+    vendaOferta: acc.vendaOferta + r.movimento.vendasOferta,
     lucro: acc.lucro + r.movimento.lucrosTotal,
-    percLucro: 0, // recalculado no final
+    lucroRegular: acc.lucroRegular + r.movimento.lucrosRegular,
+    lucroOferta: acc.lucroOferta + r.movimento.lucrosOferta,
+    qtdeVendas: acc.qtdeVendas + r.movimento.qtdeVendasTotal,
   };
 }
 
 function fecharMetricas(m: Metricas): Metricas {
-  return { ...m, percLucro: m.venda !== 0 ? (m.lucro / m.venda) * 100 : 0 };
+  return {
+    ...m,
+    percLucro: m.venda !== 0 ? (m.lucro / m.venda) * 100 : 0,
+    ticketMedio: m.qtdeVendas !== 0 ? m.venda / m.qtdeVendas : 0,
+  };
 }
 
 export interface LojaAgregada {

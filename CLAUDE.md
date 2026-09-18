@@ -32,9 +32,27 @@ via Microsoft Graph API** (não da pasta local sincronizada — um servidor na
 nuvem não enxerga o disco do computador do usuário). Em desenvolvimento local
 continua lendo da pasta local (`DESEMPENHO_COMERCIAL_DATA_DIR`), sem mudança.
 
-`lib/data-providers/index.ts` escolhe automaticamente, nessa ordem: OneDrive
-(Graph API, se `MICROSOFT_CLIENT_ID`/`MICROSOFT_CLIENT_SECRET` configurados) →
-pasta local (`DESEMPENHO_COMERCIAL_DATA_DIR`) → dataset de exemplo (mock).
+`lib/data-providers/index.ts` escolhe automaticamente, nessa ordem: dataset em
+cache no Redis (produção, ver "Atualização agendada" abaixo, com fallback pro
+OneDrive direto se o cache ainda não existir) → OneDrive direto (Graph API, sem
+Redis) → pasta local (`DESEMPENHO_COMERCIAL_DATA_DIR`) → dataset de exemplo (mock).
+
+### Atualização agendada (evita reprocessar os arquivos a cada clique)
+
+⚠️ Requisições normais (navegar no site, mudar filtro, clicar numa loja) **nunca
+tocam o OneDrive** — isso é lento demais pra rodar a cada interação numa função
+serverless que pode "esfriar" a qualquer momento. Em vez disso:
+
+- Um **Cron da Vercel** (`vercel.json`, `app/api/cron/atualizar-dados`) roda
+  1x/dia às 09:00 (America/Sao_Paulo), busca os 4 arquivos no OneDrive,
+  processa tudo e grava o resultado (já normalizado, em pedaços gzipados) no
+  Redis — ver `lib/desempenho/dataset-cache.ts` e `atualizar-dataset.ts`.
+- O botão "Atualizar dados" no header (`app/api/atualizar-dados`, POST) roda a
+  mesma rotina sob demanda, pra quando não dá pra esperar o cron.
+- Toda leitura normal (`lib/data-providers/cached-provider.ts`) só lê esse
+  cache — rápido e não depende de instância "quente" do servidor.
+- Alterar `CRON_SECRET` (opcional) protege a rota do cron contra chamadas
+  externas — a Vercel manda esse segredo automaticamente quando configurado.
 
 Peças da integração com o OneDrive (conta pessoal — tenant `consumers`):
 - `config/onedrive.ts` — credenciais/config do app Microsoft
@@ -87,14 +105,20 @@ Ficam em `05 - Bases` (irmã da pasta deste projeto, `06 - Projetos`), com exten
 | `bdCadastro.txt` | Cadastro de produtos: hierarquia mercadológica + comprador (~130 colunas no total, só usamos ~7) |
 | `bdLojas.txt` | As 11 lojas: nome, formato (Varejo/Atacado) |
 
-⚠️ **Assimetria confirmada entre Atual e Comparação**: `bdDesempenhoComercialAtual.txt`
-NÃO tem colunas `Unidade Código`/`Unidade Nome` (tem `Data` no lugar — um grão diário
-consolidado de todas as lojas juntas). `bdDesempenhoComercialComparação.txt` tem
-`Unidade Código`/`Unidade Nome` mas não tem `Data` (já vem agregado por loja para o
-período inteiro). Efeito prático: o painel "Lojas" (breakdown por loja) fica vazio
-para o período atual — os KPIs totais (venda/lucro da empresa) continuam corretos,
-mas não há como saber qual loja vendeu o quê no período atual com o arquivo como
-está hoje. Ver decisão registrada em "Em aberto" mais abaixo.
+✅ **Resolvido**: `bdDesempenhoComercialAtual.txt` foi reexportado incluindo
+`Unidade Código`/`Unidade Nome` — o painel "Lojas" já funciona pro período atual.
+
+⚠️ **Assimetria que continua**: só `bdDesempenhoComercialAtual.txt` tem coluna
+`Data` (grão diário); `bdDesempenhoComercialComparação.txt` não tem — vem já
+agregado pro período inteiro, sem como derivar automaticamente que período é
+esse. Por isso o rótulo do período:
+- **Atual**: calculado automaticamente a partir do min/máx de `Data` em
+  `bdDesempenhoComercialAtual.txt` (`lib/desempenho/periodo.ts`,
+  `calcularLabelPeriodoAtual`) — sempre correto, não precisa configurar.
+- **Comparação**: não dá pra derivar do arquivo — configurável manualmente
+  pelo botão "Comparação: …" no filtro (grava no Redis via
+  `app/api/periodo-comparacao`, chave `config:periodo_comparacao`). Precisa
+  ser atualizado à mão sempre que o arquivo de comparação mudar de período.
 
 ### Formato dos arquivos
 
@@ -290,11 +314,6 @@ Elementos a replicar:
 
 ## Em aberto / a validar com o usuário
 
-- **Bloqueador de dados**: `bdDesempenhoComercialAtual.txt` não tem loja
-  (`Unidade Código`/`Unidade Nome`) — só `bdDesempenhoComercialComparação.txt` tem.
-  Painel "Lojas" fica sem dado no período atual até isso ser resolvido (reexportar
-  o Atual com a quebra por loja, ou definir outro tratamento). Ver detalhes em
-  "Fonte de dados" acima.
 - Metas/objetivos ficaram fora de escopo por enquanto (mencionado explicitamente
   pelo usuário ao revisar referências de outra rede)
 

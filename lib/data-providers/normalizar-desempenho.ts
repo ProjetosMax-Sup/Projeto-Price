@@ -64,6 +64,7 @@ const CAMPOS_MOVIMENTO = [
   "Qtde Vendas Oferta",
   "Vendas Oferta",
   "Lucros Oferta",
+  "Data",
 ] as const;
 
 function linhaParaMovimento(l: Record<(typeof CAMPOS_MOVIMENTO)[number], string>): MovimentoVendas {
@@ -82,6 +83,7 @@ function linhaParaMovimento(l: Record<(typeof CAMPOS_MOVIMENTO)[number], string>
     codigoBarras: l["Código Barras"],
     unidadeCodigo: l["Unidade Código"],
     unidadeNome: l["Unidade Nome"],
+    data: l["Data"],
     qtdeVendasTotal,
     valorTotal,
     lucrosTotal,
