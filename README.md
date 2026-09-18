@@ -66,7 +66,7 @@ precisa mexer em build settings.
 
 No projeto da Vercel → **Storage** → **Marketplace Database Providers** →
 escolher a integração **Redis** (Upstash) → **Create** → conectar ao projeto.
-Isso injeta `KV_REST_API_URL`/`KV_REST_API_TOKEN` sozinho, não precisa copiar nada.
+Isso injeta `REDIS_URL` sozinho, não precisa copiar nada.
 
 ### 5. 🔧 Variáveis de ambiente
 
