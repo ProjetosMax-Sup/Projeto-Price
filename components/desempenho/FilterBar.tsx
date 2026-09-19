@@ -1,33 +1,37 @@
 "use client";
 
+import { PeriodoRangeInput } from "@/components/desempenho/PeriodoRangeInput";
 import { MultiSelect } from "@/components/ui/MultiSelect";
-import type { Filtros } from "@/lib/desempenho/consulta";
+import type { ConsultaDesempenho, Filtros, IntervaloData } from "@/lib/desempenho/consulta";
 import type { Loja } from "@/lib/types";
-
-/** Rótulo estático — Atual e Comparação usam o mesmo visual (não editável por aqui por enquanto). */
-function PeriodoPill({ label, sufixo, titulo }: { label: string; sufixo: string; titulo?: string }) {
-  return (
-    <span title={titulo} className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700">
-      <span className="font-medium text-zinc-800">{label}</span>
-      <span className="text-zinc-500"> {sufixo}</span>
-    </span>
-  );
-}
 
 export function FilterBar({
   lojas,
   compradores,
   filtros,
   onChange,
+  periodoAtualLabel,
+  periodoComparacaoLabel,
   periodoAtual,
+  onChangePeriodoAtual,
   periodoComparacao,
+  onChangePeriodoComparacao,
+  datasDisponiveisAtual,
+  datasDisponiveisComparacao,
 }: {
   lojas: Loja[];
   compradores: string[];
   filtros: Filtros;
   onChange: (filtros: Filtros) => void;
-  periodoAtual: string;
-  periodoComparacao: string | null;
+  /** Rótulo do período automático (range completo do arquivo), calculado no servidor. */
+  periodoAtualLabel: string;
+  periodoComparacaoLabel: string | null;
+  periodoAtual: ConsultaDesempenho["periodoAtual"];
+  onChangePeriodoAtual: (v: IntervaloData | null) => void;
+  periodoComparacao: ConsultaDesempenho["periodoComparacao"];
+  onChangePeriodoComparacao: (v: IntervaloData | null) => void;
+  datasDisponiveisAtual: string[];
+  datasDisponiveisComparacao: string[];
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-3">
@@ -58,13 +62,21 @@ export function FilterBar({
         onChange={(comprador) => onChange({ ...filtros, comprador })}
       />
 
-      <div className="ml-auto flex items-center gap-2">
-        <PeriodoPill
-          label={periodoAtual}
-          sufixo="Atual"
-          titulo="Calculado automaticamente a partir das datas em bdDesempenhoComercialAtual.txt"
+      <div className="ml-auto flex flex-wrap items-start gap-2">
+        <PeriodoRangeInput
+          rotulo="Atual"
+          valor={periodoAtual}
+          onChange={onChangePeriodoAtual}
+          datasDisponiveis={datasDisponiveisAtual}
+          labelAuto={periodoAtualLabel}
         />
-        <PeriodoPill label={periodoComparacao ?? "—"} sufixo="Comparação" />
+        <PeriodoRangeInput
+          rotulo="Comparação"
+          valor={periodoComparacao}
+          onChange={onChangePeriodoComparacao}
+          datasDisponiveis={datasDisponiveisComparacao}
+          labelAuto={periodoComparacaoLabel}
+        />
       </div>
     </div>
   );

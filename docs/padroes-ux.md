@@ -67,10 +67,18 @@ selecionada (produto/loja) em `vermelho/10`; zebra sutil nas linhas pares.
      (código vs. nome conforme o nível).
    - **1ª coluna fixa** em ambas as tabelas — rolando a tabela pra o lado, o
      nome do Departamento/Produto/Loja nunca some de vista.
-   - **Cabeçalho da tabela travado ao rolar** — títulos das colunas ficam
-     fixos no topo do próprio container da tabela. Bloco de Filtros+KPIs no
-     topo da página também fica fixo, soltando só quando a 1ª tabela
-     (Estrutura) chega, pra abrir espaço pro cabeçalho dela.
+   - **Scroll sticky sequencial**: Bloco de Filtros+KPIs fica fixo no topo da
+     página; ao rolar e alcançar a 1ª tabela (Estrutura), o cabeçalho de
+     colunas dela passa a grudar logo abaixo do bloco Filtros+KPIs enquanto as
+     linhas rolam por baixo; ao alcançar a 2ª tabela (Lojas), o cabeçalho da
+     Estrutura solta e o da Lojas assume o mesmo lugar — nunca dois
+     cabeçalhos grudados ao mesmo tempo. Implementado só com CSS
+     (`position: sticky` + `overflow-x-auto` sem altura limitada em cada
+     tabela, que o navegador promove a ancestral de scroll também no eixo
+     vertical), sem JavaScript de scroll. Ao trocar de tabela, a barra de
+     título azul da próxima rola visivelmente na tela por um instante antes
+     do cabeçalho dela grudar — esperado, não é bug. Só se aplica ao modo
+     Tabela da Estrutura (Ranking não tem cabeçalho de colunas).
    - **Valores de Comparação marcados visualmente** (itálico + fundo
      ligeiramente sombreado) em todas as colunas "…Comparação", pra não
      confundir com os valores do período Atual ao ler a tabela.
@@ -92,11 +100,15 @@ selecionada (produto/loja) em `vermelho/10`; zebra sutil nas linhas pares.
    ordenado por valor (maior → menor).
 7. **Exportar Excel / PDF** — botões no header (ver "Exportação" abaixo).
 8. Filtros no topo: Loja, Formato (Varejo/Atacado) e Comprador são todos
-   **multi-seleção**. Período Atual e Período de Comparação mostrados como
-   texto estático (não clicável, sem seletor), sempre calculados a partir do
-   min/máx de `Data` do respectivo arquivo — nunca configurados manualmente
-   (ver docs/fonte-de-dados.md). Formato fixo pros dois: "DD a DD/MMM AAAA
-   Atual"/"... Comparação".
+   **multi-seleção**. Período Atual e Período de Comparação são **editáveis**:
+   cada um tem um seletor de início e fim (Dia/Mês/Ano, dropdown + digitação
+   livre em cada subcampo). Sem seleção, o período automático (min/máx de
+   `Data` do respectivo arquivo, ver docs/fonte-de-dados.md) continua sendo o
+   padrão — mostrado como dica enquanto nada for escolhido. Validação:
+   calendário real (rejeita ex: 30/Fev), a data precisa existir no arquivo
+   correspondente, e fim ≥ início — qualquer violação mostra aviso inline
+   (não bloqueante) e não dispara consulta, mantendo o último recorte válido
+   na tela. Botão "×" volta ao automático.
 9. Navegação entre os 5 módulos como abas no header (mesmo estando só o primeiro
    implementado).
 10. **Badge de cadastro pendente é clicável** — baixa um `.txt` com os códigos

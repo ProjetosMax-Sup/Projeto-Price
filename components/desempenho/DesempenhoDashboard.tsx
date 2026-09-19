@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from "react";
 import { CadastroIncompletoBadge } from "@/components/desempenho/CadastroIncompletoBadge";
 import { FilterBar } from "@/components/desempenho/FilterBar";
 import { KpiCards } from "@/components/desempenho/KpiCards";
@@ -13,11 +13,15 @@ import {
   CONSULTA_PADRAO,
   type ConsultaDesempenho,
   type Filtros,
+  type IntervaloData,
   type NoSelecionado,
   type ResultadoDesempenho,
 } from "@/lib/desempenho/consulta";
 import { exportarExcel, exportarPdf } from "@/lib/desempenho/export";
 import type { Loja } from "@/lib/types";
+
+/** Altura (px) do header fixo do site (`ModuleNav`) — soma-se à altura do bloco Filtros+KPIs pra formar o offset sticky das tabelas. */
+const ALTURA_NAV = 52;
 
 async function buscarResultado(consulta: ConsultaDesempenho, signal: AbortSignal): Promise<ResultadoDesempenho> {
   const resposta = await fetch("/api/desempenho-comercial", {
@@ -41,8 +45,10 @@ export function DesempenhoDashboard({
   produtosDescartados,
   produtosDescartadosCodigos,
   resultadoInicial,
-  periodoAtual,
-  periodoComparacaoInicial,
+  periodoAtual: periodoAtualLabel,
+  periodoComparacaoInicial: periodoComparacaoLabel,
+  datasDisponiveisAtualInicial,
+  datasDisponiveisComparacaoInicial,
 }: {
   lojas: Loja[];
   compradores: string[];
@@ -51,8 +57,14 @@ export function DesempenhoDashboard({
   resultadoInicial: ResultadoDesempenho;
   periodoAtual: string;
   periodoComparacaoInicial: string | null;
+  datasDisponiveisAtualInicial: string[];
+  datasDisponiveisComparacaoInicial: string[];
 }) {
   const [filtros, setFiltros] = useState<Filtros>(CONSULTA_PADRAO.filtros);
+  const [periodoAtual, setPeriodoAtual] = useState<IntervaloData | null>(null);
+  const [periodoComparacao, setPeriodoComparacao] = useState<IntervaloData | null>(null);
+  const [datasDisponiveisAtual, setDatasDisponiveisAtual] = useState<string[]>(datasDisponiveisAtualInicial);
+  const [datasDisponiveisComparacao, setDatasDisponiveisComparacao] = useState<string[]>(datasDisponiveisComparacaoInicial);
   // Breadcrumb do drill-down: Departamento → Seção → Categoria → Grupo → Sub
   // Grupo → Produto. O nível exibido é sempre o próximo depois do último nó.
   const [caminhoDrill, setCaminhoDrill] = useState<NoSelecionado[]>([]);
@@ -72,6 +84,22 @@ export function DesempenhoDashboard({
   // Só o request mais recente pode atualizar a tela — evita que uma resposta
   // atrasada de um filtro antigo sobrescreva o resultado de um filtro mais novo.
   const idRequisicaoRef = useRef(0);
+
+  // Altura real do bloco Filtros+KPIs (varia conforme os chips de filtro quebram linha) — soma-se
+  // a ALTURA_NAV pra formar o offset sticky do cabeçalho da tabela "ativa" na viewport (ver JSX).
+  const filtrosKpiRef = useRef<HTMLDivElement>(null);
+  const [alturaFiltrosKpi, setAlturaFiltrosKpi] = useState(0);
+  useLayoutEffect(() => {
+    const elemento = filtrosKpiRef.current;
+    if (!elemento) return;
+    // `entrada.contentRect` mede só a content-box (sem padding/borda) — usar `offsetHeight` pra
+    // pegar a altura total (border-box) que o bloco realmente ocupa na página, senão o offset dos
+    // cabeçalhos das tabelas fica menor do que devia e eles ficam parcialmente atrás dos cards.
+    const observer = new ResizeObserver(() => setAlturaFiltrosKpi(elemento.offsetHeight));
+    observer.observe(elemento);
+    return () => observer.disconnect();
+  }, []);
+  const stickyTop = ALTURA_NAV + alturaFiltrosKpi;
 
   useEffect(() => {
     fetch("/api/atualizar-dados")
@@ -95,6 +123,8 @@ export function DesempenhoDashboard({
       produtoSelecionado,
       lojasSelecionadas,
       nivelTopAltasQuedas,
+      periodoAtual,
+      periodoComparacao,
     };
     buscarResultado(consulta, controller.signal)
       .then((dados) => {
@@ -107,7 +137,7 @@ export function DesempenhoDashboard({
         if (idRequisicaoRef.current === idDaRequisicao) setCarregando(false);
       });
     return () => controller.abort();
-  }, [filtros, caminhoDrill, produtoSelecionado, lojasSelecionadas, nivelTopAltasQuedas]);
+  }, [filtros, caminhoDrill, produtoSelecionado, lojasSelecionadas, nivelTopAltasQuedas, periodoAtual, periodoComparacao]);
 
   function aoClicarEstrutura(linha: EstruturaAgregada) {
     if (linha.nivel === "produto") {
@@ -195,6 +225,15 @@ export function DesempenhoDashboard({
       const dados = await resposta.json();
       if (dados.ok) {
         setDadosGeradoEm(dados.geradoEm);
+        // Datas podem ter mudado de cobertura no arquivo novo — resincroniza a lista usada
+        // pra validar os seletores de período.
+        fetch("/api/desempenho-comercial")
+          .then((r) => r.json())
+          .then((d) => {
+            setDatasDisponiveisAtual(d.datasAtual ?? []);
+            setDatasDisponiveisComparacao(d.datasComparacao ?? []);
+          })
+          .catch(() => {});
         // Recarrega o recorte atual com os dados novos.
         idRequisicaoRef.current += 1;
         const idDaRequisicao = idRequisicaoRef.current;
@@ -204,6 +243,8 @@ export function DesempenhoDashboard({
           produtoSelecionado,
           lojasSelecionadas,
           nivelTopAltasQuedas,
+          periodoAtual,
+          periodoComparacao,
         };
         const resultadoNovo = await buscarResultado(consulta, new AbortController().signal);
         if (idRequisicaoRef.current === idDaRequisicao) setResultado(resultadoNovo);
@@ -257,21 +298,44 @@ export function DesempenhoDashboard({
         </div>
       </div>
 
-      {/* Filtros+KPIs (sticky) some StatusBar e Top Altas/Quedas dentro do MESMO
-          wrapper: um elemento sticky só fica "grudado" enquanto o próprio
-          wrapper que o contém ainda está passando pela tela. Como esse wrapper
-          termina logo depois do Top Altas/Quedas (não inclui as tabelas), o
-          bloco solta e rola pra fora bem na hora em que a 1ª tabela chega —
-          abrindo espaço pro cabeçalho dela (já fixo por conta própria). */}
+      {/* Filtros+KPIs, StatusBar, Top Altas/Quedas e as duas tabelas vivem no MESMO
+          wrapper flex-col: um elemento sticky só fica "grudado" enquanto o
+          próprio wrapper que o contém ainda está passando pela tela. Como esse
+          wrapper só termina depois da LojasPanel (a última coisa da página),
+          o bloco Filtros+KPIs nunca solta enquanto houver tabela na tela — é
+          exatamente esse bloco, sempre visível, que ocupa o espaço acima de
+          cada cabeçalho de tabela (por isso as linhas nunca "vazam" por cima
+          do cabeçalho: a região entre o nav e o cabeçalho da tabela está
+          sempre coberta pelo bloco opaco de Filtros+KPIs).
+          Cada tabela (EstruturaPanel/LojasPanel), por sua vez, tem seu próprio
+          cabeçalho sticky (offset = stickyTop, calculado abaixo a partir da
+          altura real do bloco Filtros+KPIs) — o cabeçalho de cada tabela é um
+          `<table>` separado do corpo (ver comentário em EstruturaPanel.tsx)
+          porque um `<thead>` sticky dentro do container de scroll horizontal
+          do corpo não gruda (qualquer ancestral com overflow não-visível
+          quebra `position: sticky` de um descendente, mesmo sem overflow
+          real). Isso faz o cabeçalho de uma tabela grudar só enquanto ela
+          está passando pela tela e soltar assim que a próxima tabela assume o
+          mesmo offset — tudo via CSS puro, sem IntersectionObserver. */}
       <div className="flex flex-col gap-4">
-        <div className="sticky top-[52px] z-20 -mx-6 flex flex-col gap-4 border-b border-zinc-200 bg-zinc-50 px-6 pb-3 pt-3">
+        <div
+          ref={filtrosKpiRef}
+          className="sticky z-30 -mx-6 flex flex-col gap-4 border-b border-zinc-200 bg-zinc-50 px-6 pb-3 pt-3"
+          style={{ top: ALTURA_NAV }}
+        >
           <FilterBar
             lojas={lojas}
             compradores={compradores}
             filtros={filtros}
             onChange={setFiltros}
+            periodoAtualLabel={periodoAtualLabel}
+            periodoComparacaoLabel={periodoComparacaoLabel}
             periodoAtual={periodoAtual}
-            periodoComparacao={periodoComparacaoInicial}
+            onChangePeriodoAtual={setPeriodoAtual}
+            periodoComparacao={periodoComparacao}
+            onChangePeriodoComparacao={setPeriodoComparacao}
+            datasDisponiveisAtual={datasDisponiveisAtual}
+            datasDisponiveisComparacao={datasDisponiveisComparacao}
           />
 
           <KpiCards atual={resultado.kpiAtual} comparacao={resultado.kpiComparacao} />
@@ -286,26 +350,37 @@ export function DesempenhoDashboard({
         <div className={`transition-opacity ${carregando ? "pointer-events-none opacity-60" : ""}`}>
           <TopAltasQuedas nivel={nivelTopAltasQuedas} onNivelChange={setNivelTopAltasQuedas} linhas={resultado.linhasTop} />
         </div>
-      </div>
 
-      <div className={`flex flex-col gap-4 transition-opacity ${carregando ? "pointer-events-none opacity-60" : ""}`}>
-        <EstruturaPanel
-          nivel={resultado.estruturaNivel}
-          linhas={resultado.linhasEstrutura}
-          caminho={caminhoDrill}
-          produtoSelecionado={produtoSelecionado}
-          modoRanking={modoRanking}
-          onToggleModo={() => setModoRanking((m) => !m)}
-          onClickLinha={aoClicarEstrutura}
-          onVoltarPara={aoVoltarPara}
-        />
-        <LojasPanel linhas={resultado.linhasLojas} selecionadas={lojasSelecionadas} onClickLinha={aoClicarLoja} />
-      </div>
+        <div className={`flex flex-col gap-4 transition-opacity ${carregando ? "pointer-events-none opacity-60" : ""}`}>
+          <EstruturaPanel
+            nivel={resultado.estruturaNivel}
+            linhas={resultado.linhasEstrutura}
+            caminho={caminhoDrill}
+            produtoSelecionado={produtoSelecionado}
+            modoRanking={modoRanking}
+            onToggleModo={() => setModoRanking((m) => !m)}
+            onClickLinha={aoClicarEstrutura}
+            onVoltarPara={aoVoltarPara}
+            stickyTop={stickyTop}
+          />
+          <LojasPanel
+            linhas={resultado.linhasLojas}
+            selecionadas={lojasSelecionadas}
+            onClickLinha={aoClicarLoja}
+            stickyTop={stickyTop}
+          />
+        </div>
 
-      <p className="pb-2 text-center text-xs text-zinc-400">
-        Fonte: bdDesempenhoComercialAtual + bdDesempenhoComercialComparação + bdCadastro + bdLojas · Dados
-        atualizados em {formatarDataHora(dadosGeradoEm)}
-      </p>
+        {/* Fica DENTRO do mesmo wrapper sticky-container (acima) — dá folga suficiente pro
+            cabeçalho da Lojas (e o próprio bloco Filtros+KPIs) soltarem de forma limpa depois da
+            última linha, em vez do wrapper terminar bem em cima da tabela (o que causava uma
+            transição bagunçada bem no fim do scroll, com elementos soltando em momentos
+            ligeiramente diferentes). */}
+        <p className="pt-2 pb-2 text-center text-xs text-zinc-400" style={{ minHeight: stickyTop }}>
+          Fonte: bdDesempenhoComercialAtual + bdDesempenhoComercialComparação + bdCadastro + bdLojas · Dados
+          atualizados em {formatarDataHora(dadosGeradoEm)}
+        </p>
+      </div>
     </div>
   );
 }

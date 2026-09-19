@@ -1,13 +1,6 @@
 import type { RegistroDesempenho } from "@/lib/types";
+import { parseDataBr } from "./datas";
 import { formatPeriodo } from "./format";
-
-/** "DD/MM/AA" → Date (ano assumido 20XX). */
-function parseDataBr(data: string): Date | null {
-  const m = data.match(/^(\d{2})\/(\d{2})\/(\d{2})$/);
-  if (!m) return null;
-  const [, dia, mes, ano] = m;
-  return new Date(2000 + Number(ano), Number(mes) - 1, Number(dia));
-}
 
 /**
  * Rótulo de um período (Atual ou Comparação), derivado direto do min/máx da

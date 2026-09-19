@@ -3,6 +3,7 @@ import { ModuleNav } from "@/components/ui/ModuleNav";
 import { getDataProvider } from "@/lib/data-providers";
 import { listaCompradores } from "@/lib/desempenho/compradores";
 import { CONSULTA_PADRAO, computarDesempenho } from "@/lib/desempenho/consulta";
+import { datasDisponiveis } from "@/lib/desempenho/datas";
 import { calcularLabelPeriodo } from "@/lib/desempenho/periodo";
 
 // Os arquivos-fonte mudam a cada atualização do time — nunca pré-renderizar
@@ -29,6 +30,9 @@ export default async function DesempenhoComercialPage() {
   const periodoAtual = calcularLabelPeriodo(atual.registros) ?? "—";
   const periodoComparacao = calcularLabelPeriodo(comparacao.registros);
 
+  const datasDisponiveisAtualInicial = datasDisponiveis(atual.registros);
+  const datasDisponiveisComparacaoInicial = datasDisponiveis(comparacao.registros);
+
   return (
     <div className="flex min-h-full flex-col">
       <ModuleNav active="desempenho-comercial" />
@@ -41,6 +45,8 @@ export default async function DesempenhoComercialPage() {
           resultadoInicial={resultadoInicial}
           periodoAtual={periodoAtual}
           periodoComparacaoInicial={periodoComparacao}
+          datasDisponiveisAtualInicial={datasDisponiveisAtualInicial}
+          datasDisponiveisComparacaoInicial={datasDisponiveisComparacaoInicial}
         />
       </main>
     </div>

@@ -13,6 +13,7 @@ import {
   type NoSelecionado,
 } from "@/lib/desempenho/aggregate";
 import { nomeCompradorDoRegistro } from "@/lib/desempenho/compradores";
+import { isoParaDataLocal, parseDataBr } from "@/lib/desempenho/datas";
 import type { Loja, RegistroDesempenho } from "@/lib/types";
 
 export type { NoSelecionado } from "@/lib/desempenho/aggregate";
@@ -21,6 +22,12 @@ export interface Filtros {
   lojas: string[]; // vazio = todas
   formato: string[]; // vazio = todos ("Varejo" | "Atacado")
   comprador: string[]; // vazio = todos (nomes de comprador padronizados)
+}
+
+/** Intervalo de datas (ISO "AAAA-MM-DD", inclusive nas duas pontas) escolhido pelo usuário pra um período. */
+export interface IntervaloData {
+  inicio: string;
+  fim: string;
 }
 
 /**
@@ -39,6 +46,9 @@ export interface ConsultaDesempenho {
   produtoSelecionado: string | null;
   lojasSelecionadas: string[];
   nivelTopAltasQuedas: NivelHierarquia;
+  /** null = período inteiro do arquivo (comportamento padrão/automático). */
+  periodoAtual: IntervaloData | null;
+  periodoComparacao: IntervaloData | null;
 }
 
 export interface ResultadoDesempenho {
@@ -56,7 +66,20 @@ export const CONSULTA_PADRAO: ConsultaDesempenho = {
   produtoSelecionado: null,
   lojasSelecionadas: [],
   nivelTopAltasQuedas: "secao",
+  periodoAtual: null,
+  periodoComparacao: null,
 };
+
+function aplicarFiltroIntervalo(registros: RegistroDesempenho[], intervalo: IntervaloData | null): RegistroDesempenho[] {
+  if (!intervalo) return registros;
+  const inicio = isoParaDataLocal(intervalo.inicio);
+  const fim = isoParaDataLocal(intervalo.fim);
+  if (!inicio || !fim) return registros;
+  return registros.filter((r) => {
+    const data = parseDataBr(r.movimento.data);
+    return data !== null && data >= inicio && data <= fim;
+  });
+}
 
 function aplicarFiltrosBase(registros: RegistroDesempenho[], filtros: Filtros): RegistroDesempenho[] {
   return registros.filter((r) => {
@@ -80,13 +103,17 @@ export function computarDesempenho(
   lojas: Loja[],
   consulta: ConsultaDesempenho,
 ): ResultadoDesempenho {
-  const { filtros, caminhoDrill, produtoSelecionado, lojasSelecionadas, nivelTopAltasQuedas } = consulta;
+  const { filtros, caminhoDrill, produtoSelecionado, lojasSelecionadas, nivelTopAltasQuedas, periodoAtual, periodoComparacao } =
+    consulta;
   const noAtivo = caminhoDrill.at(-1) ?? null;
   const estruturaNivel = NIVEIS_ESTRUTURA[caminhoDrill.length] ?? "produto";
   const filtroProduto = (r: RegistroDesempenho) => !produtoSelecionado || r.movimento.codigo === produtoSelecionado;
 
-  const baseAtual = aplicarFiltrosBase(registrosAtual, filtros);
-  const baseComparacao = aplicarFiltrosBase(registrosComparacao, filtros);
+  const atualNoIntervalo = aplicarFiltroIntervalo(registrosAtual, periodoAtual);
+  const comparacaoNoIntervalo = aplicarFiltroIntervalo(registrosComparacao, periodoComparacao);
+
+  const baseAtual = aplicarFiltrosBase(atualNoIntervalo, filtros);
+  const baseComparacao = aplicarFiltrosBase(comparacaoNoIntervalo, filtros);
 
   const filtroSelecao = (r: RegistroDesempenho) =>
     (lojasSelecionadas.length === 0 || (r.loja && lojasSelecionadas.includes(r.loja.codUnid))) &&
