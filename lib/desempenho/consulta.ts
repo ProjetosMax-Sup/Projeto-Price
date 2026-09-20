@@ -12,7 +12,7 @@ import {
   type NivelHierarquia,
   type NoSelecionado,
 } from "@/lib/desempenho/aggregate";
-import { nomeCompradorDoRegistro } from "@/lib/desempenho/compradores";
+import { nomeCompradorDoRegistroCadastro, type IndiceDepartamentos } from "@/lib/desempenho/comprador-cadastro";
 import {
   diasComVendaPorLoja,
   intervalosFechamento,
@@ -106,9 +106,13 @@ function aplicarFiltroIntervalo(registros: RegistroDesempenho[], intervalo: Inte
   });
 }
 
-function aplicarFiltrosBase(registros: RegistroDesempenho[], filtros: Filtros): RegistroDesempenho[] {
+function aplicarFiltrosBase(
+  registros: RegistroDesempenho[],
+  filtros: Filtros,
+  indiceComprador: IndiceDepartamentos,
+): RegistroDesempenho[] {
   return registros.filter((r) => {
-    const comprador = filtros.comprador.length > 0 ? nomeCompradorDoRegistro(r) : null;
+    const comprador = filtros.comprador.length > 0 ? nomeCompradorDoRegistroCadastro(r, indiceComprador) : null;
     return (
       (filtros.lojas.length === 0 || (r.loja && filtros.lojas.includes(r.loja.codUnid))) &&
       (filtros.formato.length === 0 || (r.loja && filtros.formato.includes(r.loja.formato))) &&
@@ -134,10 +138,11 @@ function acumularOpcoesComDados(
   registros: RegistroDesempenho[],
   filtros: Filtros,
   destino: { lojas: Set<string>; formato: Set<string>; comprador: Set<string>; departamentos: Set<string> },
+  indiceComprador: IndiceDepartamentos,
 ): void {
   for (const r of registros) {
     if (r.movimento.valorTotal <= 0) continue;
-    const nomeComprador = nomeCompradorDoRegistro(r);
+    const nomeComprador = nomeCompradorDoRegistroCadastro(r, indiceComprador);
 
     const passaLojas = filtros.lojas.length === 0 || (r.loja !== null && filtros.lojas.includes(r.loja.codUnid));
     const passaFormato = filtros.formato.length === 0 || (r.loja !== null && filtros.formato.includes(r.loja.formato));
@@ -163,6 +168,7 @@ export function computarDesempenho(
   registros: RegistroDesempenho[],
   lojas: Loja[],
   consulta: ConsultaDesempenho,
+  indiceComprador: IndiceDepartamentos,
 ): ResultadoDesempenho {
   const { filtros, caminhoDrill, produtoSelecionado, lojasSelecionadas, nivelTopAltasQuedas, periodoAtual, periodoComparacao } =
     consulta;
@@ -174,8 +180,8 @@ export function computarDesempenho(
   const comparacaoNoIntervalo = aplicarFiltroIntervalo(registros, periodoComparacao);
 
   const opcoesComDadosSets = { lojas: new Set<string>(), formato: new Set<string>(), comprador: new Set<string>(), departamentos: new Set<string>() };
-  acumularOpcoesComDados(atualNoIntervalo, filtros, opcoesComDadosSets);
-  acumularOpcoesComDados(comparacaoNoIntervalo, filtros, opcoesComDadosSets);
+  acumularOpcoesComDados(atualNoIntervalo, filtros, opcoesComDadosSets, indiceComprador);
+  acumularOpcoesComDados(comparacaoNoIntervalo, filtros, opcoesComDadosSets, indiceComprador);
   const opcoesComDados: OpcoesComDados = {
     lojas: Array.from(opcoesComDadosSets.lojas),
     formato: Array.from(opcoesComDadosSets.formato),
@@ -183,8 +189,8 @@ export function computarDesempenho(
     departamentos: Array.from(opcoesComDadosSets.departamentos),
   };
 
-  const baseAtual = aplicarFiltrosBase(atualNoIntervalo, filtros);
-  const baseComparacao = aplicarFiltrosBase(comparacaoNoIntervalo, filtros);
+  const baseAtual = aplicarFiltrosBase(atualNoIntervalo, filtros, indiceComprador);
+  const baseComparacao = aplicarFiltrosBase(comparacaoNoIntervalo, filtros, indiceComprador);
 
   // "Mesmas Lojas": só avaliável com os dois períodos definidos (senão não há "início" pra
   // comparar). A data de abertura é inferida da 1ª venda da loja considerando TODO o pool
