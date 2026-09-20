@@ -32,3 +32,10 @@ export function listaDepartamentos(): { value: string; label: string }[] {
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([codigo, nome]) => ({ value: codigo, label: `${codigo} - ${nome}` }));
 }
+
+/** Entradas {código, nome}, ordenadas — usado pelo seed do cadastro de Departamentos (Parâmetros). */
+export function entradasDepartamentos(): { codigo: string; nome: string }[] {
+  return Object.entries(NOME_DEPARTAMENTO_POR_DPTO)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([codigo, nome]) => ({ codigo, nome }));
+}

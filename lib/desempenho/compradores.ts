@@ -43,6 +43,11 @@ export function nomeCompradorDoRegistro(registro: RegistroDesempenho): string | 
   return nomeCompradorPorDpto(registro.produto.dpto, registro.loja.formato);
 }
 
+/** Comprador (varejo/atacado) por código de Dpto — usado pelo seed do cadastro de Departamentos (Parâmetros). */
+export function compradorPorDptoAtual(dpto: string): { varejo: string; atacado: string } | undefined {
+  return COMPRADOR_POR_DPTO[dpto];
+}
+
 /** Lista de compradores distintos (ordenada) pra popular o filtro. */
 export function listaCompradores(): string[] {
   const nomes = new Set<string>();
