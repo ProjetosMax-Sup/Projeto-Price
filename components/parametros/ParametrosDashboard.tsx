@@ -2,14 +2,18 @@
 
 import { useMemo, useState } from "react";
 import { DepartamentosTable } from "@/components/parametros/DepartamentosTable";
+import { DicionarioColunasTable } from "@/components/parametros/DicionarioColunasTable";
 import { LojasTable } from "@/components/parametros/LojasTable";
+import { RelatorioColunasPanel } from "@/components/parametros/relatorio/RelatorioColunasPanel";
 import { UsuariosTable } from "@/components/parametros/UsuariosTable";
-import type { DepartamentoCadastro, LojaCadastro, UsuarioCadastro } from "@/lib/parametros/types";
+import type { ColunaNativa, DepartamentoCadastro, LojaCadastro, UsuarioCadastro } from "@/lib/parametros/types";
 
 const ABAS = [
   { valor: "lojas", label: "Lojas" },
   { valor: "departamentos", label: "Departamentos" },
   { valor: "usuarios", label: "Usuários" },
+  { valor: "dicionario", label: "Dicionário de Colunas" },
+  { valor: "colunas", label: "Colunas (por relatório)" },
 ] as const;
 
 export function ParametrosDashboard({
@@ -17,16 +21,19 @@ export function ParametrosDashboard({
   departamentosIniciais,
   usuariosIniciais,
   statusContasIniciais,
+  dicionarioInicial,
 }: {
   lojasIniciais: LojaCadastro[];
   departamentosIniciais: DepartamentoCadastro[];
   usuariosIniciais: UsuarioCadastro[];
   statusContasIniciais: Record<string, boolean>;
+  dicionarioInicial: ColunaNativa[];
 }) {
   const [aba, setAba] = useState<(typeof ABAS)[number]["valor"]>("lojas");
   const [lojas, setLojas] = useState<LojaCadastro[]>(lojasIniciais);
   const [departamentos, setDepartamentos] = useState<DepartamentoCadastro[]>(departamentosIniciais);
   const [usuarios, setUsuarios] = useState<UsuarioCadastro[]>(usuariosIniciais);
+  const [dicionario, setDicionario] = useState<ColunaNativa[]>(dicionarioInicial);
 
   // Formatos vêm de Lojas em tempo real (mesmo antes de salvar) — Departamentos precisa saber
   // quais formatos existem pra pedir um comprador por formato (docs/parametros.md, seção 2.3).
@@ -61,11 +68,11 @@ export function ParametrosDashboard({
       <div>
         <h1 className="font-display text-2xl font-bold text-zinc-900">Parâmetros</h1>
         <p className="text-sm text-zinc-500">
-          Cadastro de Lojas, Departamentos e Usuários — base compartilhada pelos módulos.
+          Cadastro de Lojas, Departamentos e Usuários, e configuração de colunas por relatório.
         </p>
       </div>
 
-      <div className="flex gap-1 border-b border-zinc-200">
+      <div className="flex flex-wrap gap-1 border-b border-zinc-200">
         {ABAS.map((item) => (
           <button
             key={item.valor}
@@ -93,6 +100,8 @@ export function ParametrosDashboard({
           statusContasIniciais={statusContasIniciais}
         />
       )}
+      {aba === "dicionario" && <DicionarioColunasTable colunas={dicionario} onChange={setDicionario} />}
+      {aba === "colunas" && <RelatorioColunasPanel dicionario={dicionario} />}
     </div>
   );
 }

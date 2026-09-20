@@ -4,6 +4,7 @@ import { obterGestorAtual } from "@/lib/auth/exigir-gestor";
 import { statusClerkPorUsuario } from "@/lib/auth/clerk-admin";
 import {
   obterOuSemearDepartamentosCadastro,
+  obterOuSemearDicionarioColunas,
   obterOuSemearLojasCadastro,
   obterOuSemearUsuariosCadastro,
 } from "@/lib/parametros/store";
@@ -26,10 +27,11 @@ export default async function ParametrosPage() {
     );
   }
 
-  const [lojas, departamentos, usuarios] = await Promise.all([
+  const [lojas, departamentos, usuarios, dicionario] = await Promise.all([
     obterOuSemearLojasCadastro(),
     obterOuSemearDepartamentosCadastro(),
     obterOuSemearUsuariosCadastro(),
+    obterOuSemearDicionarioColunas(),
   ]);
   const statusContas = await statusClerkPorUsuario(usuarios.map((u) => u.usuario));
 
@@ -42,6 +44,7 @@ export default async function ParametrosPage() {
           departamentosIniciais={departamentos}
           usuariosIniciais={usuarios}
           statusContasIniciais={statusContas}
+          dicionarioInicial={dicionario}
         />
       </main>
     </div>

@@ -1,6 +1,7 @@
 import Redis from "ioredis";
+import { semearDicionarioColunas } from "@/lib/parametros/dicionario";
 import { semearDepartamentosCadastro, semearLojasCadastro, semearUsuariosCadastro } from "@/lib/parametros/seed";
-import type { DepartamentoCadastro, LojaCadastro, UsuarioCadastro } from "@/lib/parametros/types";
+import type { ColunaNativa, ConfigRelatorio, DepartamentoCadastro, LojaCadastro, UsuarioCadastro } from "@/lib/parametros/types";
 
 /**
  * Cadastro de Lojas e Departamentos, editável pela tela /parametros.
@@ -12,6 +13,8 @@ import type { DepartamentoCadastro, LojaCadastro, UsuarioCadastro } from "@/lib/
 const CHAVE_LOJAS = "parametros:lojas";
 const CHAVE_DEPARTAMENTOS = "parametros:departamentos";
 const CHAVE_USUARIOS = "parametros:usuarios";
+const CHAVE_DICIONARIO = "parametros:dicionario-colunas";
+const chaveConfigRelatorio = (modulo: string) => `parametros:relatorio:${modulo}`;
 
 function obterCliente(): Redis {
   const url = process.env.REDIS_URL;
@@ -104,4 +107,70 @@ export async function obterOuSemearUsuariosCadastro(): Promise<UsuarioCadastro[]
   const semeados = semearUsuariosCadastro();
   await salvarUsuariosCadastro(semeados);
   return semeados;
+}
+
+export async function lerDicionarioColunas(): Promise<ColunaNativa[] | null> {
+  const cliente = obterCliente();
+  try {
+    const bruto = await cliente.get(CHAVE_DICIONARIO);
+    return bruto ? (JSON.parse(bruto) as ColunaNativa[]) : null;
+  } finally {
+    cliente.disconnect();
+  }
+}
+
+export async function salvarDicionarioColunas(colunas: ColunaNativa[]): Promise<void> {
+  const cliente = obterCliente();
+  try {
+    await cliente.set(CHAVE_DICIONARIO, JSON.stringify(colunas));
+  } finally {
+    cliente.disconnect();
+  }
+}
+
+export async function obterOuSemearDicionarioColunas(): Promise<ColunaNativa[]> {
+  const salvo = await lerDicionarioColunas();
+  if (salvo) return salvo;
+  const semeado = semearDicionarioColunas();
+  await salvarDicionarioColunas(semeado);
+  return semeado;
+}
+
+function configRelatorioVazia(modulo: string): ConfigRelatorio {
+  return {
+    modulo,
+    nativasVisiveis: [],
+    calculadas: [],
+    ordemAtivas: [],
+    acessoComprador: false,
+    acessoGestor: true,
+    status: "Rascunho",
+  };
+}
+
+export async function lerConfigRelatorio(modulo: string): Promise<ConfigRelatorio | null> {
+  const cliente = obterCliente();
+  try {
+    const bruto = await cliente.get(chaveConfigRelatorio(modulo));
+    return bruto ? (JSON.parse(bruto) as ConfigRelatorio) : null;
+  } finally {
+    cliente.disconnect();
+  }
+}
+
+export async function salvarConfigRelatorio(config: ConfigRelatorio): Promise<void> {
+  const cliente = obterCliente();
+  try {
+    await cliente.set(chaveConfigRelatorio(config.modulo), JSON.stringify(config));
+  } finally {
+    cliente.disconnect();
+  }
+}
+
+export async function obterOuSemearConfigRelatorio(modulo: string): Promise<ConfigRelatorio> {
+  const salva = await lerConfigRelatorio(modulo);
+  if (salva) return salva;
+  const vazia = configRelatorioVazia(modulo);
+  await salvarConfigRelatorio(vazia);
+  return vazia;
 }
