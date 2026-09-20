@@ -137,6 +137,11 @@ export async function lerDataset(): Promise<DatasetProcessado | null> {
     const brutoManifesto = await cliente.get(CHAVE_MANIFESTO);
     if (!brutoManifesto) return null;
     const manifesto: Manifesto = JSON.parse(brutoManifesto);
+    // Manifesto de um formato anterior (ex: ainda com chunksAtual/chunksComparacao, de antes da
+    // migração pros arquivos mensais) não tem chunksRegistros — tratar como "sem dataset" (null),
+    // pra createResilientProvider cair pro OneDrive direto em vez de devolver um dataset "válido"
+    // com zero registros silenciosamente. Corrige sozinho no próximo cron/"Atualizar dados".
+    if (typeof manifesto.chunksRegistros !== "number") return null;
 
     const [bufLojas, bufProdutos, ...bufsRegistros] = await Promise.all([
       cliente.getBuffer(CHAVE_LOJAS),
