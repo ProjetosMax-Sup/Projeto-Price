@@ -2,9 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { MICROSOFT_AUTHORIZE_URL, MICROSOFT_CLIENT_ID, MICROSOFT_SCOPE, onedriveConfigurado } from "@/config/onedrive";
 
 /**
- * Passo único e manual: acessar esta rota autenticado no site (protegido por
- * SITE_PASSWORD) inicia o login com a Microsoft. Depois de autorizar uma vez,
- * o refresh token fica salvo e a aplicação nunca mais precisa disso.
+ * Passo único e manual: acessar esta rota autenticado no site (login
+ * individual via Clerk) inicia o login com a Microsoft. Depois de autorizar
+ * uma vez, o refresh token fica salvo e a aplicação nunca mais precisa disso.
  */
 export function GET(request: NextRequest) {
   if (!onedriveConfigurado()) {

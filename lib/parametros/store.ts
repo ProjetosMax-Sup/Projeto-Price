@@ -1,6 +1,6 @@
 import Redis from "ioredis";
-import { semearDepartamentosCadastro, semearLojasCadastro } from "@/lib/parametros/seed";
-import type { DepartamentoCadastro, LojaCadastro } from "@/lib/parametros/types";
+import { semearDepartamentosCadastro, semearLojasCadastro, semearUsuariosCadastro } from "@/lib/parametros/seed";
+import type { DepartamentoCadastro, LojaCadastro, UsuarioCadastro } from "@/lib/parametros/types";
 
 /**
  * Cadastro de Lojas e Departamentos, editável pela tela /parametros.
@@ -11,6 +11,7 @@ import type { DepartamentoCadastro, LojaCadastro } from "@/lib/parametros/types"
 
 const CHAVE_LOJAS = "parametros:lojas";
 const CHAVE_DEPARTAMENTOS = "parametros:departamentos";
+const CHAVE_USUARIOS = "parametros:usuarios";
 
 function obterCliente(): Redis {
   const url = process.env.REDIS_URL;
@@ -75,5 +76,32 @@ export async function obterOuSemearDepartamentosCadastro(): Promise<Departamento
   if (salvos) return salvos;
   const semeados = semearDepartamentosCadastro();
   await salvarDepartamentosCadastro(semeados);
+  return semeados;
+}
+
+export async function lerUsuariosCadastro(): Promise<UsuarioCadastro[] | null> {
+  const cliente = obterCliente();
+  try {
+    const bruto = await cliente.get(CHAVE_USUARIOS);
+    return bruto ? (JSON.parse(bruto) as UsuarioCadastro[]) : null;
+  } finally {
+    cliente.disconnect();
+  }
+}
+
+export async function salvarUsuariosCadastro(usuarios: UsuarioCadastro[]): Promise<void> {
+  const cliente = obterCliente();
+  try {
+    await cliente.set(CHAVE_USUARIOS, JSON.stringify(usuarios));
+  } finally {
+    cliente.disconnect();
+  }
+}
+
+export async function obterOuSemearUsuariosCadastro(): Promise<UsuarioCadastro[]> {
+  const salvos = await lerUsuariosCadastro();
+  if (salvos) return salvos;
+  const semeados = semearUsuariosCadastro();
+  await salvarUsuariosCadastro(semeados);
   return semeados;
 }

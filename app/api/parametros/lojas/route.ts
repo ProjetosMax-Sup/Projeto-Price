@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { obterGestorAtual } from "@/lib/auth/exigir-gestor";
 import { obterOuSemearLojasCadastro, salvarLojasCadastro } from "@/lib/parametros/store";
 import type { LojaCadastro } from "@/lib/parametros/types";
 
 export async function GET() {
+  if (!(await obterGestorAtual())) return NextResponse.json({ erro: "Acesso restrito a Gestores." }, { status: 403 });
   const cadastro = await obterOuSemearLojasCadastro();
   return NextResponse.json(cadastro);
 }
@@ -23,6 +25,8 @@ function validar(lojas: LojaCadastro[]): string[] {
 }
 
 export async function PUT(request: NextRequest) {
+  if (!(await obterGestorAtual())) return NextResponse.json({ erro: "Acesso restrito a Gestores." }, { status: 403 });
+
   const lojas = (await request.json()) as LojaCadastro[];
   const erros = validar(lojas);
   if (erros.length > 0) return NextResponse.json({ erros }, { status: 400 });

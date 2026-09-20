@@ -74,16 +74,28 @@ No projeto da Vercel → **Settings** → **Environment Variables**, adicionar:
 
 | Variável | Valor |
 |---|---|
-| `SITE_PASSWORD` | a senha que o time vai usar pra entrar no site |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | do app Clerk (dashboard.clerk.com → API Keys) |
+| `CLERK_SECRET_KEY` | idem |
 | `MICROSOFT_CLIENT_ID` | do passo 2 |
 | `MICROSOFT_CLIENT_SECRET` | do passo 2 |
 
 Depois **Deploy** (ou fazer um novo commit/push — o deploy é automático a cada
 push na branch principal a partir daqui).
 
+Login é individual via **Clerk**, por **usuário + senha** (sem e-mail, sem
+Google) — o Gestor cria cada conta manualmente no painel do Clerk (Users →
+Create user), define um username e uma senha inicial, e passa pra pessoa; ela
+pode trocar a própria senha a qualquer momento clicando no avatar (canto
+superior direito do app). Cada conta precisa de um registro correspondente em
+`/parametros` → aba Usuários (mesmo username) definindo perfil
+(Comprador/Gestor) e, se Comprador, quais Departamentos/Lojas ela acessa. No
+painel do Clerk (User & Authentication): desligar Email/Google como
+identificador, deixar só Username, e desligar o cadastro público (sign-up) —
+ninguém se cadastra sozinho.
+
 ### 6. 🔧 Conectar a conta do OneDrive (só uma vez)
 
-Com o site publicado: logar com `SITE_PASSWORD` e acessar
+Com o site publicado: logar (Clerk) como Gestor e acessar
 `https://<seu-projeto>.vercel.app/api/auth/onedrive/login`, fazer login com a
 conta Microsoft **dona da pasta `05 - Bases`** e autorizar o acesso. A página
 final confirma "OneDrive conectado com sucesso". **Não precisa repetir isso**

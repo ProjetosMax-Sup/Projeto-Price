@@ -22,8 +22,11 @@ instrução explícita do usuário.**
 - **Tailwind CSS** com tokens de cor nomeados semanticamente (ver `docs/padroes-ux.md`)
 - **Recharts** para gráficos que forem além do que HTML/CSS resolve
 - Parser próprio para os arquivos-fonte (não é Excel/CSV — ver `docs/fonte-de-dados.md`)
-- Proteção simples por senha (`SITE_PASSWORD`, cookie via `proxy.ts`) — sem
-  autenticação complexa, já que é uso interno do time
+- Login individual via **Clerk** (`proxy.ts` exige sessão em tudo, exceto
+  `/sign-in`, `/sign-up` e o cron) — cada pessoa loga com sua conta; perfil
+  (Comprador/Gestor) e escopo (Departamentos/Lojas) vêm do cadastro de
+  Usuários em `/parametros` (ver `docs/parametros.md`, seção 2.4), resolvido
+  em `lib/auth/usuario-atual.ts`
 
 ## Deploy
 
