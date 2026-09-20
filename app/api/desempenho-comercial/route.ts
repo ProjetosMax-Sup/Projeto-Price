@@ -16,26 +16,20 @@ export async function POST(request: Request) {
   }
 
   const provider = getDataProvider();
-  const [lojas, atual, comparacao] = await Promise.all([
-    provider.getLojas(),
-    provider.getDesempenhoAtual(),
-    provider.getDesempenhoComparacao(),
-  ]);
+  const [lojas, desempenho] = await Promise.all([provider.getLojas(), provider.getDesempenho()]);
 
-  const resultado = computarDesempenho(atual.registros, comparacao.registros, lojas, consulta);
+  const resultado = computarDesempenho(desempenho.registros, lojas, consulta);
   return NextResponse.json(resultado);
 }
 
 /**
- * Datas (ISO, distintas) existentes em cada arquivo de movimento — só isso, nunca os registros
+ * Datas (ISO, distintas) existentes no conjunto de movimento — só isso, nunca os registros
  * brutos — pra validar no cliente os seletores de período sem round-trip a cada data digitada.
+ * Atual e Comparação compartilham o mesmo conjunto (união de todos os meses disponíveis).
  */
 export async function GET() {
   const provider = getDataProvider();
-  const [atual, comparacao] = await Promise.all([provider.getDesempenhoAtual(), provider.getDesempenhoComparacao()]);
+  const desempenho = await provider.getDesempenho();
 
-  return NextResponse.json({
-    datasAtual: datasDisponiveis(atual.registros),
-    datasComparacao: datasDisponiveis(comparacao.registros),
-  });
+  return NextResponse.json({ datas: datasDisponiveis(desempenho.registros) });
 }

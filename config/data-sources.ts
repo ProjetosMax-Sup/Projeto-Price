@@ -11,10 +11,143 @@ export const DESEMPENHO_COMERCIAL_DATA_DIR = process.env.DESEMPENHO_COMERCIAL_DA
  * Latin-1/ISO-8859-1. Não presumir que todos os arquivos usam o mesmo encoding.
  */
 export const ARQUIVOS_DESEMPENHO_COMERCIAL = {
-  atual: { nome: "bdDesempenhoComercialAtual.txt", encoding: "latin1" as const },
-  comparacao: { nome: "bdDesempenhoComercialComparação.txt", encoding: "latin1" as const },
   cadastro: { nome: "bdCadastro.txt", encoding: "latin1" as const },
   lojas: { nome: "bdLojas.txt", encoding: "utf8" as const },
 };
 
 export const DELIMITADOR = "|" as const;
+
+/**
+ * Movimento (vendas, compras, perdas etc.) passou a vir num arquivo por mês
+ * (`bd<Mês>.txt`, ex: `bdSetembro.txt`) — substitui os antigos
+ * `bdDesempenhoComercialAtual.txt`/`...Comparação.txt` (ver docs/parametros.md
+ * seção 1). Mesmo encoding/delimitador dos demais arquivos exportados do ERP.
+ */
+export const NOMES_MESES_ARQUIVO = [
+  "Janeiro",
+  "Fevereiro",
+  "Março",
+  "Abril",
+  "Maio",
+  "Junho",
+  "Julho",
+  "Agosto",
+  "Setembro",
+  "Outubro",
+  "Novembro",
+  "Dezembro",
+] as const;
+
+/** `{nome: "bdJaneiro.txt", encoding: "latin1"}`, etc. — um por mês do calendário. */
+export function arquivoMensal(nomeMes: (typeof NOMES_MESES_ARQUIVO)[number]): { nome: string; encoding: BufferEncoding } {
+  return { nome: `bd${nomeMes}.txt`, encoding: "latin1" };
+}
+
+/**
+ * Filtra e ordena cronologicamente (Janeiro → Dezembro) quais arquivos mensais
+ * de fato existem entre os `nomesNaPasta` informados (vindos de `fs.readdir`
+ * local ou da listagem do OneDrive) — meses ausentes (ex: um mês ainda não
+ * subido) são simplesmente ignorados, sem quebrar nada.
+ */
+export function arquivosMensaisDisponiveis(nomesNaPasta: string[]): { nome: string; encoding: BufferEncoding }[] {
+  const presentes = new Set(nomesNaPasta);
+  return NOMES_MESES_ARQUIVO.map((mes) => arquivoMensal(mes)).filter((arquivo) => presentes.has(arquivo.nome));
+}
+
+/**
+ * As 83 colunas do arquivo mensal, cabeçalho combinado (linha 1 + linha 2),
+ * na ordem exata em que aparecem no arquivo — validada campo a campo contra
+ * `bdJaneiro.txt` até `bdJunho.txt`, `bdAgosto.txt` e `bdSetembro.txt` reais
+ * (ver docs/parametros.md seção 1.1). Usada só pra VALIDAR o cabeçalho de
+ * cada arquivo recebido antes de processar (nunca pra extrair campo por
+ * posição — a extração continua por nome, ver `CAMPOS_MOVIMENTO` em
+ * `lib/desempenho/normalizar-desempenho.ts`). Um cabeçalho que não bate
+ * exatamente com esta lista é sinal de um arquivo fora do padrão (já
+ * aconteceu uma vez, um bloco de Julho com 111 colunas em outra ordem) — o
+ * parser recusa/alerta em vez de processar às cegas.
+ */
+export const CABECALHO_REFERENCIA_MENSAL = [
+  "Código",
+  "Descricao",
+  "Complemento",
+  "Marca",
+  "Dpto",
+  "Código Barras",
+  "Unidade Código",
+  "Unidade Nome",
+  "Qtde Compras",
+  "Qtde Outras Entradas",
+  "Qtde Transf Entradas",
+  "Qtde Devoluções Venda",
+  "Qtde Trocas Entradas",
+  "Qtde Bonif Entradas",
+  "Qtde Consig Entradas",
+  "Qtde Produção",
+  "Qtde Sobras Estoque",
+  "Qtde Simp Rem Entradas",
+  "Qtde Reman Entradas",
+  "Compras",
+  "Compras Líquidas",
+  "Compras Ct Empresa",
+  "Compras Vl NFe",
+  "Outras Entradas",
+  "Transfer. Entradas",
+  "Devoluções Venda",
+  "Trocas Entradas",
+  "Bonific Entradas",
+  "Consig Entradas",
+  "Produção",
+  "Sobras Estoque",
+  "Simp. Rem. Entradas",
+  "Valor Reman Entradas",
+  "Qtde Vendas",
+  "Qtde Vendas Oferta",
+  "Qtde Perdas Estoque",
+  "Qtde Outras Saídas",
+  "Qtde Transf Saídas",
+  "Qtde Devoluções Compra",
+  "Qtde Trocas Saídas",
+  "Qtde Doaçoes",
+  "Qtde Bonif Saídas",
+  "Qtde Consig Saídas",
+  "Qtde Consumos Internos",
+  "Qtde Transf Mat. Prima",
+  "Qtde Faltas Estoque",
+  "Qtde Simp Rem Saías",
+  "Qtde Reman Saídas",
+  "Valor",
+  "Lucros",
+  "Vendas Oferta",
+  "Lucros Oferta",
+  "Perdas",
+  "Outras Saídas",
+  "Transfer. Saídas",
+  "Devoluções Compra",
+  "Trocas Saídas",
+  "Doações",
+  "Bonific Saídas",
+  "Consig Saídas",
+  "Consumos Internos",
+  "Transf Mat. Prima",
+  "Faltas Estoque",
+  "Simp. Rem. Saídas",
+  "Valor Reman Saídas",
+  "Margem Contrib.",
+  "Custo Total Vendas",
+  "Vendas Ct Empresa",
+  "Vendas Ct Compra",
+  "Ct Médio Vendas",
+  "Vl. ICMS Informado",
+  "Ct Venda Vendas",
+  "Vendas Líquidas",
+  "Núm. Clientes Atendidos",
+  "Estoques Preço Venda",
+  "Qtde Venda Média Diária",
+  "Estoque Disponível",
+  "Valor Venda Média Diária",
+  "Código do Fornecedor",
+  "Nome Fornecedor",
+  "Data",
+  "Estoque Diário",
+  "",
+] as const;

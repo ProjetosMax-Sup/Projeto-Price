@@ -1,4 +1,5 @@
-import { parseTabela } from "./parse-tabela";
+import { CABECALHO_REFERENCIA_MENSAL } from "@/config/data-sources";
+import { parseTabela, validarCabecalhoOuFalhar } from "./parse-tabela";
 import type { Loja, MovimentoVendas, PeriodoDesempenho, Produto } from "@/lib/types";
 
 /** Números do arquivo usam vírgula decimal (padrão BR). */
@@ -47,9 +48,10 @@ export function normalizarProdutos(conteudo: string): Produto[] {
   });
 }
 
-// "Descricao" sem acento e sem "Unidade Código/Nome" em bdDesempenhoComercialAtual.txt
-// (esse recorte não tem quebra por loja — ver aviso em CLAUDE.md). Campos ausentes no
-// arquivo voltam como "" pelo parseTabela, então funciona para os dois arquivos.
+// "Descricao" sem acento. Cada um destes nomes combinados (linha1+linha2) é único
+// entre as 83 colunas do arquivo mensal (bd<Mês>.txt) — confirmado campo a campo
+// contra os arquivos reais (ver docs/parametros.md seção 1) — então a extração por
+// nome (parseTabela) continua funcionando sem precisar de posição fixa.
 const CAMPOS_MOVIMENTO = [
   "Código",
   "Descricao",
@@ -97,11 +99,18 @@ function linhaParaMovimento(l: Record<(typeof CAMPOS_MOVIMENTO)[number], string>
   };
 }
 
-export function normalizarPeriodo(
+/**
+ * Normaliza um arquivo mensal de movimento (`bd<Mês>.txt`) — valida o cabeçalho contra
+ * a referência conhecida antes de confiar em qualquer coluna (nunca processa um
+ * arquivo fora do padrão silenciosamente, ver `validarCabecalhoOuFalhar`).
+ */
+export function normalizarMovimentos(
   conteudo: string,
   produtosPorCodigo: Map<string, Produto>,
   lojasPorCodigo: Map<string, Loja>,
+  nomeArquivo: string,
 ): PeriodoDesempenho {
+  validarCabecalhoOuFalhar(conteudo, CABECALHO_REFERENCIA_MENSAL, nomeArquivo);
   const linhas = parseTabela(conteudo, CAMPOS_MOVIMENTO, true);
   // Conta produtos (SKU) únicos descartados, não linhas — o mesmo produto pode
   // aparecer em várias linhas (uma por loja/dia), o que inflava a contagem.
@@ -120,6 +129,25 @@ export function normalizarPeriodo(
       return !descartar;
     });
 
+  return {
+    registros,
+    produtosDescartados: codigosDescartados.size,
+    produtosDescartadosCodigos: Array.from(codigosDescartados),
+  };
+}
+
+/**
+ * Junta o `PeriodoDesempenho` de cada arquivo mensal num só conjunto unificado
+ * — usada por `file-provider.ts` e `onedrive-provider.ts` (mesma lógica nos
+ * dois, só muda como cada um lê o arquivo). Descartados deduplicados por SKU
+ * (Set): o mesmo produto com cadastro incompleto pode aparecer em vários meses.
+ */
+export function unirMovimentos(periodos: PeriodoDesempenho[]): PeriodoDesempenho {
+  const codigosDescartados = new Set<string>();
+  const registros = periodos.flatMap((p) => {
+    for (const codigo of p.produtosDescartadosCodigos) codigosDescartados.add(codigo);
+    return p.registros;
+  });
   return {
     registros,
     produtosDescartados: codigosDescartados.size,

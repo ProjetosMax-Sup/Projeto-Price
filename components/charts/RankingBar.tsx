@@ -1,3 +1,4 @@
+import type { MouseEvent } from "react";
 import { Semaforo } from "@/components/ui/Semaforo";
 import { formatMoeda } from "@/lib/desempenho/format";
 
@@ -16,7 +17,8 @@ export function RankingBar({
   valorMax: number;
   desvio: number | null;
   ativo?: boolean;
-  onClick?: () => void;
+  /** Recebe o evento nativo do clique (ex: `shiftKey` pra seleção múltipla — ver LojasPanel). */
+  onClick?: (evento: MouseEvent) => void;
 }) {
   const largura = valorMax > 0 ? Math.max(2, (valor / valorMax) * 100) : 0;
 

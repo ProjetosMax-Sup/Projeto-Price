@@ -24,20 +24,12 @@ export function createCachedDataProvider(): DataProvider {
     async getProdutos() {
       return (await getDatasetCache()).produtos;
     },
-    async getDesempenhoAtual() {
+    async getDesempenho() {
       const d = await getDatasetCache();
       return {
-        registros: d.registrosAtual,
-        produtosDescartados: d.produtosDescartadosAtual,
-        produtosDescartadosCodigos: d.produtosDescartadosCodigosAtual,
-      };
-    },
-    async getDesempenhoComparacao() {
-      const d = await getDatasetCache();
-      return {
-        registros: d.registrosComparacao,
-        produtosDescartados: d.produtosDescartadosComparacao,
-        produtosDescartadosCodigos: d.produtosDescartadosCodigosComparacao,
+        registros: d.registros,
+        produtosDescartados: d.produtosDescartados,
+        produtosDescartadosCodigos: d.produtosDescartadosCodigos,
       };
     },
   };

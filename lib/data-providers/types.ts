@@ -8,6 +8,11 @@ import type { Loja, Produto, PeriodoDesempenho } from "@/lib/types";
 export interface DataProvider {
   getLojas(): Promise<Loja[]>;
   getProdutos(): Promise<Produto[]>;
-  getDesempenhoAtual(): Promise<PeriodoDesempenho>;
-  getDesempenhoComparacao(): Promise<PeriodoDesempenho>;
+  /**
+   * Todos os registros de movimento disponíveis (união de todos os arquivos
+   * mensais `bd<Mês>.txt` encontrados) — não é mais um recorte pré-fatiado por
+   * período. "Atual" e "Comparação" são só dois filtros de data escolhidos
+   * pelo usuário sobre este mesmo conjunto (ver `lib/desempenho/consulta.ts`).
+   */
+  getDesempenho(): Promise<PeriodoDesempenho>;
 }

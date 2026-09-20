@@ -18,7 +18,6 @@ export function createResilientProvider(principal: DataProvider, reserva: DataPr
   return {
     getLojas: () => comFallback((p) => p.getLojas()),
     getProdutos: () => comFallback((p) => p.getProdutos()),
-    getDesempenhoAtual: () => comFallback((p) => p.getDesempenhoAtual()),
-    getDesempenhoComparacao: () => comFallback((p) => p.getDesempenhoComparacao()),
+    getDesempenho: () => comFallback((p) => p.getDesempenho()),
   };
 }

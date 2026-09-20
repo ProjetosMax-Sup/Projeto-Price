@@ -10,7 +10,7 @@ import type { Loja, MovimentoVendas, PeriodoDesempenho, Produto, RegistroDesempe
  *
  * Guardado em pedaços (chunks) gzipados, um valor por chunk, pra não esbarrar
  * em limite de tamanho por chave do Redis — os arquivos reais têm centenas de
- * milhares de linhas.
+ * milhares de linhas por mês.
  */
 
 const TAMANHO_CHUNK = 25_000;
@@ -24,24 +24,18 @@ type LinhaCompacta = [
 
 interface Manifesto {
   geradoEm: string;
-  chunksAtual: number;
-  chunksComparacao: number;
-  produtosDescartadosAtual: number;
-  produtosDescartadosComparacao: number;
-  produtosDescartadosCodigosAtual: string[];
-  produtosDescartadosCodigosComparacao: string[];
+  chunksRegistros: number;
+  produtosDescartados: number;
+  produtosDescartadosCodigos: string[];
 }
 
 export interface DatasetProcessado {
   geradoEm: string;
   lojas: Loja[];
   produtos: Produto[];
-  registrosAtual: RegistroDesempenho[];
-  registrosComparacao: RegistroDesempenho[];
-  produtosDescartadosAtual: number;
-  produtosDescartadosComparacao: number;
-  produtosDescartadosCodigosAtual: string[];
-  produtosDescartadosCodigosComparacao: string[];
+  registros: RegistroDesempenho[];
+  produtosDescartados: number;
+  produtosDescartadosCodigos: string[];
 }
 
 function paraLinhaCompacta(m: MovimentoVendas): LinhaCompacta {
@@ -100,24 +94,16 @@ function obterCliente(): Redis {
 export async function salvarDataset(dados: {
   lojas: Loja[];
   produtos: Produto[];
-  atual: PeriodoDesempenho;
-  comparacao: PeriodoDesempenho;
+  desempenho: PeriodoDesempenho;
 }): Promise<string> {
   const geradoEm = new Date().toISOString();
-  const chunksAtual = emChunks(dados.atual.registros.map((r) => paraLinhaCompacta(r.movimento)), TAMANHO_CHUNK);
-  const chunksComparacao = emChunks(
-    dados.comparacao.registros.map((r) => paraLinhaCompacta(r.movimento)),
-    TAMANHO_CHUNK,
-  );
+  const chunksRegistros = emChunks(dados.desempenho.registros.map((r) => paraLinhaCompacta(r.movimento)), TAMANHO_CHUNK);
 
   const manifesto: Manifesto = {
     geradoEm,
-    chunksAtual: chunksAtual.length,
-    chunksComparacao: chunksComparacao.length,
-    produtosDescartadosAtual: dados.atual.produtosDescartados,
-    produtosDescartadosComparacao: dados.comparacao.produtosDescartados,
-    produtosDescartadosCodigosAtual: dados.atual.produtosDescartadosCodigos,
-    produtosDescartadosCodigosComparacao: dados.comparacao.produtosDescartadosCodigos,
+    chunksRegistros: chunksRegistros.length,
+    produtosDescartados: dados.desempenho.produtosDescartados,
+    produtosDescartadosCodigos: dados.desempenho.produtosDescartadosCodigos,
   };
 
   const cliente = obterCliente();
@@ -125,8 +111,7 @@ export async function salvarDataset(dados: {
     await Promise.all([
       cliente.set(CHAVE_LOJAS, comprimir(dados.lojas)),
       cliente.set(CHAVE_PRODUTOS, comprimir(dados.produtos)),
-      ...chunksAtual.map((c, i) => cliente.set(`dataset:atual:${i}`, comprimir(c))),
-      ...chunksComparacao.map((c, i) => cliente.set(`dataset:comparacao:${i}`, comprimir(c))),
+      ...chunksRegistros.map((c, i) => cliente.set(`dataset:registros:${i}`, comprimir(c))),
     ]);
     // Manifesto por último: só vira "válido" pra leitura depois que os chunks já existem.
     await cliente.set(CHAVE_MANIFESTO, JSON.stringify(manifesto));
@@ -153,45 +138,38 @@ export async function lerDataset(): Promise<DatasetProcessado | null> {
     if (!brutoManifesto) return null;
     const manifesto: Manifesto = JSON.parse(brutoManifesto);
 
-    const [bufLojas, bufProdutos, ...bufsChunks] = await Promise.all([
+    const [bufLojas, bufProdutos, ...bufsRegistros] = await Promise.all([
       cliente.getBuffer(CHAVE_LOJAS),
       cliente.getBuffer(CHAVE_PRODUTOS),
-      ...Array.from({ length: manifesto.chunksAtual }, (_, i) => cliente.getBuffer(`dataset:atual:${i}`)),
-      ...Array.from({ length: manifesto.chunksComparacao }, (_, i) => cliente.getBuffer(`dataset:comparacao:${i}`)),
+      ...Array.from({ length: manifesto.chunksRegistros }, (_, i) => cliente.getBuffer(`dataset:registros:${i}`)),
     ]);
     if (!bufLojas || !bufProdutos) return null;
 
     const lojas = descomprimir<Loja[]>(bufLojas);
     const produtos = descomprimir<Produto[]>(bufProdutos);
-    const bufsAtual = bufsChunks.slice(0, manifesto.chunksAtual);
-    const bufsComparacao = bufsChunks.slice(manifesto.chunksAtual);
 
     const produtosPorCodigo = new Map(produtos.map((p) => [p.codigo, p]));
     const lojasPorCodigo = new Map(lojas.map((l) => [l.codUnid, l]));
 
-    const reconstruir = (buffers: (Buffer | null)[]): RegistroDesempenho[] =>
-      buffers
-        .filter((b): b is Buffer => b !== null)
-        .flatMap((b) => descomprimir<LinhaCompacta[]>(b))
-        .map((l) => {
-          const movimento = deLinhaCompacta(l);
-          return {
-            movimento,
-            produto: produtosPorCodigo.get(movimento.codigo) ?? null,
-            loja: movimento.unidadeCodigo ? (lojasPorCodigo.get(movimento.unidadeCodigo) ?? null) : null,
-          };
-        });
+    const registros: RegistroDesempenho[] = bufsRegistros
+      .filter((b): b is Buffer => b !== null)
+      .flatMap((b) => descomprimir<LinhaCompacta[]>(b))
+      .map((l) => {
+        const movimento = deLinhaCompacta(l);
+        return {
+          movimento,
+          produto: produtosPorCodigo.get(movimento.codigo) ?? null,
+          loja: movimento.unidadeCodigo ? (lojasPorCodigo.get(movimento.unidadeCodigo) ?? null) : null,
+        };
+      });
 
     return {
       geradoEm: manifesto.geradoEm,
       lojas,
       produtos,
-      registrosAtual: reconstruir(bufsAtual),
-      registrosComparacao: reconstruir(bufsComparacao),
-      produtosDescartadosAtual: manifesto.produtosDescartadosAtual,
-      produtosDescartadosComparacao: manifesto.produtosDescartadosComparacao,
-      produtosDescartadosCodigosAtual: manifesto.produtosDescartadosCodigosAtual ?? [],
-      produtosDescartadosCodigosComparacao: manifesto.produtosDescartadosCodigosComparacao ?? [],
+      registros,
+      produtosDescartados: manifesto.produtosDescartados,
+      produtosDescartadosCodigos: manifesto.produtosDescartadosCodigos ?? [],
     };
   } finally {
     cliente.disconnect();

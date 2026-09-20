@@ -6,6 +6,10 @@ function caminhoGraph(nomeArquivo: string): string {
   return segmentos.join("/");
 }
 
+function caminhoGraphPasta(): string {
+  return ONEDRIVE_BASES_FOLDER.split("/").map(encodeURIComponent).join("/");
+}
+
 async function chamarGraph(caminhoRelativo: string): Promise<Response> {
   const accessToken = await obterAccessToken();
   const url = `https://graph.microsoft.com/v1.0/me/drive/root:/${caminhoRelativo}`;
@@ -28,4 +32,15 @@ export async function baixarArquivo(nomeArquivo: string, encoding: BufferEncodin
   const resposta = await chamarGraph(`${caminhoGraph(nomeArquivo)}:/content`);
   const buffer = Buffer.from(await resposta.arrayBuffer());
   return buffer.toString(encoding);
+}
+
+/**
+ * Nomes dos arquivos na pasta configurada — usado pra descobrir dinamicamente
+ * quais arquivos mensais (`bd<Mês>.txt`) já foram subidos, sem precisar saber
+ * a lista de antemão (ver `arquivosMensaisDisponiveis` em config/data-sources.ts).
+ */
+export async function listarNomesArquivos(): Promise<string[]> {
+  const resposta = await chamarGraph(`${caminhoGraphPasta()}:/children?$select=name&$top=200`);
+  const dados = await resposta.json();
+  return (dados.value ?? []).map((item: { name: string }) => item.name);
 }

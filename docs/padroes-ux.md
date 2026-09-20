@@ -78,13 +78,16 @@ selecionada (produto/loja) em `vermelho/10`; zebra sutil nas linhas pares.
      vertical), sem JavaScript de scroll. Ao trocar de tabela, a barra de
      título azul da próxima rola visivelmente na tela por um instante antes
      do cabeçalho dela grudar — esperado, não é bug. Só se aplica ao modo
-     Tabela da Estrutura (Ranking não tem cabeçalho de colunas).
+     Tabela de cada painel (Ranking, em Estrutura ou em Lojas, não tem
+     cabeçalho de colunas pra grudar).
    - **Valores de Comparação marcados visualmente** (itálico + fundo
      ligeiramente sombreado) em todas as colunas "…Comparação", pra não
      confundir com os valores do período Atual ao ler a tabela.
-3. **Toggle Tabela ↔ Ranking** no painel de Estrutura — Tabela é a visão detalhada
-   com todas as colunas; Ranking é barras horizontais ordenadas por valor, mais
-   rápidas de escanear.
+3. **Toggle Tabela ↔ Ranking** em Estrutura e em Lojas (independentes um do outro) —
+   Tabela é a visão detalhada com todas as colunas; Ranking é barras horizontais
+   ordenadas por Venda Atual (maior → menor), mais rápidas de escanear. Em Lojas, a
+   barra também é clicável (mesmo comportamento de seleção da linha na Tabela,
+   incluindo shift+clique).
 4. **Painel Top Altas/Quedas** com **toggle de nível independente** (Seção /
    Categoria / Grupo) — ranqueia por %Desvio de Venda no nível escolhido, escopado
    pela loja selecionada (se houver) e **preso só ao Departamento** selecionado
@@ -99,16 +102,37 @@ selecionada (produto/loja) em `vermelho/10`; zebra sutil nas linhas pares.
    por padrão — ver "Colunas clicáveis pra ordenar" acima. Modo Ranking continua
    ordenado por valor (maior → menor).
 7. **Exportar Excel / PDF** — botões no header (ver "Exportação" abaixo).
-8. Filtros no topo: Loja, Formato (Varejo/Atacado) e Comprador são todos
-   **multi-seleção**. Período Atual e Período de Comparação são **editáveis**:
-   cada um tem um seletor de início e fim (Dia/Mês/Ano, dropdown + digitação
-   livre em cada subcampo). Sem seleção, o período automático (min/máx de
-   `Data` do respectivo arquivo, ver docs/fonte-de-dados.md) continua sendo o
-   padrão — mostrado como dica enquanto nada for escolhido. Validação:
-   calendário real (rejeita ex: 30/Fev), a data precisa existir no arquivo
-   correspondente, e fim ≥ início — qualquer violação mostra aviso inline
-   (não bloqueante) e não dispara consulta, mantendo o último recorte válido
-   na tela. Botão "×" volta ao automático.
+8. Filtros no topo: Loja, Formato (Varejo/Atacado), Comprador e Departamento
+   são todos **multi-seleção**. Todo multi-seleção com **mais de 2 opções**
+   ganha "Selecionar tudo" ao lado de "Limpar seleção" (lado a lado, no topo
+   do dropdown) — Formato (só 2 opções) fica só com "Limpar seleção". Em
+   qualquer um desses multi-seleção, opção sem nenhuma movimentação **relevante
+   pra este módulo** no recorte atual (período + os outros filtros já ativos)
+   continua aparecendo na lista, mas com fonte apagada e não dá pra marcar —
+   só some se o usuário já tinha marcado antes e o recorte mudou embaixo
+   dela, aí ainda dá pra desmarcar normalmente. "Selecionar tudo" pula essas
+   opções desabilitadas. "Relevante pra este módulo" ≠ "linha existe no
+   arquivo": em Desempenho Comercial é `valorTotal > 0` (venda), não só
+   presença do registro — um ajuste/baixa com valor zerado não conta como
+   movimentação aqui. Cada módulo futuro (Entradas e Saídas, Compra e Venda,
+   ...) define seu próprio critério — não é uma regra fixa pro sistema
+   inteiro (`acumularOpcoesComDados` em `lib/desempenho/consulta.ts`).
+   Toggle **Total Lojas / Mesmas Lojas** (ver
+   docs/regras-de-negocio.md) com ⓘ explicando o critério.
+   Período Atual e Período de Comparação são **editáveis** por um calendário
+   (dois meses lado a lado, clique na data inicial → clique na final, faixa
+   conectada em azul entre as duas) — como só dá pra clicar em dias reais do
+   calendário, não existe "data inválida" pra validar. Dias sem dado no
+   arquivo correspondente ficam desabilitados (cinza). Padrão (nada escolhido
+   ainda ou botão "Voltar ao período padrão"): Atual = mês mais recente com
+   dado, Comparação = o mês imediatamente anterior — nunca mais "período
+   automático = range completo do conjunto disponível". Dentro do seletor de
+   Comparação, dois atalhos de mês rápido: "Mesmo período, mês" (qualquer mês do mesmo
+   ano do Atual) e "Mesmo período, ano anterior" (qualquer mês do ano
+   anterior) — aplicam o mesmo intervalo de dias do Atual no mês escolhido. Os dois
+   seletores (Atual e Comparação) compartilham o mesmo conjunto de datas disponíveis
+   — "Atual"/"Comparação" nunca foram duas fontes de dado diferentes, sempre foram só
+   dois recortes de data sobre o mesmo conjunto (ver `docs/fonte-de-dados.md`).
 9. Navegação entre os 5 módulos como abas no header (mesmo estando só o primeiro
    implementado).
 10. **Badge de cadastro pendente é clicável** — baixa um `.txt` com os códigos

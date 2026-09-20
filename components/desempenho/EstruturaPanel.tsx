@@ -10,7 +10,6 @@ import { formatPercent } from "@/lib/desempenho/format";
 
 type Coluna = "nome" | ColunaMetrica;
 
-const LARGURA_NOME = 200;
 const LARGURA_PART = 64;
 
 // Tons sólidos (não translúcidos) — a 1ª coluna fica fixa (sticky) ao rolar a
@@ -47,11 +46,15 @@ function ordenarRanking(linhas: EstruturaAgregada[]): EstruturaAgregada[] {
 
 /** Larguras compartilhadas entre a tabela de cabeçalho (sticky) e a de corpo (scroll horizontal) —
  * como são dois `<table>` separados (ver comentário mais abaixo), o `<colgroup>` garante que as
- * colunas de uma fiquem alinhadas em pixel com as da outra. */
+ * colunas de uma fiquem alinhadas em pixel com as da outra. Só as colunas de MÉTRICA (números
+ * formatados, tamanho previsível) têm largura fixa — a 1ª coluna (nome) fica sem `width`, então
+ * absorve o espaço sobrando até preencher o painel todo (sem faixa em branco à direita) e, se o
+ * painel for estreito demais pras métricas caberem, o container ainda tem scroll horizontal (ver
+ * `overflow-x-auto` abaixo) em vez de espremer as colunas de número. */
 function Colgroup() {
   return (
     <colgroup>
-      <col style={{ width: LARGURA_NOME }} />
+      <col />
       {COLUNAS_METRICAS.map((c) => (
         <col key={c.chave} style={{ width: c.largura }} />
       ))}
@@ -193,7 +196,7 @@ export function EstruturaPanel({
             className="sticky z-20 overflow-x-hidden bg-azul text-[13px] font-medium tracking-wide text-white/80 uppercase"
             style={{ top: stickyTop }}
           >
-            <table className="table-fixed text-sm">
+            <table className="table-fixed text-sm" style={{ width: "100%" }}>
               <Colgroup />
               <thead>
                 <tr>
@@ -201,7 +204,7 @@ export function EstruturaPanel({
                     coluna="nome"
                     ordenacao={ordenacao}
                     onClick={aoClicarColuna}
-                    className="sticky left-0 z-30 bg-azul px-4 py-2 font-medium"
+                    className="sticky left-0 z-30 min-w-[200px] bg-azul px-4 py-2 font-medium"
                   >
                     {labelNivel(nivel)}
                   </ThOrdenavel>
@@ -227,12 +230,12 @@ export function EstruturaPanel({
               if (headerScrollRef.current) headerScrollRef.current.scrollLeft = e.currentTarget.scrollLeft;
             }}
           >
-            <table className="table-fixed text-sm">
+            <table className="table-fixed text-sm" style={{ width: "100%" }}>
               <Colgroup />
               <tbody>
               {ordenadas.length > 0 && (
                 <tr className={`border-b-2 border-azul/20 ${SUBTOTAL_BG}`}>
-                  <td className={`sticky left-0 z-10 px-4 py-2 font-semibold text-azul ${SUBTOTAL_BG}`}>Total</td>
+                  <td className={`sticky left-0 z-10 min-w-[200px] px-4 py-2 font-semibold text-azul ${SUBTOTAL_BG}`}>Total</td>
                   {COLUNAS_METRICAS.map((c) => (
                     <CelulaMetrica key={c.chave} atual={subtotalAtual} comparacao={subtotalComparacao} coluna={c.chave} enfase />
                   ))}
@@ -248,7 +251,7 @@ export function EstruturaPanel({
                     onClick={() => onClickLinha(linha)}
                     className={`cursor-pointer border-t border-zinc-100 hover:bg-azul/5 ${corFundo}`}
                   >
-                    <td className={`sticky left-0 z-10 truncate px-4 py-2 font-medium text-zinc-800 ${corFundo}`}>
+                    <td className={`sticky left-0 z-10 min-w-[200px] truncate px-4 py-2 font-medium text-zinc-800 ${corFundo}`}>
                       {linha.codigo && <span className="font-normal text-zinc-400">{linha.codigo} - </span>}
                       {linha.nome}
                     </td>

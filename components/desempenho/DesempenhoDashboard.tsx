@@ -42,29 +42,35 @@ function formatarDataHora(iso: string | null): string {
 export function DesempenhoDashboard({
   lojas,
   compradores,
+  departamentos,
   produtosDescartados,
   produtosDescartadosCodigos,
   resultadoInicial,
-  periodoAtual: periodoAtualLabel,
-  periodoComparacaoInicial: periodoComparacaoLabel,
-  datasDisponiveisAtualInicial,
-  datasDisponiveisComparacaoInicial,
+  labelPeriodoDisponivel,
+  periodoAtualPadrao,
+  periodoComparacaoPadrao,
+  datasDisponiveisInicial,
 }: {
   lojas: Loja[];
   compradores: string[];
+  departamentos: { value: string; label: string }[];
   produtosDescartados: number;
   produtosDescartadosCodigos: string[];
   resultadoInicial: ResultadoDesempenho;
-  periodoAtual: string;
-  periodoComparacaoInicial: string | null;
-  datasDisponiveisAtualInicial: string[];
-  datasDisponiveisComparacaoInicial: string[];
+  /** Rótulo do range completo disponível (todos os meses) — só usado como último recurso
+   * quando não há dado nenhum, nos dois seletores (Atual e Comparação compartilham o mesmo
+   * conjunto de datas, ver docs/parametros.md). */
+  labelPeriodoDisponivel: string | null;
+  /** Mês mais recente com dado (Atual) / o mês anterior a ele (Comparação) — nunca null com
+   * dados no arquivo; é pra onde "Limpar seleção" volta, não pra um estado "sem período". */
+  periodoAtualPadrao: IntervaloData | null;
+  periodoComparacaoPadrao: IntervaloData | null;
+  datasDisponiveisInicial: string[];
 }) {
   const [filtros, setFiltros] = useState<Filtros>(CONSULTA_PADRAO.filtros);
-  const [periodoAtual, setPeriodoAtual] = useState<IntervaloData | null>(null);
-  const [periodoComparacao, setPeriodoComparacao] = useState<IntervaloData | null>(null);
-  const [datasDisponiveisAtual, setDatasDisponiveisAtual] = useState<string[]>(datasDisponiveisAtualInicial);
-  const [datasDisponiveisComparacao, setDatasDisponiveisComparacao] = useState<string[]>(datasDisponiveisComparacaoInicial);
+  const [periodoAtual, setPeriodoAtual] = useState<IntervaloData | null>(periodoAtualPadrao);
+  const [periodoComparacao, setPeriodoComparacao] = useState<IntervaloData | null>(periodoComparacaoPadrao);
+  const [datasDisponiveis, setDatasDisponiveis] = useState<string[]>(datasDisponiveisInicial);
   // Breadcrumb do drill-down: Departamento → Seção → Categoria → Grupo → Sub
   // Grupo → Produto. O nível exibido é sempre o próximo depois do último nó.
   const [caminhoDrill, setCaminhoDrill] = useState<NoSelecionado[]>([]);
@@ -73,6 +79,7 @@ export function DesempenhoDashboard({
   const [produtoSelecionado, setProdutoSelecionado] = useState<string | null>(null);
   const [lojasSelecionadas, setLojasSelecionadas] = useState<string[]>([]);
   const [modoRanking, setModoRanking] = useState(false);
+  const [modoRankingLojas, setModoRankingLojas] = useState(false);
   const [nivelTopAltasQuedas, setNivelTopAltasQuedas] = useState<NivelHierarquia>("secao");
   const [exportando, setExportando] = useState<"excel" | "pdf" | null>(null);
   const [atualizandoDados, setAtualizandoDados] = useState(false);
@@ -229,10 +236,7 @@ export function DesempenhoDashboard({
         // pra validar os seletores de período.
         fetch("/api/desempenho-comercial")
           .then((r) => r.json())
-          .then((d) => {
-            setDatasDisponiveisAtual(d.datasAtual ?? []);
-            setDatasDisponiveisComparacao(d.datasComparacao ?? []);
-          })
+          .then((d) => setDatasDisponiveis(d.datas ?? []))
           .catch(() => {});
         // Recarrega o recorte atual com os dados novos.
         idRequisicaoRef.current += 1;
@@ -326,16 +330,18 @@ export function DesempenhoDashboard({
           <FilterBar
             lojas={lojas}
             compradores={compradores}
+            departamentos={departamentos}
             filtros={filtros}
             onChange={setFiltros}
-            periodoAtualLabel={periodoAtualLabel}
-            periodoComparacaoLabel={periodoComparacaoLabel}
+            opcoesComDados={resultado.opcoesComDados}
+            labelPeriodoDisponivel={labelPeriodoDisponivel}
             periodoAtual={periodoAtual}
             onChangePeriodoAtual={setPeriodoAtual}
+            periodoAtualPadrao={periodoAtualPadrao}
             periodoComparacao={periodoComparacao}
             onChangePeriodoComparacao={setPeriodoComparacao}
-            datasDisponiveisAtual={datasDisponiveisAtual}
-            datasDisponiveisComparacao={datasDisponiveisComparacao}
+            periodoComparacaoPadrao={periodoComparacaoPadrao}
+            datasDisponiveis={datasDisponiveis}
           />
 
           <KpiCards atual={resultado.kpiAtual} comparacao={resultado.kpiComparacao} />
@@ -368,6 +374,9 @@ export function DesempenhoDashboard({
             selecionadas={lojasSelecionadas}
             onClickLinha={aoClicarLoja}
             stickyTop={stickyTop}
+            mesmasLojasAtivo={filtros.mesmasLojas}
+            modoRanking={modoRankingLojas}
+            onToggleModo={() => setModoRankingLojas((m) => !m)}
           />
         </div>
 
@@ -377,8 +386,8 @@ export function DesempenhoDashboard({
             transição bagunçada bem no fim do scroll, com elementos soltando em momentos
             ligeiramente diferentes). */}
         <p className="pt-2 pb-2 text-center text-xs text-zinc-400" style={{ minHeight: stickyTop }}>
-          Fonte: bdDesempenhoComercialAtual + bdDesempenhoComercialComparação + bdCadastro + bdLojas · Dados
-          atualizados em {formatarDataHora(dadosGeradoEm)}
+          Fonte: arquivos mensais de movimento (bdJaneiro, bdFevereiro, ...) + bdCadastro + bdLojas ·
+          Dados atualizados em {formatarDataHora(dadosGeradoEm)}
         </p>
       </div>
     </div>

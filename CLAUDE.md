@@ -37,17 +37,23 @@ de fallback, checklist de setup manual): **`docs/deploy.md`**.
 
 Arquivos **TXT delimitados por pipe**, sincronizados via OneDrive, lidos
 através de uma interface `DataProvider` (`FileDataProvider` hoje,
-`ApiDataProvider` no futuro quando trocar pra API do ERP).
+`ApiDataProvider` no futuro quando trocar pra API do ERP). Movimento (venda,
+compra, perda etc.) vem **um arquivo por mês** (`bd<Mês>.txt`, ex:
+`bdSetembro.txt`) — "Atual"/"Comparação" não são mais dois arquivos, são só
+dois recortes de data escolhidos pelo usuário sobre o mesmo conjunto
+(`DataProvider.getDesempenho()`, união de todos os meses disponíveis).
 
-⚠️ **Volume real**: arquivos de movimento têm centenas de milhares de linhas
-(~41-45MB). Nunca mandar os registros brutos para o cliente — toda
-filtragem/agregação roda no servidor (`lib/desempenho/consulta.ts`); o
-navegador só recebe o resultado agregado.
+⚠️ **Volume real**: um mês sozinho já passa de 200MB; somando os meses
+disponíveis hoje passa de 4 milhões de registros. Nunca mandar os registros
+brutos para o cliente — toda filtragem/agregação roda no servidor
+(`lib/desempenho/consulta.ts`); o navegador só recebe o resultado agregado.
 
-Formato dos 4 arquivos (`bdDesempenhoComercialAtual`, `...Comparação`,
-`bdCadastro`, `bdLojas`), encoding por arquivo, colunas confirmadas e chaves
-de join: **`docs/fonte-de-dados.md`** — leia antes de mexer no parser
-(`lib/data-providers/file-provider.ts`) ou em qualquer query.
+Formato dos arquivos (`bd<Mês>.txt`, `bdCadastro`, `bdLojas`), encoding por
+arquivo, colunas confirmadas e chaves de join: **`docs/fonte-de-dados.md`** —
+leia antes de mexer no parser (`lib/data-providers/file-provider.ts`,
+`lib/data-providers/normalizar-desempenho.ts`) ou em qualquer query. Spec
+completa da reestruturação (já executada) e da camada de Parâmetros que vem a
+seguir (ainda não construída): **`docs/parametros.md`**.
 
 ## Regras de negócio
 
@@ -71,8 +77,3 @@ drill-down de Estrutura + Lojas, ordenação, exportação Excel/PDF etc.) que
 devem se repetir nos próximos módulos: **`docs/padroes-ux.md`** — leia antes
 de implementar UI em qualquer módulo novo ou alterar o comportamento das
 tabelas do Desempenho Comercial.
-
-## Em aberto
-
-- Metas/objetivos ficaram fora de escopo por enquanto (mencionado
-  explicitamente pelo usuário)

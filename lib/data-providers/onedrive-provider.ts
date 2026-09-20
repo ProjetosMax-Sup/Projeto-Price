@@ -1,8 +1,8 @@
-import { ARQUIVOS_DESEMPENHO_COMERCIAL } from "@/config/data-sources";
-import { baixarArquivo, obterVersaoArquivo } from "@/lib/onedrive/graph";
+import { ARQUIVOS_DESEMPENHO_COMERCIAL, arquivosMensaisDisponiveis } from "@/config/data-sources";
+import { baixarArquivo, listarNomesArquivos, obterVersaoArquivo } from "@/lib/onedrive/graph";
 import { criarCacheVersionado } from "./cache-versionado";
-import { normalizarLojas, normalizarPeriodo, normalizarProdutos } from "./normalizar-desempenho";
-import type { Loja, Produto } from "@/lib/types";
+import { normalizarLojas, normalizarMovimentos, normalizarProdutos, unirMovimentos } from "./normalizar-desempenho";
+import type { Loja, PeriodoDesempenho, Produto } from "@/lib/types";
 import type { DataProvider } from "./types";
 
 interface ArquivoConfig {
@@ -28,28 +28,42 @@ async function indices() {
   };
 }
 
-function criarCachePeriodo(arquivo: ArquivoConfig) {
-  return criarCacheVersionado(
-    () => obterVersaoArquivo(arquivo.nome).catch(() => "erro"),
-    async () => {
-      const [conteudo, { produtosPorCodigo, lojasPorCodigo }] = await Promise.all([
-        baixarArquivo(arquivo.nome, arquivo.encoding),
-        indices(),
-      ]);
-      return normalizarPeriodo(conteudo, produtosPorCodigo, lojasPorCodigo);
-    },
-  );
+/** Quais `bd<Mês>.txt` existem de fato na pasta do OneDrive agora (ordem cronológica). */
+async function listarArquivosMensais(): Promise<ArquivoConfig[]> {
+  const nomes = await listarNomesArquivos().catch(() => [] as string[]);
+  return arquivosMensaisDisponiveis(nomes);
 }
 
-const getAtualCache = criarCachePeriodo(ARQUIVOS_DESEMPENHO_COMERCIAL.atual);
-const getComparacaoCache = criarCachePeriodo(ARQUIVOS_DESEMPENHO_COMERCIAL.comparacao);
+/** Combinação de nome+eTag de cada mês encontrado — muda sozinho quando um mês novo
+ * é subido ou algum arquivo existente é sobrescrito. */
+async function versaoMensal(): Promise<string> {
+  const arquivos = await listarArquivosMensais();
+  const partes = await Promise.all(arquivos.map(async (a) => `${a.nome}:${await obterVersaoArquivo(a.nome).catch(() => "erro")}`));
+  return partes.join(",");
+}
+
+const getDesempenhoCache = criarCacheVersionado(versaoMensal, async (): Promise<PeriodoDesempenho> => {
+  const [arquivos, { produtosPorCodigo, lojasPorCodigo }] = await Promise.all([listarArquivosMensais(), indices()]);
+  const resultados = await Promise.all(
+    arquivos.map(async (arquivo): Promise<PeriodoDesempenho | null> => {
+      try {
+        const conteudo = await baixarArquivo(arquivo.nome, arquivo.encoding);
+        return normalizarMovimentos(conteudo, produtosPorCodigo, lojasPorCodigo, arquivo.nome);
+      } catch (erro) {
+        // Um mês fora do padrão nunca derruba os demais — loga alto e segue sem ele.
+        console.error(`Falha ao processar ${arquivo.nome}, excluído do conjunto:`, erro);
+        return null;
+      }
+    }),
+  );
+  return unirMovimentos(resultados.filter((r): r is PeriodoDesempenho => r !== null));
+});
 
 /** Lê os arquivos direto do OneDrive via Microsoft Graph — usado em produção (Vercel). */
 export function createOneDriveDataProvider(): DataProvider {
   return {
     getLojas: getLojasCache,
     getProdutos: getProdutosCache,
-    getDesempenhoAtual: getAtualCache,
-    getDesempenhoComparacao: getComparacaoCache,
+    getDesempenho: getDesempenhoCache,
   };
 }

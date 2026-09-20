@@ -114,12 +114,27 @@ export interface LojaAgregada {
   comparacao: Metricas | null;
   desvioVenda: number | null;
   desvioLucro: number | null;
+  /** Aberta desde o início dos dois períodos (Atual e Comparação) — ver "Mesmas Lojas" em
+   * `docs/regras-de-negocio.md`. `true` quando não há como avaliar (períodos não definidos). */
+  mesmaLoja: boolean;
+  /** Teve algum dia sem venda logo depois de um dia com venda, dentro de um dos dois períodos —
+   * provável fechamento programado/feriado, não "loja nova" (não afeta `mesmaLoja`/os totais). */
+  temFechamento: boolean;
+  /** Intervalos (ISO) sem venda dentro do período Atual — pro aviso ao passar o mouse. */
+  fechamentosAtual: { inicio: string; fim: string }[];
+  /** Idem, dentro do período de Comparação. */
+  fechamentosComparacao: { inicio: string; fim: string }[];
 }
 
 export function agregarPorLoja(
   registrosAtual: RegistroDesempenho[],
   registrosComparacao: RegistroDesempenho[],
   lojas: Loja[],
+  /** null = não avaliável (sem os dois períodos definidos) — todas contam como "mesma loja". */
+  lojasElegiveis: Set<string> | null,
+  /** Intervalos de fechamento por loja em cada período (ver `intervalosFechamento`). */
+  fechamentosAtualPorLoja: Map<string, { inicio: string; fim: string }[]>,
+  fechamentosComparacaoPorLoja: Map<string, { inicio: string; fim: string }[]>,
 ): LojaAgregada[] {
   const porLojaAtual = new Map<string, Metricas>();
   const porLojaComp = new Map<string, Metricas>();
@@ -139,12 +154,18 @@ export function agregarPorLoja(
       const atual = fecharMetricas(porLojaAtual.get(loja.codUnid) ?? metricasVazias());
       const compRaw = porLojaComp.get(loja.codUnid);
       const comparacao = compRaw ? fecharMetricas(compRaw) : null;
+      const fechamentosAtual = fechamentosAtualPorLoja.get(loja.codUnid) ?? [];
+      const fechamentosComparacao = fechamentosComparacaoPorLoja.get(loja.codUnid) ?? [];
       return {
         loja,
         atual,
         comparacao,
         desvioVenda: comparacao ? calcDesvio(atual.venda, comparacao.venda) : null,
         desvioLucro: comparacao ? calcDesvio(atual.lucro, comparacao.lucro) : null,
+        mesmaLoja: lojasElegiveis === null || lojasElegiveis.has(loja.codUnid),
+        temFechamento: fechamentosAtual.length > 0 || fechamentosComparacao.length > 0,
+        fechamentosAtual,
+        fechamentosComparacao,
       };
     });
 }

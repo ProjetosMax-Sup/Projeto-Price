@@ -45,11 +45,10 @@ export function createMockDataProvider(): DataProvider {
     async getProdutos() {
       return PRODUTOS_MOCK;
     },
-    async getDesempenhoAtual() {
-      return montarPeriodo(MOVIMENTOS_ATUAL_MOCK, PRODUTOS_MOCK, LOJAS_MOCK);
-    },
-    async getDesempenhoComparacao() {
-      return montarPeriodo(MOVIMENTOS_COMPARACAO_MOCK, PRODUTOS_MOCK, LOJAS_MOCK);
+    async getDesempenho() {
+      // Sem arquivos mensais de exemplo — reaproveita os dois conjuntos mock antigos
+      // (datas diferentes) só pra dar variação de período pra escolher no calendário.
+      return montarPeriodo([...MOVIMENTOS_ATUAL_MOCK, ...MOVIMENTOS_COMPARACAO_MOCK], PRODUTOS_MOCK, LOJAS_MOCK);
     },
   };
 }
