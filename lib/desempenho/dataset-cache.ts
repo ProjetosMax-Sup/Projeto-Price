@@ -85,10 +85,17 @@ function descomprimir<T>(buffer: Buffer): T {
   return JSON.parse(gunzipSync(buffer).toString("utf8"));
 }
 
+// Client reaproveitado entre chamadas (mesmo padrão de lib/onedrive/token-store.ts) — uma conexão
+// nova por leitura/escrita custaria um handshake TCP+auth a cada request, inclusive em
+// lerVersaoDataset(), chamada em toda visita ao Desempenho Comercial só pra checar a versão do
+// cache em memória.
+let cliente: Redis | null = null;
 function obterCliente(): Redis {
+  if (cliente) return cliente;
   const url = process.env.REDIS_URL;
   if (!url) throw new Error("Redis não configurado (REDIS_URL).");
-  return new Redis(url);
+  cliente = new Redis(url);
+  return cliente;
 }
 
 export async function salvarDataset(dados: {
@@ -107,76 +114,64 @@ export async function salvarDataset(dados: {
   };
 
   const cliente = obterCliente();
-  try {
-    await Promise.all([
-      cliente.set(CHAVE_LOJAS, comprimir(dados.lojas)),
-      cliente.set(CHAVE_PRODUTOS, comprimir(dados.produtos)),
-      ...chunksRegistros.map((c, i) => cliente.set(`dataset:registros:${i}`, comprimir(c))),
-    ]);
-    // Manifesto por último: só vira "válido" pra leitura depois que os chunks já existem.
-    await cliente.set(CHAVE_MANIFESTO, JSON.stringify(manifesto));
-  } finally {
-    cliente.disconnect();
-  }
+  await Promise.all([
+    cliente.set(CHAVE_LOJAS, comprimir(dados.lojas)),
+    cliente.set(CHAVE_PRODUTOS, comprimir(dados.produtos)),
+    ...chunksRegistros.map((c, i) => cliente.set(`dataset:registros:${i}`, comprimir(c))),
+  ]);
+  // Manifesto por último: só vira "válido" pra leitura depois que os chunks já existem.
+  await cliente.set(CHAVE_MANIFESTO, JSON.stringify(manifesto));
   return geradoEm;
 }
 
 export async function lerVersaoDataset(): Promise<string | null> {
   const cliente = obterCliente();
-  try {
-    const bruto = await cliente.get(CHAVE_MANIFESTO);
-    return bruto ? (JSON.parse(bruto) as Manifesto).geradoEm : null;
-  } finally {
-    cliente.disconnect();
-  }
+  const bruto = await cliente.get(CHAVE_MANIFESTO);
+  return bruto ? (JSON.parse(bruto) as Manifesto).geradoEm : null;
 }
 
 export async function lerDataset(): Promise<DatasetProcessado | null> {
   const cliente = obterCliente();
-  try {
-    const brutoManifesto = await cliente.get(CHAVE_MANIFESTO);
-    if (!brutoManifesto) return null;
-    const manifesto: Manifesto = JSON.parse(brutoManifesto);
-    // Manifesto de um formato anterior (ex: ainda com chunksAtual/chunksComparacao, de antes da
-    // migração pros arquivos mensais) não tem chunksRegistros — tratar como "sem dataset" (null),
-    // pra createResilientProvider cair pro OneDrive direto em vez de devolver um dataset "válido"
-    // com zero registros silenciosamente. Corrige sozinho no próximo cron/"Atualizar dados".
-    if (typeof manifesto.chunksRegistros !== "number") return null;
+  const brutoManifesto = await cliente.get(CHAVE_MANIFESTO);
+  if (!brutoManifesto) return null;
+  const manifesto: Manifesto = JSON.parse(brutoManifesto);
+  // Manifesto de um formato anterior (ex: ainda com chunksAtual/chunksComparacao, de antes da
+  // migração pros arquivos mensais) não tem chunksRegistros — tratar como "sem dataset" (null),
+  // pra createResilientProvider cair pro OneDrive direto em vez de devolver um dataset "válido"
+  // com zero registros silenciosamente. Corrige sozinho no próximo cron/"Atualizar dados".
+  if (typeof manifesto.chunksRegistros !== "number") return null;
 
-    const [bufLojas, bufProdutos, ...bufsRegistros] = await Promise.all([
-      cliente.getBuffer(CHAVE_LOJAS),
-      cliente.getBuffer(CHAVE_PRODUTOS),
-      ...Array.from({ length: manifesto.chunksRegistros }, (_, i) => cliente.getBuffer(`dataset:registros:${i}`)),
-    ]);
-    if (!bufLojas || !bufProdutos) return null;
+  const [bufLojas, bufProdutos, ...bufsRegistros] = await Promise.all([
+    cliente.getBuffer(CHAVE_LOJAS),
+    cliente.getBuffer(CHAVE_PRODUTOS),
+    ...Array.from({ length: manifesto.chunksRegistros }, (_, i) => cliente.getBuffer(`dataset:registros:${i}`)),
+  ]);
+  if (!bufLojas || !bufProdutos) return null;
 
-    const lojas = descomprimir<Loja[]>(bufLojas);
-    const produtos = descomprimir<Produto[]>(bufProdutos);
+  const lojas = descomprimir<Loja[]>(bufLojas);
+  const produtos = descomprimir<Produto[]>(bufProdutos);
 
-    const produtosPorCodigo = new Map(produtos.map((p) => [p.codigo, p]));
-    const lojasPorCodigo = new Map(lojas.map((l) => [l.codUnid, l]));
+  const produtosPorCodigo = new Map(produtos.map((p) => [p.codigo, p]));
+  const lojasPorCodigo = new Map(lojas.map((l) => [l.codUnid, l]));
 
-    const registros: RegistroDesempenho[] = bufsRegistros
-      .filter((b): b is Buffer => b !== null)
-      .flatMap((b) => descomprimir<LinhaCompacta[]>(b))
-      .map((l) => {
-        const movimento = deLinhaCompacta(l);
-        return {
-          movimento,
-          produto: produtosPorCodigo.get(movimento.codigo) ?? null,
-          loja: movimento.unidadeCodigo ? (lojasPorCodigo.get(movimento.unidadeCodigo) ?? null) : null,
-        };
-      });
+  const registros: RegistroDesempenho[] = bufsRegistros
+    .filter((b): b is Buffer => b !== null)
+    .flatMap((b) => descomprimir<LinhaCompacta[]>(b))
+    .map((l) => {
+      const movimento = deLinhaCompacta(l);
+      return {
+        movimento,
+        produto: produtosPorCodigo.get(movimento.codigo) ?? null,
+        loja: movimento.unidadeCodigo ? (lojasPorCodigo.get(movimento.unidadeCodigo) ?? null) : null,
+      };
+    });
 
-    return {
-      geradoEm: manifesto.geradoEm,
-      lojas,
-      produtos,
-      registros,
-      produtosDescartados: manifesto.produtosDescartados,
-      produtosDescartadosCodigos: manifesto.produtosDescartadosCodigos ?? [],
-    };
-  } finally {
-    cliente.disconnect();
-  }
+  return {
+    geradoEm: manifesto.geradoEm,
+    lojas,
+    produtos,
+    registros,
+    produtosDescartados: manifesto.produtosDescartados,
+    produtosDescartadosCodigos: manifesto.produtosDescartadosCodigos ?? [],
+  };
 }

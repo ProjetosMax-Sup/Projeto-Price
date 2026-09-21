@@ -16,48 +16,34 @@ const CHAVE_USUARIOS = "parametros:usuarios";
 const CHAVE_DICIONARIO = "parametros:dicionario-colunas";
 const chaveConfigRelatorio = (modulo: string) => `parametros:relatorio:${modulo}`;
 
+// Client reaproveitado entre chamadas (mesmo padrão de lib/onedrive/token-store.ts) — uma conexão
+// nova por leitura/escrita custaria um handshake TCP+auth a cada request; isso inclui
+// lerUsuariosCadastro(), chamada via obterUsuarioAtual() em toda request autenticada.
+let cliente: Redis | null = null;
 function obterCliente(): Redis {
+  if (cliente) return cliente;
   const url = process.env.REDIS_URL;
   if (!url) throw new Error("Redis não configurado (REDIS_URL).");
-  return new Redis(url);
+  cliente = new Redis(url);
+  return cliente;
 }
 
 export async function lerLojasCadastro(): Promise<LojaCadastro[] | null> {
-  const cliente = obterCliente();
-  try {
-    const bruto = await cliente.get(CHAVE_LOJAS);
-    return bruto ? (JSON.parse(bruto) as LojaCadastro[]) : null;
-  } finally {
-    cliente.disconnect();
-  }
+  const bruto = await obterCliente().get(CHAVE_LOJAS);
+  return bruto ? (JSON.parse(bruto) as LojaCadastro[]) : null;
 }
 
 export async function salvarLojasCadastro(lojas: LojaCadastro[]): Promise<void> {
-  const cliente = obterCliente();
-  try {
-    await cliente.set(CHAVE_LOJAS, JSON.stringify(lojas));
-  } finally {
-    cliente.disconnect();
-  }
+  await obterCliente().set(CHAVE_LOJAS, JSON.stringify(lojas));
 }
 
 export async function lerDepartamentosCadastro(): Promise<DepartamentoCadastro[] | null> {
-  const cliente = obterCliente();
-  try {
-    const bruto = await cliente.get(CHAVE_DEPARTAMENTOS);
-    return bruto ? (JSON.parse(bruto) as DepartamentoCadastro[]) : null;
-  } finally {
-    cliente.disconnect();
-  }
+  const bruto = await obterCliente().get(CHAVE_DEPARTAMENTOS);
+  return bruto ? (JSON.parse(bruto) as DepartamentoCadastro[]) : null;
 }
 
 export async function salvarDepartamentosCadastro(departamentos: DepartamentoCadastro[]): Promise<void> {
-  const cliente = obterCliente();
-  try {
-    await cliente.set(CHAVE_DEPARTAMENTOS, JSON.stringify(departamentos));
-  } finally {
-    cliente.disconnect();
-  }
+  await obterCliente().set(CHAVE_DEPARTAMENTOS, JSON.stringify(departamentos));
 }
 
 /**
@@ -83,22 +69,12 @@ export async function obterOuSemearDepartamentosCadastro(): Promise<Departamento
 }
 
 export async function lerUsuariosCadastro(): Promise<UsuarioCadastro[] | null> {
-  const cliente = obterCliente();
-  try {
-    const bruto = await cliente.get(CHAVE_USUARIOS);
-    return bruto ? (JSON.parse(bruto) as UsuarioCadastro[]) : null;
-  } finally {
-    cliente.disconnect();
-  }
+  const bruto = await obterCliente().get(CHAVE_USUARIOS);
+  return bruto ? (JSON.parse(bruto) as UsuarioCadastro[]) : null;
 }
 
 export async function salvarUsuariosCadastro(usuarios: UsuarioCadastro[]): Promise<void> {
-  const cliente = obterCliente();
-  try {
-    await cliente.set(CHAVE_USUARIOS, JSON.stringify(usuarios));
-  } finally {
-    cliente.disconnect();
-  }
+  await obterCliente().set(CHAVE_USUARIOS, JSON.stringify(usuarios));
 }
 
 export async function obterOuSemearUsuariosCadastro(): Promise<UsuarioCadastro[]> {
@@ -110,22 +86,12 @@ export async function obterOuSemearUsuariosCadastro(): Promise<UsuarioCadastro[]
 }
 
 export async function lerDicionarioColunas(): Promise<ColunaNativa[] | null> {
-  const cliente = obterCliente();
-  try {
-    const bruto = await cliente.get(CHAVE_DICIONARIO);
-    return bruto ? (JSON.parse(bruto) as ColunaNativa[]) : null;
-  } finally {
-    cliente.disconnect();
-  }
+  const bruto = await obterCliente().get(CHAVE_DICIONARIO);
+  return bruto ? (JSON.parse(bruto) as ColunaNativa[]) : null;
 }
 
 export async function salvarDicionarioColunas(colunas: ColunaNativa[]): Promise<void> {
-  const cliente = obterCliente();
-  try {
-    await cliente.set(CHAVE_DICIONARIO, JSON.stringify(colunas));
-  } finally {
-    cliente.disconnect();
-  }
+  await obterCliente().set(CHAVE_DICIONARIO, JSON.stringify(colunas));
 }
 
 export async function obterOuSemearDicionarioColunas(): Promise<ColunaNativa[]> {
@@ -149,22 +115,12 @@ function configRelatorioVazia(modulo: string): ConfigRelatorio {
 }
 
 export async function lerConfigRelatorio(modulo: string): Promise<ConfigRelatorio | null> {
-  const cliente = obterCliente();
-  try {
-    const bruto = await cliente.get(chaveConfigRelatorio(modulo));
-    return bruto ? (JSON.parse(bruto) as ConfigRelatorio) : null;
-  } finally {
-    cliente.disconnect();
-  }
+  const bruto = await obterCliente().get(chaveConfigRelatorio(modulo));
+  return bruto ? (JSON.parse(bruto) as ConfigRelatorio) : null;
 }
 
 export async function salvarConfigRelatorio(config: ConfigRelatorio): Promise<void> {
-  const cliente = obterCliente();
-  try {
-    await cliente.set(chaveConfigRelatorio(config.modulo), JSON.stringify(config));
-  } finally {
-    cliente.disconnect();
-  }
+  await obterCliente().set(chaveConfigRelatorio(config.modulo), JSON.stringify(config));
 }
 
 export async function obterOuSemearConfigRelatorio(modulo: string): Promise<ConfigRelatorio> {

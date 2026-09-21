@@ -118,14 +118,18 @@ Um ⓘ ao lado do toggle "Total Lojas / Mesmas Lojas" explica o critério.
 dados disponível (não dá pra saber se a loja já existia antes do histórico disponível)
 — só fica cada vez mais confiável conforme o histórico acumular (mais meses
 disponíveis), ou se um campo de data de abertura de verdade vier no cadastro de Lojas
-da tela de Parâmetros (ver `docs/parametros.md` seção 2.2, ainda não construída).
+da tela de Parâmetros (ver `docs/parametros.md` seção 2.2 — construída, mas sem esse
+campo ainda).
 
 ## Em aberto / a validar com o usuário
 
 - Metas/objetivos ficaram fora de escopo por enquanto (mencionado explicitamente
   pelo usuário ao revisar referências de outra rede)
 - ✅ Reestruturação dos arquivos-fonte (`bdDesempenhoComercial*` → um arquivo por mês)
-  **executada** — ver `docs/fonte-de-dados.md` e `docs/parametros.md` seção 1. A tela
-  de Parâmetros em si (Configurações Gerais, Lojas/Departamentos editáveis, Usuários e
-  Acesso, motor de colunas Nativas/Calculadas/Ativas) ainda não foi construída — ver
-  "Ordem sugerida de construção" em `docs/parametros.md` seção 7.
+  **executada** — ver `docs/fonte-de-dados.md` e `docs/parametros.md` seção 1.
+- ✅ Camada de Parâmetros (etapas 1–5 de `docs/parametros.md` seção 7) **executada**:
+  cadastro editável de Lojas/Departamentos, Usuários e Acesso + Clerk, motor de colunas
+  (Nativas/Calculadas/Ativas) e migração do Desempenho Comercial pra ler tudo isso —
+  não usa mais `bdLojas.txt`/tabelas fixas em runtime, só pra semear o cadastro na
+  1ª leitura. Falta a etapa 6 (Entradas e Saídas como módulo, usando a camada nova) e
+  a 7 (reprocessamento manual/cron reaproveitando o motor de colunas).

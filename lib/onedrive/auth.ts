@@ -21,6 +21,9 @@ async function trocarToken(params: Record<string, string>): Promise<RespostaToke
       client_secret: MICROSOFT_CLIENT_SECRET,
       ...params,
     }),
+    // Sem timeout, uma Microsoft lenta trava toda leitura que depende de access token (inclusive o
+    // fallback pro OneDrive direto) até o maxDuration da função.
+    signal: AbortSignal.timeout(15_000),
   });
   if (!resposta.ok) {
     const texto = await resposta.text().catch(() => "");

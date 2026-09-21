@@ -7,10 +7,16 @@ Supermercados (rede de 11 lojas: 4 varejo, 7 atacado — confirmado em `bdLojas.
 Composta por 5 módulos:
 
 1. **Desempenho Comercial** ← único módulo implementado até agora
-2. Entradas e Saídas
+2. Entradas e Saídas ← só existe um loader pro Supabase (`lib/entradas-saidas/`),
+   sem UI nem rota/cron chamando ele ainda — não conta como módulo pronto
 3. Compra e Venda
 4. Perdas e Quebras
 5. Raio X Fornecedor
+
+Além dos 5 módulos, a camada de **Parâmetros** (`/parametros` — Lojas,
+Departamentos, Usuários e Acesso, motor de colunas Nativas/Calculadas/Ativas)
+já está construída e é pré-requisito de infraestrutura pros módulos acima, não
+um módulo em si — ver `docs/parametros.md`.
 
 Regra permanente: **nunca excluir ou reorganizar pastas/arquivos sem aviso prévio e
 instrução explícita do usuário.**
@@ -36,6 +42,12 @@ o OneDrive via Microsoft Graph API; em dev lê pasta local
 — leituras normais nunca tocam o OneDrive direto. Detalhes completos (cadeia
 de fallback, checklist de setup manual): **`docs/deploy.md`**.
 
+⚠️ Client do Redis (`ioredis`) é sempre **reaproveitado** entre chamadas
+(client singleton em variável de módulo, nunca `disconnect()` — ver
+`lib/onedrive/token-store.ts` como referência), nunca criado por request: já
+causou timeout em produção quando algum módulo abria/fechava conexão nova a
+cada leitura.
+
 ## Fonte de dados
 
 Arquivos **TXT delimitados por pipe**, sincronizados via OneDrive, lidos
@@ -55,8 +67,9 @@ Formato dos arquivos (`bd<Mês>.txt`, `bdCadastro`, `bdLojas`), encoding por
 arquivo, colunas confirmadas e chaves de join: **`docs/fonte-de-dados.md`** —
 leia antes de mexer no parser (`lib/data-providers/file-provider.ts`,
 `lib/data-providers/normalizar-desempenho.ts`) ou em qualquer query. Spec
-completa da reestruturação (já executada) e da camada de Parâmetros que vem a
-seguir (ainda não construída): **`docs/parametros.md`**.
+completa da reestruturação (já executada) e da camada de Parâmetros (etapas
+1–5 de `docs/parametros.md` seção 7 já executadas; faltam 6–7, Entradas e
+Saídas como módulo e reprocessamento manual): **`docs/parametros.md`**.
 
 ## Regras de negócio
 
@@ -64,12 +77,16 @@ seguir (ainda não construída): **`docs/parametros.md`**.
   excluídos dos números consolidados e sinalizados por um badge (não um
   banner). Contagem é de SKUs únicos, não linhas.
 - Comprador exibido no app **não** vem do arquivo (`Compr`/`Nome Comprador`
-  não é confiável) — vem de uma tabela fixa por Departamento em
-  `lib/desempenho/compradores.ts`.
+  não é confiável) — vem do cadastro editável de Departamentos em
+  `/parametros` (Redis, `lib/desempenho/comprador-cadastro.ts`).
+  `lib/desempenho/compradores.ts` (tabela fixa) só serve pra **semear** esse
+  cadastro na 1ª leitura (`lib/parametros/seed.ts`), não é mais consultada em
+  runtime normal.
 
-Tabela completa de departamentos/compradores e detalhe da regra de
-cadastro: **`docs/regras-de-negocio.md`** — leia antes de mexer em
-`lib/desempenho/compradores.ts` ou na lógica de exclusão de produtos.
+Tabela completa de departamentos/compradores (usada só como semente) e
+detalhe da regra de cadastro: **`docs/regras-de-negocio.md`** — leia antes de
+mexer em `lib/desempenho/compradores.ts`/`comprador-cadastro.ts` ou na lógica
+de exclusão de produtos.
 
 ## Design system e padrões de UX
 
