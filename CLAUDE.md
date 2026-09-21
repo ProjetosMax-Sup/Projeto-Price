@@ -60,8 +60,10 @@ dataset completo do Desempenho Comercial (9+ meses, 4+ milhões de registros)
 escrita ao tentar guardar tudo de uma vez (confirmado em 2026-09-21, rodando
 o backfill fora da Vercel pra não esbarrar no limite de 60s). Mitigação
 temporária: `MESES_HABILITADOS` (`config/data-sources.ts`) restringe quais
-meses o app processa (hoje: `Julho,Agosto,Setembro`, cadastrada na Vercel) —
-não é regra de negócio, é só o dataset caber na memória disponível. Resolver
+meses o app processa (hoje: `Julho,Setembro` — Agosto removido em 2026-09-21
+depois que o crescimento do `bdSetembro` voltou a estourar o OOM mesmo com os
+3 meses; ajustar em `.env.local` e também na Vercel) — não é regra de
+negócio, é só o dataset caber na memória disponível. Resolver
 de vez exige decisão do usuário: upgrade do plano Redis, ou mover esse cache
 pra um banco de verdade (o Supabase já provisionado pro Entradas e Saídas
 seria mais adequado pra esse volume do que Redis). Enquanto o limite existir,
