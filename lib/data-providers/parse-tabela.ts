@@ -34,6 +34,40 @@ export function validarCabecalhoOuFalhar(conteudo: string, referencia: readonly 
 }
 
 /**
+ * Decodifica `buffer` com `encodingPreferido` (o configurado em `arquivoMensal()`, normalmente
+ * "latin1") e valida o cabeçalho contra `referencia`; se não bater, tenta de novo com a outra
+ * codificação (latin1 ↔ utf8) antes de desistir — um re-export do arquivo-fonte (Excel, editor de
+ * texto) pode trocar a codificação sem avisar, e "Código" vira "CÃ³digo" (UTF-8 lido como Latin-1)
+ * ou vice-versa. Sem isso, a validação de cabeçalho falha por um motivo bobo (encoding, não
+ * estrutura) e o arquivo inteiro é descartado silenciosamente pelo catch de `getDesempenhoCache`
+ * (confirmado em 2026-09-21: bdSetembro.txt salvo em UTF-8 sumiu do dataset sem nenhum erro
+ * visível). Lança o erro da codificação PREFERIDA se nenhuma das duas bater — é o mais
+ * informativo pro caso comum de arquivo genuinamente fora do padrão.
+ */
+export function decodificarComFallback(
+  buffer: Buffer,
+  encodingPreferido: BufferEncoding,
+  referencia: readonly string[],
+  nomeArquivo: string,
+): string {
+  const conteudoPreferido = buffer.toString(encodingPreferido);
+  try {
+    validarCabecalhoOuFalhar(conteudoPreferido, referencia, nomeArquivo);
+    return conteudoPreferido;
+  } catch (erroPreferido) {
+    const alternativa: BufferEncoding = encodingPreferido === "latin1" ? "utf8" : "latin1";
+    const conteudoAlternativo = buffer.toString(alternativa);
+    try {
+      validarCabecalhoOuFalhar(conteudoAlternativo, referencia, nomeArquivo);
+      console.warn(`"${nomeArquivo}" veio codificado em ${alternativa}, não ${encodingPreferido} — decodificado automaticamente.`);
+      return conteudoAlternativo;
+    } catch {
+      throw erroPreferido;
+    }
+  }
+}
+
+/**
  * Lê um TXT pipe-delimited com cabeçalho de 2 linhas (nome + complemento, unidos
  * como "{linha1} {linha2}"). Quando `duasLinhasHeader` é false, a primeira linha
  * já é o cabeçalho final (caso do bdLojas).

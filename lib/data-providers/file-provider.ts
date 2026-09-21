@@ -1,7 +1,8 @@
 import { readdir, readFile, stat } from "fs/promises";
 import path from "path";
-import { ARQUIVOS_DESEMPENHO_COMERCIAL, arquivosMensaisDisponiveis, DESEMPENHO_COMERCIAL_DATA_DIR } from "@/config/data-sources";
+import { ARQUIVOS_DESEMPENHO_COMERCIAL, arquivosMensaisDisponiveis, CABECALHO_REFERENCIA_MENSAL, DESEMPENHO_COMERCIAL_DATA_DIR } from "@/config/data-sources";
 import { criarCacheVersionado } from "./cache-versionado";
+import { decodificarComFallback } from "./parse-tabela";
 import { normalizarLojas, normalizarMovimentos, normalizarProdutos, unirMovimentos } from "./normalizar-desempenho";
 import type { Loja, PeriodoDesempenho, Produto } from "@/lib/types";
 import type { DataProvider } from "./types";
@@ -13,9 +14,12 @@ interface ArquivoConfig {
 
 const caminho = (arquivo: ArquivoConfig) => path.join(DESEMPENHO_COMERCIAL_DATA_DIR, arquivo.nome);
 
+async function lerConteudoBuffer(arquivo: ArquivoConfig): Promise<Buffer> {
+  return readFile(caminho(arquivo));
+}
+
 async function lerConteudo(arquivo: ArquivoConfig): Promise<string> {
-  const buffer = await readFile(caminho(arquivo));
-  return buffer.toString(arquivo.encoding);
+  return (await lerConteudoBuffer(arquivo)).toString(arquivo.encoding);
 }
 
 async function mtime(arquivo: ArquivoConfig): Promise<number> {
@@ -60,7 +64,8 @@ const getDesempenhoCache = criarCacheVersionado(versaoMensal, async (): Promise<
   const resultados = await Promise.all(
     arquivos.map(async (arquivo): Promise<PeriodoDesempenho | null> => {
       try {
-        const conteudo = await lerConteudo(arquivo);
+        const buffer = await lerConteudoBuffer(arquivo);
+        const conteudo = decodificarComFallback(buffer, arquivo.encoding, CABECALHO_REFERENCIA_MENSAL, arquivo.nome);
         return normalizarMovimentos(conteudo, produtosPorCodigo, lojasPorCodigo, arquivo.nome);
       } catch (erro) {
         // Um mês fora do padrão nunca derruba os demais — loga alto e segue sem ele.

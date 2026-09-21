@@ -1,6 +1,7 @@
-import { ARQUIVOS_DESEMPENHO_COMERCIAL, arquivosMensaisDisponiveis } from "@/config/data-sources";
-import { baixarArquivo, listarNomesArquivos, obterVersaoArquivo } from "@/lib/onedrive/graph";
+import { ARQUIVOS_DESEMPENHO_COMERCIAL, arquivosMensaisDisponiveis, CABECALHO_REFERENCIA_MENSAL } from "@/config/data-sources";
+import { baixarArquivo, baixarArquivoBuffer, listarNomesArquivos, obterVersaoArquivo } from "@/lib/onedrive/graph";
 import { criarCacheVersionado } from "./cache-versionado";
+import { decodificarComFallback } from "./parse-tabela";
 import { normalizarLojas, normalizarMovimentos, normalizarProdutos, unirMovimentos } from "./normalizar-desempenho";
 import type { Loja, PeriodoDesempenho, Produto } from "@/lib/types";
 import type { DataProvider } from "./types";
@@ -47,7 +48,8 @@ const getDesempenhoCache = criarCacheVersionado(versaoMensal, async (): Promise<
   const resultados = await Promise.all(
     arquivos.map(async (arquivo): Promise<PeriodoDesempenho | null> => {
       try {
-        const conteudo = await baixarArquivo(arquivo.nome, arquivo.encoding);
+        const buffer = await baixarArquivoBuffer(arquivo.nome);
+        const conteudo = decodificarComFallback(buffer, arquivo.encoding, CABECALHO_REFERENCIA_MENSAL, arquivo.nome);
         return normalizarMovimentos(conteudo, produtosPorCodigo, lojasPorCodigo, arquivo.nome);
       } catch (erro) {
         // Um mês fora do padrão nunca derruba os demais — loga alto e segue sem ele.

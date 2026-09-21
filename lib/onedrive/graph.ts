@@ -40,10 +40,13 @@ export async function obterVersaoArquivo(nomeArquivo: string): Promise<string> {
   return dados.eTag ?? dados.lastModifiedDateTime ?? String(Date.now());
 }
 
-export async function baixarArquivo(nomeArquivo: string, encoding: BufferEncoding): Promise<string> {
+export async function baixarArquivoBuffer(nomeArquivo: string): Promise<Buffer> {
   const resposta = await chamarGraph(`${caminhoGraph(nomeArquivo)}:/content`, TIMEOUT_GRAPH_CONTEUDO_MS);
-  const buffer = Buffer.from(await resposta.arrayBuffer());
-  return buffer.toString(encoding);
+  return Buffer.from(await resposta.arrayBuffer());
+}
+
+export async function baixarArquivo(nomeArquivo: string, encoding: BufferEncoding): Promise<string> {
+  return (await baixarArquivoBuffer(nomeArquivo)).toString(encoding);
 }
 
 /**
