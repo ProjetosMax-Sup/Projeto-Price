@@ -4,7 +4,7 @@ import { getDataProvider } from "@/lib/data-providers";
 import { obterUsuarioAtual } from "@/lib/auth/usuario-atual";
 import { CONSULTA_PADRAO, computarDesempenho } from "@/lib/desempenho/consulta";
 import { construirIndiceDepartamentos, listaCompradoresCadastro, listaDepartamentosCadastro } from "@/lib/desempenho/comprador-cadastro";
-import { datasDisponiveis, deslocarMeses, periodoMesMaisRecente } from "@/lib/desempenho/datas";
+import { datasDisponiveis, periodoMesAnteriorDisponivel, periodoMesMaisRecente } from "@/lib/desempenho/datas";
 import { lojasDoCadastro } from "@/lib/desempenho/loja-cadastro";
 import { calcularLabelPeriodo } from "@/lib/desempenho/periodo";
 import { obterOuSemearConfigRelatorio, obterOuSemearDepartamentosCadastro, obterOuSemearLojasCadastro } from "@/lib/parametros/store";
@@ -70,13 +70,15 @@ export default async function DesempenhoComercialPage() {
 
   const datasDisponiveisInicial = datasDisponiveis(registros);
 
-  // Padrão (nada escolhido pelo usuário ainda): mês mais recente com dado + o mês anterior a
-  // ele — nunca mais o range inteiro do conjunto disponível. Isso é decidido aqui (servidor) e
-  // repassado como estado inicial pro client, pra a 1ª renderização (SSR) já bater com o 1º
-  // render do client e não precisar de um refetch imediato assim que a página carrega.
+  // Padrão (nada escolhido pelo usuário ainda): mês mais recente com dado + o mês disponível
+  // imediatamente anterior a ele (não necessariamente o mês civil anterior — ver
+  // periodoMesAnteriorDisponivel) — nunca mais o range inteiro do conjunto disponível. Isso é
+  // decidido aqui (servidor) e repassado como estado inicial pro client, pra a 1ª renderização
+  // (SSR) já bater com o 1º render do client e não precisar de um refetch imediato assim que a
+  // página carrega.
   const periodoAtualPadrao = periodoMesMaisRecente(datasDisponiveisInicial);
   const periodoComparacaoPadrao = periodoAtualPadrao
-    ? { inicio: deslocarMeses(periodoAtualPadrao.inicio, -1), fim: deslocarMeses(periodoAtualPadrao.fim, -1) }
+    ? periodoMesAnteriorDisponivel(datasDisponiveisInicial, periodoAtualPadrao.inicio)
     : null;
 
   // Só o resultado já agregado (KPIs + algumas dezenas/centenas de linhas) vai para o

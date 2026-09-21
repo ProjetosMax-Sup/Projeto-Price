@@ -42,21 +42,6 @@ export function diasNoMes(mes: number, ano: number): number {
   return new Date(ano, mes, 0).getDate();
 }
 
-/**
- * Desloca uma data ISO em N meses, mantendo o dia quando possível — quando o mês de destino é
- * mais curto (ex: 31/Jan − 1 mês → Fevereiro não tem dia 31), cai pro último dia daquele mês.
- * Usado pelos atalhos "mesmo período, mês anterior" / "...ano anterior" (delta = ±1 / ±12).
- */
-export function deslocarMeses(iso: string, deltaMeses: number): string {
-  const d = isoParaDataLocal(iso);
-  if (!d) return iso;
-  const indiceMesAbsoluto = d.getFullYear() * 12 + d.getMonth() + deltaMeses;
-  const novoAno = Math.floor(indiceMesAbsoluto / 12);
-  const novoMes = ((indiceMesAbsoluto % 12) + 12) % 12; // 0-11
-  const dia = Math.min(d.getDate(), diasNoMes(novoMes + 1, novoAno));
-  return dataParaIso(new Date(novoAno, novoMes, dia));
-}
-
 /** {ano, mes0 (0-11)} de uma data ISO. */
 export function anoMesDeIso(iso: string): { ano: number; mes0: number } {
   const [ano, mes] = iso.split("-").map(Number);
@@ -86,6 +71,18 @@ export function periodoMesMaisRecente(datasDisponiveis: string[]): { inicio: str
   const prefixoMes = ultima.slice(0, 7); // "AAAA-MM"
   const doMes = datasDisponiveis.filter((d) => d.startsWith(prefixoMes));
   return { inicio: doMes[0], fim: doMes.at(-1)! };
+}
+
+/**
+ * Período padrão de Comparação: o mês com dado disponível imediatamente ANTES de `antesDe`
+ * (ISO) — nunca "o mês civil anterior" (ex: `deslocarMeses(-1)`), porque `MESES_HABILITADOS`
+ * (`config/data-sources.ts`) pode pular um mês por limite de memória do Redis (ex: hoje
+ * Julho,Setembro, sem Agosto). Se o mês civil anterior estivesse hardcoded e não tivesse dado, o
+ * período de Comparação vinha vazio e a coluna inteira zerava (2026-09-21). Volta null se não
+ * houver nenhum mês anterior disponível.
+ */
+export function periodoMesAnteriorDisponivel(datasDisponiveis: string[], antesDe: string): { inicio: string; fim: string } | null {
+  return periodoMesMaisRecente(datasDisponiveis.filter((d) => d < antesDe));
 }
 
 /** Datas (ISO, distintas, ordenadas) presentes nos registros — usado pra validar os seletores de período. */
