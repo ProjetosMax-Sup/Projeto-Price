@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import { ClerkProvider } from "@clerk/nextjs";
-import { ptBR } from "@clerk/localizations";
 import { Manrope, IBM_Plex_Sans } from "next/font/google";
 import "./globals.css";
 
@@ -26,20 +24,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="pt-BR"
       className={`${manrope.variable} ${ibmPlexSans.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-zinc-50">
-        <ClerkProvider
-          localization={ptBR}
-          appearance={{
-            variables: {
-              colorPrimary: "#004c97",
-              colorDanger: "#e30000",
-              fontFamily: "var(--font-plex-sans)",
-            },
-          }}
-        >
-          {children}
-        </ClerkProvider>
-      </body>
+      <body className="min-h-full flex flex-col bg-zinc-50">{children}</body>
     </html>
   );
 }

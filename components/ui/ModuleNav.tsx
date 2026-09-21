@@ -1,4 +1,3 @@
-import { UserButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { obterGestorAtual } from "@/lib/auth/exigir-gestor";
 
@@ -57,9 +56,6 @@ export async function ModuleNav({ active }: { active?: string }) {
             </svg>
           </Link>
         )}
-        <div className="ml-2">
-          <UserButton />
-        </div>
       </div>
     </header>
   );

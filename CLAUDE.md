@@ -28,11 +28,17 @@ instrução explícita do usuário.**
 - **Tailwind CSS** com tokens de cor nomeados semanticamente (ver `docs/padroes-ux.md`)
 - **Recharts** para gráficos que forem além do que HTML/CSS resolve
 - Parser próprio para os arquivos-fonte (não é Excel/CSV — ver `docs/fonte-de-dados.md`)
-- Login individual via **Clerk** (`proxy.ts` exige sessão em tudo, exceto
-  `/sign-in`, `/sign-up` e o cron) — cada pessoa loga com sua conta; perfil
-  (Comprador/Gestor) e escopo (Departamentos/Lojas) vêm do cadastro de
-  Usuários em `/parametros` (ver `docs/parametros.md`, seção 2.4), resolvido
-  em `lib/auth/usuario-atual.ts`
+- Login: **senha única do site** (`SITE_PASSWORD`, `proxy.ts`), não login
+  individual. O login por pessoa via **Clerk** foi construído (perfil
+  Comprador/Gestor + escopo Departamentos/Lojas, cadastro de Usuários em
+  `/parametros`, ver `docs/parametros.md` seção 2.4) mas está **pausado**
+  desde 2026-09-21 — Clerk exige domínio próprio pra rodar em modo Production
+  (registros DNS), e o domínio compartilhado `*.vercel.app` causava loop de
+  login (instância de Development faz handshake cross-domain com
+  `accounts.dev`, quebrado por bloqueio de cookie de terceiro no navegador).
+  Enquanto isso, `lib/auth/usuario-atual.ts` devolve um usuário sintético com
+  acesso total (Gestor) pra todo mundo que passa da senha — reverter esse
+  arquivo pra voltar a resolver via Clerk quando tiverem domínio.
 
 ## Deploy
 
