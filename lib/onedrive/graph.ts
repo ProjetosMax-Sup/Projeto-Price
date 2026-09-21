@@ -15,7 +15,9 @@ function caminhoGraphPasta(): string {
 // (versão/listagem) é rápido por natureza — 15s já é folgado; conteúdo (download dos TXT, que
 // passam de 200MB) precisa de mais margem, por isso timeout maior e configurável por chamada.
 const TIMEOUT_GRAPH_METADADO_MS = 15_000;
-const TIMEOUT_GRAPH_CONTEUDO_MS = 45_000;
+// 2min: dá folga pra conexões domésticas mais lentas (ex: script local de backfill) — na Vercel
+// isso não muda nada na prática, o maxDuration da função (60s no Hobby) já corta antes.
+const TIMEOUT_GRAPH_CONTEUDO_MS = 120_000;
 
 async function chamarGraph(caminhoRelativo: string, timeoutMs: number): Promise<Response> {
   const accessToken = await obterAccessToken();

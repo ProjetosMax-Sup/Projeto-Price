@@ -44,6 +44,17 @@ export function arquivoMensal(nomeMes: (typeof NOMES_MESES_ARQUIVO)[number]): { 
 }
 
 /**
+ * Restrição temporária de quais meses processar (ex: "Julho,Agosto,Setembro") — só existe
+ * porque o dataset completo (9+ meses, 4+ milhões de registros) estourou a memória do plano
+ * atual do Redis (ver lib/desempenho/dataset-cache.ts). Sem essa variável, processa todos os
+ * meses disponíveis normalmente. Remover assim que o Redis for resolvido (upgrade de plano ou
+ * mudar pra um banco de verdade) — não é uma regra de negócio, é só um limite de infra atual.
+ */
+const MESES_HABILITADOS = process.env.MESES_HABILITADOS?.split(",")
+  .map((m) => m.trim())
+  .filter(Boolean);
+
+/**
  * Filtra e ordena cronologicamente (Janeiro → Dezembro) quais arquivos mensais
  * de fato existem entre os `nomesNaPasta` informados (vindos de `fs.readdir`
  * local ou da listagem do OneDrive) — meses ausentes (ex: um mês ainda não
@@ -51,7 +62,8 @@ export function arquivoMensal(nomeMes: (typeof NOMES_MESES_ARQUIVO)[number]): { 
  */
 export function arquivosMensaisDisponiveis(nomesNaPasta: string[]): { nome: string; encoding: BufferEncoding }[] {
   const presentes = new Set(nomesNaPasta);
-  return NOMES_MESES_ARQUIVO.map((mes) => arquivoMensal(mes)).filter((arquivo) => presentes.has(arquivo.nome));
+  const meses = MESES_HABILITADOS ? NOMES_MESES_ARQUIVO.filter((mes) => MESES_HABILITADOS.includes(mes)) : NOMES_MESES_ARQUIVO;
+  return meses.map((mes) => arquivoMensal(mes)).filter((arquivo) => presentes.has(arquivo.nome));
 }
 
 /**

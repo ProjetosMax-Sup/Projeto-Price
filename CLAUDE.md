@@ -54,6 +54,21 @@ de fallback, checklist de setup manual): **`docs/deploy.md`**.
 causou timeout em produção quando algum módulo abria/fechava conexão nova a
 cada leitura.
 
+⚠️ **Capacidade do Redis**: o plano atual (free/pequeno) não aguenta o
+dataset completo do Desempenho Comercial (9+ meses, 4+ milhões de registros)
+— `salvarDataset()` (`lib/desempenho/dataset-cache.ts`) dá **OOM** no meio da
+escrita ao tentar guardar tudo de uma vez (confirmado em 2026-09-21, rodando
+o backfill fora da Vercel pra não esbarrar no limite de 60s). Mitigação
+temporária: `MESES_HABILITADOS` (`config/data-sources.ts`) restringe quais
+meses o app processa (hoje: `Julho,Agosto,Setembro`, cadastrada na Vercel) —
+não é regra de negócio, é só o dataset caber na memória disponível. Resolver
+de vez exige decisão do usuário: upgrade do plano Redis, ou mover esse cache
+pra um banco de verdade (o Supabase já provisionado pro Entradas e Saídas
+seria mais adequado pra esse volume do que Redis). Enquanto o limite existir,
+`salvarDataset()` também limpa os chunks da geração anterior antes de
+escrever os novos (evita lixo acumulado de execuções passadas, mas não
+resolve a causa raiz).
+
 ## Fonte de dados
 
 Arquivos **TXT delimitados por pipe**, sincronizados via OneDrive, lidos
@@ -65,9 +80,11 @@ dois recortes de data escolhidos pelo usuário sobre o mesmo conjunto
 (`DataProvider.getDesempenho()`, união de todos os meses disponíveis).
 
 ⚠️ **Volume real**: um mês sozinho já passa de 200MB; somando os meses
-disponíveis hoje passa de 4 milhões de registros. Nunca mandar os registros
-brutos para o cliente — toda filtragem/agregação roda no servidor
-(`lib/desempenho/consulta.ts`); o navegador só recebe o resultado agregado.
+disponíveis hoje passa de 4 milhões de registros — mais do que o cache Redis
+atual aguenta de uma vez, ver `MESES_HABILITADOS` em Deploy acima. Nunca
+mandar os registros brutos para o cliente — toda filtragem/agregação roda no
+servidor (`lib/desempenho/consulta.ts`); o navegador só recebe o resultado
+agregado.
 
 Formato dos arquivos (`bd<Mês>.txt`, `bdCadastro`, `bdLojas`), encoding por
 arquivo, colunas confirmadas e chaves de join: **`docs/fonte-de-dados.md`** —

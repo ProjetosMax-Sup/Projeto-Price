@@ -62,7 +62,7 @@ Em [vercel.com](https://vercel.com) → **Add New** → **Project** → importar
 repositório do GitHub (passo 1). Next.js é detectado automaticamente, não
 precisa mexer em build settings.
 
-### 4. 🔧 Adicionar um Redis (guarda o login do OneDrive)
+### 4. 🔧 Adicionar um Redis (token do OneDrive, cadastro de Parâmetros e cache do dataset)
 
 No projeto da Vercel → **Storage** → **Marketplace Database Providers** →
 escolher a integração **Redis** (Upstash) → **Create** → conectar ao projeto.
@@ -74,28 +74,31 @@ No projeto da Vercel → **Settings** → **Environment Variables**, adicionar:
 
 | Variável | Valor |
 |---|---|
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | do app Clerk (dashboard.clerk.com → API Keys) |
-| `CLERK_SECRET_KEY` | idem |
+| `SITE_PASSWORD` | senha única de acesso ao site (login não é individual, ver abaixo) |
 | `MICROSOFT_CLIENT_ID` | do passo 2 |
 | `MICROSOFT_CLIENT_SECRET` | do passo 2 |
+| `MESES_HABILITADOS` | `Julho,Agosto,Setembro` (ou o que couber — ver ⚠️ abaixo) |
 
 Depois **Deploy** (ou fazer um novo commit/push — o deploy é automático a cada
 push na branch principal a partir daqui).
 
-Login é individual via **Clerk**, por **usuário + senha** (sem e-mail, sem
-Google) — o Gestor cria cada conta manualmente no painel do Clerk (Users →
-Create user), define um username e uma senha inicial, e passa pra pessoa; ela
-pode trocar a própria senha a qualquer momento clicando no avatar (canto
-superior direito do app). Cada conta precisa de um registro correspondente em
-`/parametros` → aba Usuários (mesmo username) definindo perfil
-(Comprador/Gestor) e, se Comprador, quais Departamentos/Lojas ela acessa. No
-painel do Clerk (User & Authentication): desligar Email/Google como
-identificador, deixar só Username, e desligar o cadastro público (sign-up) —
-ninguém se cadastra sozinho.
+Login é **senha única do site** (`SITE_PASSWORD`), sem conta individual — todo
+mundo que sabe a senha tem acesso completo. Login por pessoa (usuário/senha
+via Clerk, com perfil Comprador/Gestor e escopo por Departamento/Loja) foi
+construído mas está **pausado**: Clerk exige domínio próprio pra rodar em modo
+Production, e o projeto hoje só tem o domínio compartilhado `*.vercel.app` —
+retomar isso é decisão futura, não faz parte deste checklist. Detalhe em
+[CLAUDE.md > Stack técnica](./CLAUDE.md#stack-técnica).
+
+⚠️ **`MESES_HABILITADOS`**: o plano atual do Redis não aguenta o dataset
+completo (4+ milhões de registros) de uma vez — dá OOM. Enquanto isso não for
+resolvido (upgrade de plano Redis, ou mover esse cache pra outro banco), essa
+variável limita quais meses o cron/botão "Atualizar agora" processam. Ver
+[CLAUDE.md > Deploy](./CLAUDE.md#deploy).
 
 ### 6. 🔧 Conectar a conta do OneDrive (só uma vez)
 
-Com o site publicado: logar (Clerk) como Gestor e acessar
+Com o site publicado: logar com a senha do site e acessar
 `https://<seu-projeto>.vercel.app/api/auth/onedrive/login`, fazer login com a
 conta Microsoft **dona da pasta `05 - Bases`** e autorizar o acesso. A página
 final confirma "OneDrive conectado com sucesso". **Não precisa repetir isso**
@@ -103,6 +106,7 @@ final confirma "OneDrive conectado com sucesso". **Não precisa repetir isso**
 
 ### Pronto
 
-O site já está lendo os 4 arquivos direto do OneDrive. Pra atualizar os dados,
-o time só precisa sobrescrever os mesmos 4 arquivos na pasta `05 - Bases`
-(mesmo nome) — o site detecta a mudança sozinho, sem precisar reimplantar nada.
+O site já está lendo os arquivos direto do OneDrive (só os meses dentro de
+`MESES_HABILITADOS`, por ora). Pra atualizar os dados, o time só precisa
+sobrescrever os arquivos na pasta `05 - Bases` (mesmo nome) — o site detecta a
+mudança sozinho, sem precisar reimplantar nada.

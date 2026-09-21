@@ -114,6 +114,13 @@ export async function salvarDataset(dados: {
   };
 
   const cliente = obterCliente();
+  // Limpa os chunks da geração anterior antes de escrever os novos — sem isso, se essa geração
+  // tiver menos chunks que a anterior (ou uma tentativa anterior tiver parado no meio), os índices
+  // "sobrando" ficam órfãos no Redis pra sempre (lerDataset só lê 0..chunksRegistros-1 do
+  // manifesto atual, nunca limpa o resto) — desperdiça memória sem servir pra nada.
+  const chavesAntigas = await cliente.keys("dataset:registros:*");
+  if (chavesAntigas.length > 0) await cliente.del(...chavesAntigas);
+
   await Promise.all([
     cliente.set(CHAVE_LOJAS, comprimir(dados.lojas)),
     cliente.set(CHAVE_PRODUTOS, comprimir(dados.produtos)),
