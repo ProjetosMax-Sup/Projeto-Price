@@ -15,8 +15,10 @@ import type { Loja, MovimentoVendas, PeriodoDesempenho, Produto, RegistroDesempe
 
 const TAMANHO_CHUNK = 25_000;
 const CHAVE_MANIFESTO = "dataset:manifesto";
-const CHAVE_LOJAS = "dataset:lojas";
-const CHAVE_PRODUTOS = "dataset:produtos";
+// Chaves sem geração (formato anterior a esta versão) — só usadas como fallback de leitura
+// pra um manifesto antigo que ainda não tem `geracao` (ver lerDataset).
+const CHAVE_LOJAS_LEGADA = "dataset:lojas";
+const CHAVE_PRODUTOS_LEGADA = "dataset:produtos";
 
 type LinhaCompacta = [
   string, string, string, string, string, string, string, string, number, number, number, number, number, number,
@@ -24,6 +26,9 @@ type LinhaCompacta = [
 
 interface Manifesto {
   geradoEm: string;
+  /** Sufixo de geração das chaves `dataset:lojas:<geracao>`/`produtos`/`registros` desta escrita —
+   * ausente só em manifesto gravado antes desta versão (chaves sem geração, ver CHAVE_LOJAS_LEGADA). */
+  geracao?: string;
   chunksRegistros: number;
   produtosDescartados: number;
   produtosDescartadosCodigos: string[];
@@ -104,30 +109,47 @@ export async function salvarDataset(dados: {
   desempenho: PeriodoDesempenho;
 }): Promise<string> {
   const geradoEm = new Date().toISOString();
+  // Sufixo único desta escrita — separa as chaves da geração nova das da geração anterior
+  // enquanto ambas convivem no Redis (ver ordem escreve→troca→apaga abaixo).
+  const geracao = geradoEm;
   const chunksRegistros = emChunks(dados.desempenho.registros.map((r) => paraLinhaCompacta(r.movimento)), TAMANHO_CHUNK);
 
   const manifesto: Manifesto = {
     geradoEm,
+    geracao,
     chunksRegistros: chunksRegistros.length,
     produtosDescartados: dados.desempenho.produtosDescartados,
     produtosDescartadosCodigos: dados.desempenho.produtosDescartadosCodigos,
   };
 
   const cliente = obterCliente();
-  // Limpa os chunks da geração anterior antes de escrever os novos — sem isso, se essa geração
-  // tiver menos chunks que a anterior (ou uma tentativa anterior tiver parado no meio), os índices
-  // "sobrando" ficam órfãos no Redis pra sempre (lerDataset só lê 0..chunksRegistros-1 do
-  // manifesto atual, nunca limpa o resto) — desperdiça memória sem servir pra nada.
-  const chavesAntigas = await cliente.keys("dataset:registros:*");
-  if (chavesAntigas.length > 0) await cliente.del(...chavesAntigas);
-
+  // Escreve a geração nova em chaves próprias, SEM tocar na geração anterior — se isso falhar
+  // no meio (ex: OOM do Redis), o manifesto continua intacto apontando pra geração anterior e a
+  // app nunca fica servindo um dataset incompleto/misturado.
   await Promise.all([
-    cliente.set(CHAVE_LOJAS, comprimir(dados.lojas)),
-    cliente.set(CHAVE_PRODUTOS, comprimir(dados.produtos)),
-    ...chunksRegistros.map((c, i) => cliente.set(`dataset:registros:${i}`, comprimir(c))),
+    cliente.set(`dataset:lojas:${geracao}`, comprimir(dados.lojas)),
+    cliente.set(`dataset:produtos:${geracao}`, comprimir(dados.produtos)),
+    ...chunksRegistros.map((c, i) => cliente.set(`dataset:registros:${geracao}:${i}`, comprimir(c))),
   ]);
-  // Manifesto por último: só vira "válido" pra leitura depois que os chunks já existem.
+  // Só troca o ponteiro pra geração nova depois que ELA JÁ ESTÁ TODA gravada — esse é o único
+  // instante em que a leitura passa a enxergar os dados novos.
   await cliente.set(CHAVE_MANIFESTO, JSON.stringify(manifesto));
+
+  // Só agora limpa a geração anterior (best-effort: se essa parte falhar, sobra lixo órfão que a
+  // própria próxima chamada de salvarDataset ainda limpa, já que o filtro abaixo pega qualquer
+  // chave que não seja da geração atual).
+  const chavesAntigas = (
+    await Promise.all([
+      cliente.keys("dataset:lojas:*"),
+      cliente.keys("dataset:produtos:*"),
+      cliente.keys("dataset:registros:*"),
+    ])
+  )
+    .flat()
+    .filter((chave) => !chave.endsWith(`:${geracao}`) && !chave.includes(`:${geracao}:`));
+  if (chavesAntigas.length > 0) await cliente.del(...chavesAntigas);
+  await cliente.del(CHAVE_LOJAS_LEGADA, CHAVE_PRODUTOS_LEGADA);
+
   return geradoEm;
 }
 
@@ -148,10 +170,17 @@ export async function lerDataset(): Promise<DatasetProcessado | null> {
   // com zero registros silenciosamente. Corrige sozinho no próximo cron/"Atualizar dados".
   if (typeof manifesto.chunksRegistros !== "number") return null;
 
+  // manifesto.geracao pode faltar num manifesto gravado antes desta versão — cai pras chaves
+  // legadas (sem sufixo de geração) nesse caso.
+  const chaveLojas = manifesto.geracao ? `dataset:lojas:${manifesto.geracao}` : CHAVE_LOJAS_LEGADA;
+  const chaveProdutos = manifesto.geracao ? `dataset:produtos:${manifesto.geracao}` : CHAVE_PRODUTOS_LEGADA;
+  const chaveRegistro = (i: number) =>
+    manifesto.geracao ? `dataset:registros:${manifesto.geracao}:${i}` : `dataset:registros:${i}`;
+
   const [bufLojas, bufProdutos, ...bufsRegistros] = await Promise.all([
-    cliente.getBuffer(CHAVE_LOJAS),
-    cliente.getBuffer(CHAVE_PRODUTOS),
-    ...Array.from({ length: manifesto.chunksRegistros }, (_, i) => cliente.getBuffer(`dataset:registros:${i}`)),
+    cliente.getBuffer(chaveLojas),
+    cliente.getBuffer(chaveProdutos),
+    ...Array.from({ length: manifesto.chunksRegistros }, (_, i) => cliente.getBuffer(chaveRegistro(i))),
   ]);
   if (!bufLojas || !bufProdutos) return null;
 

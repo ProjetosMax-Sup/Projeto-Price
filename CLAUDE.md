@@ -65,9 +65,16 @@ não é regra de negócio, é só o dataset caber na memória disponível. Resol
 de vez exige decisão do usuário: upgrade do plano Redis, ou mover esse cache
 pra um banco de verdade (o Supabase já provisionado pro Entradas e Saídas
 seria mais adequado pra esse volume do que Redis). Enquanto o limite existir,
-`salvarDataset()` também limpa os chunks da geração anterior antes de
-escrever os novos (evita lixo acumulado de execuções passadas, mas não
-resolve a causa raiz).
+`salvarDataset()` escreve a geração nova em chaves próprias e só troca o
+manifesto (e apaga a geração anterior) depois que a escrita nova terminou
+inteira — evita dataset incompleto/misturado se a escrita falhar no meio
+(2026-09-21: o formato antigo apagava a geração anterior *antes* de escrever
+a nova, o que evitava lixo acumulado mas podia deixar o Redis sem nenhum
+dataset válido se o OOM batesse no meio da escrita). ⚠️ Efeito colateral:
+durante a janela de escrita, geração antiga e nova convivem no Redis ao mesmo
+tempo — o pico de memória é maior que antes (quase o dobro do dataset), o que
+pode tornar o OOM mais fácil de disparar bem quando o Redis já está no
+limite. Se isso acontecer, primeiro reduzir `MESES_HABILITADOS`.
 
 ## Fonte de dados
 

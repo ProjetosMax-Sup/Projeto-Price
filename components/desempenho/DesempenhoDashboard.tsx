@@ -83,6 +83,7 @@ export function DesempenhoDashboard({
   const [nivelTopAltasQuedas, setNivelTopAltasQuedas] = useState<NivelHierarquia>("secao");
   const [exportando, setExportando] = useState<"excel" | "pdf" | null>(null);
   const [atualizandoDados, setAtualizandoDados] = useState(false);
+  const [erroAtualizacao, setErroAtualizacao] = useState<string | null>(null);
   const [dadosGeradoEm, setDadosGeradoEm] = useState<string | null>(null);
 
   const [resultado, setResultado] = useState<ResultadoDesempenho>(resultadoInicial);
@@ -227,6 +228,7 @@ export function DesempenhoDashboard({
 
   async function aoAtualizarDados() {
     setAtualizandoDados(true);
+    setErroAtualizacao(null);
     try {
       const resposta = await fetch("/api/atualizar-dados", { method: "POST" });
       const dados = await resposta.json();
@@ -254,9 +256,11 @@ export function DesempenhoDashboard({
         if (idRequisicaoRef.current === idDaRequisicao) setResultado(resultadoNovo);
       } else {
         console.error("Falha ao atualizar dados:", dados.erro);
+        setErroAtualizacao(dados.erro || "Falha ao atualizar dados.");
       }
     } catch (erro) {
       console.error("Falha ao atualizar dados", erro);
+      setErroAtualizacao("Falha ao atualizar dados. Tente novamente.");
     } finally {
       setAtualizandoDados(false);
     }
@@ -272,6 +276,7 @@ export function DesempenhoDashboard({
         <div className="flex items-center gap-3">
           <CadastroIncompletoBadge quantidade={produtosDescartados} codigos={produtosDescartadosCodigos} />
           <span className="text-xs text-zinc-400">Última atualização: {formatarDataHora(dadosGeradoEm)}</span>
+          {erroAtualizacao && <span className="text-sm text-vermelho">{erroAtualizacao}</span>}
           <button
             type="button"
             onClick={aoAtualizarDados}
