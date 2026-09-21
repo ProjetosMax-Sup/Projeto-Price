@@ -109,47 +109,41 @@ export async function salvarDataset(dados: {
   desempenho: PeriodoDesempenho;
 }): Promise<string> {
   const geradoEm = new Date().toISOString();
-  // Sufixo único desta escrita — separa as chaves da geração nova das da geração anterior
-  // enquanto ambas convivem no Redis (ver ordem escreve→troca→apaga abaixo).
-  const geracao = geradoEm;
   const chunksRegistros = emChunks(dados.desempenho.registros.map((r) => paraLinhaCompacta(r.movimento)), TAMANHO_CHUNK);
 
   const manifesto: Manifesto = {
     geradoEm,
-    geracao,
     chunksRegistros: chunksRegistros.length,
     produtosDescartados: dados.desempenho.produtosDescartados,
     produtosDescartadosCodigos: dados.desempenho.produtosDescartadosCodigos,
   };
 
   const cliente = obterCliente();
-  // Escreve a geração nova em chaves próprias, SEM tocar na geração anterior — se isso falhar
-  // no meio (ex: OOM do Redis), o manifesto continua intacto apontando pra geração anterior e a
-  // app nunca fica servindo um dataset incompleto/misturado.
-  await Promise.all([
-    cliente.set(`dataset:lojas:${geracao}`, comprimir(dados.lojas)),
-    cliente.set(`dataset:produtos:${geracao}`, comprimir(dados.produtos)),
-    ...chunksRegistros.map((c, i) => cliente.set(`dataset:registros:${geracao}:${i}`, comprimir(c))),
-  ]);
-  // Só troca o ponteiro pra geração nova depois que ELA JÁ ESTÁ TODA gravada — esse é o único
-  // instante em que a leitura passa a enxergar os dados novos.
-  await cliente.set(CHAVE_MANIFESTO, JSON.stringify(manifesto));
-
-  // Só agora limpa a geração anterior (best-effort: se essa parte falhar, sobra lixo órfão que a
-  // própria próxima chamada de salvarDataset ainda limpa, já que o filtro abaixo pega qualquer
-  // chave que não seja da geração atual).
+  // Apaga a geração anterior ANTES de escrever a nova — o Redis (plano atual) não tem memória
+  // sobrando pra manter as duas gerações vivas ao mesmo tempo (ver CLAUDE.md), então prioriza pico
+  // de memória baixo em vez de nunca ficar sem dataset válido no meio de uma escrita que falha.
+  // Pega tanto chaves legadas (sem geração) quanto qualquer `:<geracao>:` órfã de uma versão
+  // anterior deste código, pra não acumular lixo.
   const chavesAntigas = (
     await Promise.all([
       cliente.keys("dataset:lojas:*"),
       cliente.keys("dataset:produtos:*"),
       cliente.keys("dataset:registros:*"),
     ])
-  )
-    .flat()
-    .filter((chave) => !chave.endsWith(`:${geracao}`) && !chave.includes(`:${geracao}:`));
+  ).flat();
   if (chavesAntigas.length > 0) await cliente.del(...chavesAntigas);
   await cliente.del(CHAVE_LOJAS_LEGADA, CHAVE_PRODUTOS_LEGADA);
 
+  await Promise.all([
+    cliente.set(CHAVE_LOJAS_LEGADA, comprimir(dados.lojas)),
+    cliente.set(CHAVE_PRODUTOS_LEGADA, comprimir(dados.produtos)),
+    ...chunksRegistros.map((c, i) => cliente.set(`dataset:registros:${i}`, comprimir(c))),
+  ]);
+  // Manifesto por último: só vira "válido" pra leitura depois que os chunks já existem. Se a
+  // escrita acima falhar no meio (ex: OOM), o manifesto continua apontando pro geradoEm anterior,
+  // mas as chaves dele já foram apagadas — lerDataset trata isso como "sem dataset" (bufs nulos) e
+  // cai pro fallback de ler direto do OneDrive até a próxima tentativa ter sucesso.
+  await cliente.set(CHAVE_MANIFESTO, JSON.stringify(manifesto));
   return geradoEm;
 }
 

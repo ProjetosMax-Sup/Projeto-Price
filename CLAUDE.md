@@ -67,16 +67,21 @@ negócio, é só o dataset caber na memória disponível. Resolver
 de vez exige decisão do usuário: upgrade do plano Redis, ou mover esse cache
 pra um banco de verdade (o Supabase já provisionado pro Entradas e Saídas
 seria mais adequado pra esse volume do que Redis). Enquanto o limite existir,
-`salvarDataset()` escreve a geração nova em chaves próprias e só troca o
-manifesto (e apaga a geração anterior) depois que a escrita nova terminou
-inteira — evita dataset incompleto/misturado se a escrita falhar no meio
-(2026-09-21: o formato antigo apagava a geração anterior *antes* de escrever
-a nova, o que evitava lixo acumulado mas podia deixar o Redis sem nenhum
-dataset válido se o OOM batesse no meio da escrita). ⚠️ Efeito colateral:
-durante a janela de escrita, geração antiga e nova convivem no Redis ao mesmo
-tempo — o pico de memória é maior que antes (quase o dobro do dataset), o que
-pode tornar o OOM mais fácil de disparar bem quando o Redis já está no
-limite. Se isso acontecer, primeiro reduzir `MESES_HABILITADOS`.
+`salvarDataset()` apaga a geração anterior *antes* de escrever a nova — o
+plano atual não tem margem pra manter as duas gerações vivas ao mesmo tempo,
+então prioriza pico de memória baixo em vez de garantir que a app nunca fique
+sem dataset válido (2026-09-21: chegamos a inverter essa ordem — escrever a
+geração nova em chaves próprias e só apagar a antiga depois — pra nunca
+deixar o cache num estado incompleto se a escrita falhasse no meio; revertido
+no mesmo dia porque isso quase dobra o pico de memória durante a escrita,
+tornando o OOM mais fácil de disparar bem quando o Redis já está no limite —
+o problema real era justamente esse). Efeito colateral aceito: se `salvarDataset()`
+falhar no meio da escrita (ex: OOM), a geração anterior já foi apagada e o
+cache fica sem dataset válido até a próxima tentativa ter sucesso —
+`lerDataset()` detecta isso (chaves ausentes) e o app cai pro fallback de ler
+direto do OneDrive nesse meio-tempo (mais lento, mas nunca serve dado
+incompleto/misturado). Erro agora aparece visível no botão "Atualizar dados"
+(antes só ia pro console).
 
 ## Fonte de dados
 
