@@ -16,6 +16,9 @@ function validar(lojas: LojaCadastro[]): string[] {
     if (!loja.codigo?.trim()) erros.push("Existe uma loja sem código.");
     if (!loja.nomeCustomizado?.trim()) erros.push(`Loja ${loja.codigo || "(sem código)"}: nome customizado obrigatório.`);
     if (!loja.formato?.trim()) erros.push(`Loja ${loja.codigo || "(sem código)"}: formato obrigatório.`);
+    if (loja.dataAbertura && !/^\d{4}-\d{2}-\d{2}$/.test(loja.dataAbertura)) {
+      erros.push(`Loja ${loja.codigo || "(sem código)"}: data de abertura inválida.`);
+    }
     if (loja.codigo) {
       if (codigos.has(loja.codigo)) erros.push(`Código de loja duplicado: ${loja.codigo}.`);
       codigos.add(loja.codigo);

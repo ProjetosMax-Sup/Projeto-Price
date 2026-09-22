@@ -20,5 +20,6 @@ export function lojasDoCadastro(lojas: LojaCadastro[]): Loja[] {
     nomeSistema: "",
     nomeLoja: l.nomeCustomizado,
     formato: l.formato === "Atacado" ? "Atacado" : "Varejo",
+    dataAbertura: l.dataAbertura || null,
   }));
 }

@@ -8,6 +8,9 @@ export interface LojaCadastro {
   codigo: string;
   nomeCustomizado: string;
   formato: string;
+  /** ISO "AAAA-MM-DD" — opcional. Quando preenchida, substitui a proxy de "1ª venda"
+   * no filtro "Mesmas Lojas" (ver docs/regras-de-negocio.md). */
+  dataAbertura?: string;
 }
 
 export interface DepartamentoCadastro {

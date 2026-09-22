@@ -26,6 +26,7 @@ export function normalizarLojas(conteudo: string): Loja[] {
     nomeSistema: l["Nome Sistema"],
     nomeLoja: l["Nome Loja"],
     formato: l["Formato"] === "Atacado" ? "Atacado" : "Varejo",
+    dataAbertura: null,
   }));
 }
 

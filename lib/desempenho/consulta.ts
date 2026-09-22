@@ -199,15 +199,18 @@ export function computarDesempenho(
   // venda anterior em nenhum mês. As linhas da tabela de Lojas sempre mostram todas as lojas (ver
   // `linhasLojas` abaixo); só os totais (KPIs, Estrutura, Top Altas/Quedas) excluem as que não
   // passam quando o filtro está ligado.
+  // Preferir a data de abertura real (cadastrada em /parametros > Lojas) quando existir — só cai
+  // pra proxy de "1ª venda" pra lojas antigas que ainda não tiveram essa data preenchida.
   const primeiraVendaGlobalPorLoja = primeiraVendaPorLoja(registros);
+  const referenciaAberturaPorLoja = (l: Loja) => l.dataAbertura ?? primeiraVendaGlobalPorLoja.get(l.codUnid);
   const lojasElegiveis =
     periodoAtual && periodoComparacao
       ? new Set(
           lojas
             .filter(
               (l) =>
-                lojaAbertaDesdeInicio(primeiraVendaGlobalPorLoja.get(l.codUnid), periodoAtual.inicio) &&
-                lojaAbertaDesdeInicio(primeiraVendaGlobalPorLoja.get(l.codUnid), periodoComparacao.inicio),
+                lojaAbertaDesdeInicio(referenciaAberturaPorLoja(l), periodoAtual.inicio) &&
+                lojaAbertaDesdeInicio(referenciaAberturaPorLoja(l), periodoComparacao.inicio),
             )
             .map((l) => l.codUnid),
         )

@@ -25,16 +25,16 @@ const randInt = (min: number, max: number) => Math.floor(rand(min, max + 1));
 const escolher = <T,>(itens: readonly T[]): T => itens[randInt(0, itens.length - 1)];
 
 export const LOJAS_MOCK: Loja[] = [
-  { codUnid: "01", codUnidReduzido: "1", nomeSistema: "LJ01", nomeLoja: "MAX Centro", formato: "Varejo" },
-  { codUnid: "02", codUnidReduzido: "2", nomeSistema: "LJ02", nomeLoja: "MAX Vila Mutirão", formato: "Varejo" },
-  { codUnid: "03", codUnidReduzido: "3", nomeSistema: "LJ03", nomeLoja: "MAX Bairro Novo", formato: "Varejo" },
-  { codUnid: "04", codUnidReduzido: "4", nomeSistema: "LJ04", nomeLoja: "MAX Jardim das Flores", formato: "Varejo" },
-  { codUnid: "05", codUnidReduzido: "5", nomeSistema: "LJ05", nomeLoja: "MAX Atacado Industrial", formato: "Atacado" },
-  { codUnid: "06", codUnidReduzido: "6", nomeSistema: "LJ06", nomeLoja: "MAX Atacado Rodovia", formato: "Atacado" },
-  { codUnid: "07", codUnidReduzido: "7", nomeSistema: "LJ07", nomeLoja: "MAX Atacado Sul", formato: "Atacado" },
-  { codUnid: "08", codUnidReduzido: "8", nomeSistema: "LJ08", nomeLoja: "MAX Atacado Norte", formato: "Atacado" },
-  { codUnid: "09", codUnidReduzido: "9", nomeSistema: "LJ09", nomeLoja: "MAX Atacado Leste", formato: "Atacado" },
-  { codUnid: "10", codUnidReduzido: "10", nomeSistema: "LJ10", nomeLoja: "MAX Atacado Oeste", formato: "Atacado" },
+  { codUnid: "01", codUnidReduzido: "1", nomeSistema: "LJ01", nomeLoja: "MAX Centro", formato: "Varejo", dataAbertura: null },
+  { codUnid: "02", codUnidReduzido: "2", nomeSistema: "LJ02", nomeLoja: "MAX Vila Mutirão", formato: "Varejo", dataAbertura: null },
+  { codUnid: "03", codUnidReduzido: "3", nomeSistema: "LJ03", nomeLoja: "MAX Bairro Novo", formato: "Varejo", dataAbertura: null },
+  { codUnid: "04", codUnidReduzido: "4", nomeSistema: "LJ04", nomeLoja: "MAX Jardim das Flores", formato: "Varejo", dataAbertura: null },
+  { codUnid: "05", codUnidReduzido: "5", nomeSistema: "LJ05", nomeLoja: "MAX Atacado Industrial", formato: "Atacado", dataAbertura: null },
+  { codUnid: "06", codUnidReduzido: "6", nomeSistema: "LJ06", nomeLoja: "MAX Atacado Rodovia", formato: "Atacado", dataAbertura: null },
+  { codUnid: "07", codUnidReduzido: "7", nomeSistema: "LJ07", nomeLoja: "MAX Atacado Sul", formato: "Atacado", dataAbertura: null },
+  { codUnid: "08", codUnidReduzido: "8", nomeSistema: "LJ08", nomeLoja: "MAX Atacado Norte", formato: "Atacado", dataAbertura: null },
+  { codUnid: "09", codUnidReduzido: "9", nomeSistema: "LJ09", nomeLoja: "MAX Atacado Leste", formato: "Atacado", dataAbertura: null },
+  { codUnid: "10", codUnidReduzido: "10", nomeSistema: "LJ10", nomeLoja: "MAX Atacado Oeste", formato: "Atacado", dataAbertura: null },
 ];
 
 interface NoGrupo {

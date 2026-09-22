@@ -8,6 +8,9 @@ export interface Loja {
   nomeSistema: string;
   nomeLoja: string;
   formato: Formato;
+  /** ISO "AAAA-MM-DD", quando cadastrada em /parametros — ver docs/regras-de-negocio.md
+   * ("Mesmas Lojas"). `null` quando não preenchida: usa a proxy de 1ª venda. */
+  dataAbertura: string | null;
 }
 
 export interface Produto {

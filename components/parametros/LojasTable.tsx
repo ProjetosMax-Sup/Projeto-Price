@@ -22,7 +22,7 @@ export function LojasTable({
   }
 
   function adicionar() {
-    onChange([...lojas, { codigo: "", nomeCustomizado: "", formato: "" }]);
+    onChange([...lojas, { codigo: "", nomeCustomizado: "", formato: "", dataAbertura: "" }]);
     setSalvoEm(null);
   }
 
@@ -62,6 +62,7 @@ export function LojasTable({
               <th className="w-32 px-3 py-2 text-left font-medium">Código</th>
               <th className="px-3 py-2 text-left font-medium">Nome Customizado</th>
               <th className="w-48 px-3 py-2 text-left font-medium">Formato</th>
+              <th className="w-40 px-3 py-2 text-left font-medium">Data de Abertura</th>
               <th className="w-12 px-3 py-2" />
             </tr>
           </thead>
@@ -87,6 +88,14 @@ export function LojasTable({
                     value={loja.formato}
                     onChange={(e) => atualizar(index, "formato", e.target.value)}
                     list="formatos-sugeridos"
+                    className="w-full rounded border border-zinc-300 px-2 py-1"
+                  />
+                </td>
+                <td className="px-3 py-1.5">
+                  <input
+                    type="date"
+                    value={loja.dataAbertura ?? ""}
+                    onChange={(e) => atualizar(index, "dataAbertura", e.target.value)}
                     className="w-full rounded border border-zinc-300 px-2 py-1"
                   />
                 </td>
