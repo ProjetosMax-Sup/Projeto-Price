@@ -10,21 +10,36 @@ function adivinharTipo(nome: string): ColunaNativa["tipoDado"] {
   return pareceTexto.test(nome) ? "Texto" : "Número";
 }
 
+/** Contagem (Qtde/Núm./Estoque) sai sem R$; o resto dos números do arquivo é valor
+ * monetário. Palpite inicial — editável no Dicionário depois. */
+function adivinharFormato(nome: string, tipo: ColunaNativa["tipoDado"]): ColunaNativa["formato"] {
+  if (tipo !== "Número") return undefined;
+  return /^(Qtde|Núm\.|Estoque Disponível|Estoque Diário)/.test(nome) ? "numero" : "moeda";
+}
+
 /**
  * Ponto de partida do dicionário — importa o cabeçalho real (83 colunas,
  * ver docs/parametros.md seção 1.1) automaticamente. Editável depois (só
  * tradução/movimento/tipo — nome do arquivo e posição não mudam).
+ *
+ * `ref` é o NOME da coluna, não a posição: é ele que as configurações de
+ * relatório guardam, e nome sobrevive a mudança de layout do arquivo (ver
+ * `ColunaNativa.ref` em types.ts).
  */
 export function semearDicionarioColunas(): ColunaNativa[] {
   return CABECALHO_REFERENCIA_MENSAL.map((nome, posicao) => ({ nome, posicao }))
     .filter(({ nome }) => nome.trim() !== "")
-    .map(({ nome, posicao }) => ({
-      ref: String(posicao),
-      posicao,
-      nomeArquivo: nome,
-      movimento: "",
-      traducao: nome,
-      tipoDado: adivinharTipo(nome),
-      chaveAutomatica: CHAVES_AUTOMATICAS.has(nome),
-    }));
+    .map(({ nome, posicao }) => {
+      const tipoDado = adivinharTipo(nome);
+      return {
+        ref: nome,
+        posicao,
+        nomeArquivo: nome,
+        formato: adivinharFormato(nome, tipoDado),
+        movimento: "",
+        traducao: nome,
+        tipoDado,
+        chaveAutomatica: CHAVES_AUTOMATICAS.has(nome),
+      };
+    });
 }

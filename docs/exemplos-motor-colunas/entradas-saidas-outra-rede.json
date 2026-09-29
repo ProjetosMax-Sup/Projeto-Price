@@ -1,0 +1,50 @@
+{
+  "_comentario": "EXEMPLO para discussão — mesma coisa que entradas-saidas-max.json, só que numa rede que NÃO conta transferência como entrada/saída. Diferença total: duas linhas removidas (refs 24 e 54). Nenhuma linha de código muda entre os dois casos.",
+  "modulo": "entradas-saidas",
+  "nativasVisiveis": ["19", "48", "76", "75"],
+  "calculadas": [
+    {
+      "id": "calc_entradas_totais",
+      "nome": "Entradas Totais",
+      "tipo": "soma",
+      "termos": [
+        { "sinal": "+", "colunaRef": "19", "_coluna": "Compras" },
+        { "sinal": "+", "colunaRef": "23", "_coluna": "Outras Entradas" }
+      ],
+      "oculta": false
+    },
+    {
+      "id": "calc_saidas_totais",
+      "nome": "Saídas Totais",
+      "tipo": "soma",
+      "termos": [
+        { "sinal": "+", "colunaRef": "48", "_coluna": "Valor (vendas)" },
+        { "sinal": "+", "colunaRef": "52", "_coluna": "Perdas" },
+        { "sinal": "+", "colunaRef": "53", "_coluna": "Outras Saídas" }
+      ],
+      "oculta": false
+    },
+    {
+      "id": "calc_saldo",
+      "nome": "Entradas Totais - Saídas Totais",
+      "tipo": "soma",
+      "termos": [
+        { "sinal": "+", "colunaRef": "calc_entradas_totais" },
+        { "sinal": "-", "colunaRef": "calc_saidas_totais" }
+      ],
+      "oculta": false
+    },
+    {
+      "id": "calc_dde",
+      "nome": "DDE (Dias de Estoque)",
+      "tipo": "razao",
+      "numerador": [{ "sinal": "+", "colunaRef": "76", "_coluna": "Estoque Disponível" }],
+      "denominador": [{ "sinal": "+", "colunaRef": "75", "_coluna": "Qtde Venda Média Diária" }],
+      "oculta": false
+    }
+  ],
+  "ordemAtivas": ["19", "48", "76", "75", "calc_entradas_totais", "calc_saidas_totais", "calc_saldo", "calc_dde"],
+  "acessoComprador": true,
+  "acessoGestor": true,
+  "status": "Rascunho"
+}

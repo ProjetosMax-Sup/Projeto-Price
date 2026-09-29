@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { obterGestorAtual } from "@/lib/auth/exigir-gestor";
-import { calculadaQuebrada, ordemAtivasEfetiva, podePublicar } from "@/lib/parametros/colunas-relatorio";
+import { calculadaQuebrada, errosDaConfig, ordemAtivasEfetiva, podePublicar } from "@/lib/parametros/colunas-relatorio";
 import { obterOuSemearConfigRelatorio, salvarConfigRelatorio } from "@/lib/parametros/store";
 import type { ConfigRelatorio } from "@/lib/parametros/types";
 
@@ -18,14 +18,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const config = (await request.json()) as ConfigRelatorio;
   if (config.modulo !== modulo) return NextResponse.json({ erro: "Módulo não confere." }, { status: 400 });
 
-  const nomes = new Set<string>();
-  for (const c of config.calculadas) {
-    if (!c.nome?.trim()) return NextResponse.json({ erro: "Toda coluna calculada precisa de um nome." }, { status: 400 });
-    if (nomes.has(c.nome)) return NextResponse.json({ erro: `Nome de coluna calculada duplicado: ${c.nome}.` }, { status: 400 });
-    nomes.add(c.nome);
-    const semTermos = c.tipo === "soma" ? c.termos.length === 0 : c.numerador.length === 0 || c.denominador.length === 0;
-    if (semTermos) return NextResponse.json({ erro: `Coluna "${c.nome}": adicione ao menos 1 termo.` }, { status: 400 });
-  }
+  // Mesma validação que o editor roda na tela (nome, termos, e estágio de cálculo —
+  // razão nunca pode ser termo de soma) — aqui é a checagem que vale de verdade.
+  const erros = errosDaConfig(config);
+  if (erros.length > 0) return NextResponse.json({ erro: erros[0], erros }, { status: 400 });
 
   if (config.status === "Publicado" && !podePublicar(config)) {
     const quebradas = config.calculadas.filter((c) => calculadaQuebrada(c, config)).map((c) => c.nome);

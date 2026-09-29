@@ -8,45 +8,75 @@ Composta por 5 módulos:
 
 1. **Desempenho Comercial** ← único módulo implementado até agora
 2. Entradas e Saídas ← só existe um loader pro Supabase (`lib/entradas-saidas/`),
-   sem UI nem rota/cron chamando ele ainda — não conta como módulo pronto
+   sem UI nem rota/cron chamando ele ainda — não conta como módulo pronto.
+   **Em construção** — desenvolver localmente primeiro (ver "App local vs
+   produção" abaixo), só subir pra produção quando validado.
 3. Compra e Venda
 4. Perdas e Quebras
 5. Raio X Fornecedor
 
 Além dos 5 módulos, a camada de **Parâmetros** (`/parametros` — Lojas,
-Departamentos, Usuários e Acesso, motor de colunas Nativas/Calculadas/Ativas)
-já está construída e é pré-requisito de infraestrutura pros módulos acima, não
-um módulo em si — ver `docs/parametros.md`.
+Departamentos, motor de colunas Nativas/Calculadas/Ativas) já está construída
+e é pré-requisito de infraestrutura pros módulos acima, não um módulo em si —
+ver `docs/parametros.md`.
 
 Regra permanente: **nunca excluir ou reorganizar pastas/arquivos sem aviso prévio e
 instrução explícita do usuário.**
 
+## App local vs produção
+
+Fluxo de trabalho combinado com o usuário (2026-09-29): **desenvolver e
+validar tudo localmente primeiro**, sem depender de nenhuma conta de nuvem, e
+só publicar em produção (Vercel) as versões que já estiverem prontas. É o
+mesmo código-fonte nos dois casos — o que muda é só quais variáveis de
+ambiente estão preenchidas. Login é a única peça que só faz sentido em
+produção.
+
+| | Local (padrão, `.env.local` sem as variáveis de nuvem) | Produção (Vercel, variáveis configuradas lá) |
+|---|---|---|
+| Fonte dos arquivos-fonte | Pasta local (`DESEMPENHO_COMERCIAL_DATA_DIR`) via `FileDataProvider` | OneDrive via Microsoft Graph API, com cache Redis |
+| Cadastro de Parâmetros | Arquivos JSON locais (`data/parametros/`, `lib/parametros/store.ts`) | Redis |
+| Login | **Nenhum** — abre direto (`SITE_PASSWORD` não configurada, `proxy.ts` não bloqueia) | Senha única do site (`SITE_PASSWORD`) |
+| Atualização do dataset | Automática a cada request (cache em memória do processo, invalidado por data de modificação do arquivo) | Cron diário (Vercel) + botão "Atualizar dados", grava no Redis |
+
+O mecanismo é **presença de env var decide o modo**, sem nenhum "if é local"
+espalhado pelo código — ver `getDataProvider()` (`lib/data-providers/index.ts`)
+e `usaRedis()` (`lib/parametros/store.ts`) pra o dado, e `proxy.ts` pro login.
+Rodar local não exige nenhuma conta configurada; ver `docs/deploy.md` pro
+passo a passo de cada modo.
+
+⚠️ **Nunca commitar credencial de verdade** em `.env.local.example` nem em
+nenhum arquivo versionado — esse arquivo é só o gabarito de quais variáveis
+existem, os valores reais ficam em `.env.local` (gitignored) ou nas
+Environment Variables da Vercel.
+
 ## Stack técnica
 
-- **Next.js + TypeScript** (App Router), rodando localmente e hospedado na
-  **Vercel** (free tier — decidido; ver `docs/deploy.md`)
+- **Next.js + TypeScript** (App Router), com dois modos de execução (local e
+  Vercel, ver acima)
 - **Tailwind CSS** com tokens de cor nomeados semanticamente (ver `docs/padroes-ux.md`)
 - **Recharts** para gráficos que forem além do que HTML/CSS resolve
 - Parser próprio para os arquivos-fonte (não é Excel/CSV — ver `docs/fonte-de-dados.md`)
-- Login: **senha única do site** (`SITE_PASSWORD`, `proxy.ts`), não login
-  individual. O login por pessoa via **Clerk** foi construído (perfil
-  Comprador/Gestor + escopo Departamentos/Lojas, cadastro de Usuários em
-  `/parametros`, ver `docs/parametros.md` seção 2.4) mas está **pausado**
-  desde 2026-09-21 — Clerk exige domínio próprio pra rodar em modo Production
-  (registros DNS), e o domínio compartilhado `*.vercel.app` causava loop de
-  login (instância de Development faz handshake cross-domain com
-  `accounts.dev`, quebrado por bloqueio de cookie de terceiro no navegador).
-  Enquanto isso, `lib/auth/usuario-atual.ts` devolve um usuário sintético com
-  acesso total (Gestor) pra todo mundo que passa da senha — reverter esse
-  arquivo pra voltar a resolver via Clerk quando tiverem domínio.
+- Login: **senha única do site** (`SITE_PASSWORD`, `proxy.ts`), só em
+  produção — não login individual. O login por pessoa via **Clerk** foi
+  construído (perfil Comprador/Gestor + escopo Departamentos/Lojas) mas está
+  **removido** desde 2026-09-29 (estava pausado desde 2026-09-21 — Clerk
+  exige domínio próprio pra rodar em modo Production, e o domínio
+  compartilhado `*.vercel.app` causava loop de login). `lib/auth/usuario-atual.ts`
+  devolve um usuário sintético com acesso total (Gestor) pra todo mundo que
+  passa da senha (ou, local, pra todo mundo, já que não há senha). O código
+  de referência do Clerk (aba "Usuários" em Parâmetros, `lib/auth/clerk-admin.ts`)
+  foi movido pra `_arquivado-conversao-local/` — reativar é decisão futura, não
+  simples revert (o cadastro de Usuários que dava acesso individual não
+  existe mais na UI).
 
-## Deploy
+## Deploy (produção, Vercel)
 
 Vercel + GitHub, push em `master` publica direto (sem staging). Em produção lê
-o OneDrive via Microsoft Graph API; em dev lê pasta local
+o OneDrive via Microsoft Graph API; localmente lê pasta local
 (`DESEMPENHO_COMERCIAL_DATA_DIR`). Cron diário processa e grava em cache Redis
 — leituras normais nunca tocam o OneDrive direto. Detalhes completos (cadeia
-de fallback, checklist de setup manual): **`docs/deploy.md`**.
+de fallback, checklist de setup manual, e como rodar localmente): **`docs/deploy.md`**.
 
 ⚠️ Client do Redis (`ioredis`) é sempre **reaproveitado** entre chamadas
 (client singleton em variável de módulo, nunca `disconnect()` — ver
@@ -58,40 +88,35 @@ cada leitura.
 dataset completo do Desempenho Comercial (9+ meses, 4+ milhões de registros)
 — `salvarDataset()` (`lib/desempenho/dataset-cache.ts`) dá **OOM** no meio da
 escrita ao tentar guardar tudo de uma vez (confirmado em 2026-09-21, rodando
-o backfill fora da Vercel pra não esbarrar no limite de 60s). Mitigação
-temporária: `MESES_HABILITADOS` (`config/data-sources.ts`) restringe quais
-meses o app processa (hoje: `Julho,Setembro` — Agosto removido em 2026-09-21
-depois que o crescimento do `bdSetembro` voltou a estourar o OOM mesmo com os
-3 meses; ajustar em `.env.local` e também na Vercel) — não é regra de
-negócio, é só o dataset caber na memória disponível. Resolver
-de vez exige decisão do usuário: upgrade do plano Redis, ou mover esse cache
-pra um banco de verdade (o Supabase já provisionado pro Entradas e Saídas
-seria mais adequado pra esse volume do que Redis). Enquanto o limite existir,
+o backfill fora da Vercel pra não esbarrar no limite de 60s). Mitigação:
+`MESES_HABILITADOS` (`config/data-sources.ts`) restringe quais meses o app
+processa em produção — não é regra de negócio, é só o dataset caber na
+memória disponível. Rodando local, sem Redis, esse limite de memória não
+existe, mas processar tudo de uma vez é pesado pro V8 mesmo assim — ver
+"Desempenho local" em `docs/deploy.md`. Resolver de vez (produção) exige
+decisão do usuário: upgrade do plano Redis, ou mover esse cache pra um banco
+de verdade (o Supabase já provisionado pro Entradas e Saídas seria mais
+adequado pra esse volume do que Redis). Enquanto o limite existir,
 `salvarDataset()` apaga a geração anterior *antes* de escrever a nova — o
 plano atual não tem margem pra manter as duas gerações vivas ao mesmo tempo,
 então prioriza pico de memória baixo em vez de garantir que a app nunca fique
-sem dataset válido (2026-09-21: chegamos a inverter essa ordem — escrever a
-geração nova em chaves próprias e só apagar a antiga depois — pra nunca
-deixar o cache num estado incompleto se a escrita falhasse no meio; revertido
-no mesmo dia porque isso quase dobra o pico de memória durante a escrita,
-tornando o OOM mais fácil de disparar bem quando o Redis já está no limite —
-o problema real era justamente esse). Efeito colateral aceito: se `salvarDataset()`
-falhar no meio da escrita (ex: OOM), a geração anterior já foi apagada e o
-cache fica sem dataset válido até a próxima tentativa ter sucesso —
-`lerDataset()` detecta isso (chaves ausentes) e o app cai pro fallback de ler
-direto do OneDrive nesse meio-tempo (mais lento, mas nunca serve dado
-incompleto/misturado). Erro agora aparece visível no botão "Atualizar dados"
-(antes só ia pro console).
+sem dataset válido. Efeito colateral aceito: se `salvarDataset()` falhar no
+meio da escrita (ex: OOM), a geração anterior já foi apagada e o cache fica
+sem dataset válido até a próxima tentativa ter sucesso — `lerDataset()`
+detecta isso (chaves ausentes) e o app cai pro fallback de ler direto do
+OneDrive nesse meio-tempo (mais lento, mas nunca serve dado
+incompleto/misturado). Erro aparece visível no botão "Atualizar dados".
 
 ## Fonte de dados
 
-Arquivos **TXT delimitados por pipe**, sincronizados via OneDrive, lidos
-através de uma interface `DataProvider` (`FileDataProvider` hoje,
-`ApiDataProvider` no futuro quando trocar pra API do ERP). Movimento (venda,
-compra, perda etc.) vem **um arquivo por mês** (`bd<Mês>.txt`, ex:
-`bdSetembro.txt`) — "Atual"/"Comparação" não são mais dois arquivos, são só
-dois recortes de data escolhidos pelo usuário sobre o mesmo conjunto
-(`DataProvider.getDesempenho()`, união de todos os meses disponíveis).
+Arquivos **TXT delimitados por pipe**, sincronizados via OneDrive (produção)
+ou lidos de uma pasta local (local), através de uma interface `DataProvider`
+(`FileDataProvider`/`OneDriveDataProvider` hoje, `ApiDataProvider` no futuro
+quando trocar pra API do ERP). Movimento (venda, compra, perda etc.) vem **um
+arquivo por mês** (`bd<Mês>.txt`, ex: `bdSetembro.txt`) — "Atual"/"Comparação"
+não são mais dois arquivos, são só dois recortes de data escolhidos pelo
+usuário sobre o mesmo conjunto (`DataProvider.getDesempenho()`, união de
+todos os meses disponíveis).
 
 ⚠️ **Volume real**: um mês sozinho já passa de 200MB; somando os meses
 disponíveis hoje passa de 4 milhões de registros — mais do que o cache Redis
@@ -115,10 +140,10 @@ Saídas como módulo e reprocessamento manual): **`docs/parametros.md`**.
   banner). Contagem é de SKUs únicos, não linhas.
 - Comprador exibido no app **não** vem do arquivo (`Compr`/`Nome Comprador`
   não é confiável) — vem do cadastro editável de Departamentos em
-  `/parametros` (Redis, `lib/desempenho/comprador-cadastro.ts`).
-  `lib/desempenho/compradores.ts` (tabela fixa) só serve pra **semear** esse
-  cadastro na 1ª leitura (`lib/parametros/seed.ts`), não é mais consultada em
-  runtime normal.
+  `/parametros` (Redis em produção, JSON local em dev,
+  `lib/desempenho/comprador-cadastro.ts`). `lib/desempenho/compradores.ts`
+  (tabela fixa) só serve pra **semear** esse cadastro na 1ª leitura
+  (`lib/parametros/seed.ts`), não é mais consultada em runtime normal.
 
 Tabela completa de departamentos/compradores (usada só como semente) e
 detalhe da regra de cadastro: **`docs/regras-de-negocio.md`** — leia antes de

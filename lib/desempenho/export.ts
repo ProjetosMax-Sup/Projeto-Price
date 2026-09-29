@@ -1,3 +1,6 @@
+import type { ColunaRenderizavel } from "./colunas-configuradas";
+import { valoresDaLinha } from "./colunas-configuradas";
+import type { ConfigRelatorio } from "@/lib/parametros/types";
 import type { EstruturaAgregada, LojaAgregada, Metricas, NivelEstrutura } from "./aggregate";
 import { labelNivel } from "./aggregate";
 import { formatMoeda, formatPercent } from "./format";
@@ -9,6 +12,10 @@ export interface DadosExportacao {
   kpiComparacao: Metricas | null;
   linhasEstrutura: EstruturaAgregada[];
   linhasLojas: LojaAgregada[];
+  /** Mesmas colunas e mesma ordem da tela — a aba Ativas manda também aqui
+   * (padrão documentado em docs/padroes-ux.md). */
+  config: ConfigRelatorio;
+  colunas: ColunaRenderizavel[];
 }
 
 function nomeArquivoBase(): string {
@@ -16,9 +23,46 @@ function nomeArquivoBase(): string {
   return `desempenho-comercial-${hoje}`;
 }
 
-function desvioTexto(valor: number | null): string {
+/** Texto de uma célula, no formato da coluna. Vazio vira "—", como na tela. */
+function celula(coluna: ColunaRenderizavel, valor: number | null): string {
   if (valor === null) return "—";
-  return `${valor >= 0 ? "+" : ""}${formatPercent(valor)}`;
+  switch (coluna.formato) {
+    case "moeda":
+      return formatMoeda(valor);
+    case "numero":
+      return valor.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+    case "percentual":
+    case "pontosPercentuais":
+      return `${valor >= 0 && coluna.semaforo ? "+" : ""}${formatPercent(valor)}`;
+  }
+}
+
+function linhasDaTabela(
+  dados: DadosExportacao,
+  linhas: { rotulo: string; codigo: string; atual: Metricas; comparacao: Metricas | null }[],
+): string[][] {
+  return linhas.map((linha) => {
+    const valores = valoresDaLinha(dados.config, linha.atual, linha.comparacao);
+    return [linha.codigo, linha.rotulo, ...dados.colunas.map((c) => celula(c, valores[c.ref] ?? null))];
+  });
+}
+
+function estruturaParaLinhas(dados: DadosExportacao) {
+  return dados.linhasEstrutura.map((l) => ({
+    rotulo: l.nome,
+    codigo: l.codigo ?? "",
+    atual: l.atual,
+    comparacao: l.comparacao,
+  }));
+}
+
+function lojasParaLinhas(dados: DadosExportacao) {
+  return dados.linhasLojas.map((l) => ({
+    rotulo: `${l.loja.nomeLoja} (${l.loja.formato})`,
+    codigo: l.loja.codUnid,
+    atual: l.atual,
+    comparacao: l.comparacao,
+  }));
 }
 
 export function baixarBlob(blob: Blob, nomeArquivo: string) {
@@ -38,94 +82,33 @@ export async function exportarExcel(dados: DadosExportacao) {
   workbook.creator = "MAX Supermercados — Inteligência de Mercado";
   workbook.created = new Date();
 
+  const valoresKpi = valoresDaLinha(dados.config, dados.kpiAtual, dados.kpiComparacao);
+
   const resumo = workbook.addWorksheet("Resumo");
   resumo.columns = [
-    { header: "Indicador", key: "indicador", width: 24 },
-    { header: "Período atual", key: "atual", width: 18 },
-    { header: "Período comparação", key: "comparacao", width: 20 },
-    { header: "% Desvio", key: "desvio", width: 12 },
+    { header: "Indicador", key: "indicador", width: 30 },
+    { header: "Valor", key: "valor", width: 22 },
   ];
   resumo.getRow(1).font = { bold: true };
-  resumo.addRow({
-    indicador: "Recorte ativo",
-    atual: dados.descricaoRecorte,
-    comparacao: "",
-    desvio: "",
-  });
+  resumo.addRow({ indicador: "Recorte ativo", valor: dados.descricaoRecorte });
   resumo.addRow({});
-  resumo.addRow({
-    indicador: "Venda",
-    atual: dados.kpiAtual.venda,
-    comparacao: dados.kpiComparacao?.venda ?? "",
-    desvio: dados.kpiComparacao
-      ? desvioTexto(((dados.kpiAtual.venda - dados.kpiComparacao.venda) / (dados.kpiComparacao.venda || 1)) * 100)
-      : "—",
-  });
-  resumo.addRow({
-    indicador: "Lucro",
-    atual: dados.kpiAtual.lucro,
-    comparacao: dados.kpiComparacao?.lucro ?? "",
-    desvio: dados.kpiComparacao
-      ? desvioTexto(((dados.kpiAtual.lucro - dados.kpiComparacao.lucro) / (dados.kpiComparacao.lucro || 1)) * 100)
-      : "—",
-  });
-  resumo.addRow({
-    indicador: "% Lucro",
-    atual: `${formatPercent(dados.kpiAtual.percLucro)}`,
-    comparacao: dados.kpiComparacao ? formatPercent(dados.kpiComparacao.percLucro) : "",
-    desvio: "",
-  });
-  const estrutura = workbook.addWorksheet("Estrutura Mercadológica");
-  estrutura.columns = [
-    { header: labelNivel(dados.nivelEstrutura), key: "nome", width: 32 },
-    { header: "Código", key: "codigo", width: 10 },
-    { header: "Venda", key: "venda", width: 16 },
-    { header: "% Desvio Venda", key: "desvioVenda", width: 16 },
-    { header: "Lucro", key: "lucro", width: 16 },
-    { header: "% Lucro", key: "percLucro", width: 12 },
-    { header: "% Desvio Lucro", key: "desvioLucro", width: 16 },
-  ];
-  estrutura.getRow(1).font = { bold: true };
-  for (const linha of dados.linhasEstrutura) {
-    estrutura.addRow({
-      nome: linha.nome,
-      codigo: linha.codigo ?? "",
-      venda: linha.atual.venda,
-      desvioVenda: desvioTexto(linha.desvioVenda),
-      lucro: linha.atual.lucro,
-      percLucro: formatPercent(linha.atual.percLucro),
-      desvioLucro: desvioTexto(linha.desvioLucro),
-    });
+  for (const coluna of dados.colunas) {
+    resumo.addRow({ indicador: coluna.rotulo, valor: celula(coluna, valoresKpi[coluna.ref] ?? null) });
   }
-  estrutura.getColumn("venda").numFmt = '"R$" #,##0.00';
-  estrutura.getColumn("lucro").numFmt = '"R$" #,##0.00';
+
+  const cabecalhoTabela = (primeira: string) => ["Código", primeira, ...dados.colunas.map((c) => c.rotulo)];
+
+  const estrutura = workbook.addWorksheet("Estrutura Mercadológica");
+  estrutura.addRow(cabecalhoTabela(labelNivel(dados.nivelEstrutura)));
+  estrutura.getRow(1).font = { bold: true };
+  for (const linha of linhasDaTabela(dados, estruturaParaLinhas(dados))) estrutura.addRow(linha);
+  estrutura.getColumn(2).width = 36;
 
   const lojas = workbook.addWorksheet("Lojas");
-  lojas.columns = [
-    { header: "Código", key: "codigo", width: 10 },
-    { header: "Loja", key: "nome", width: 26 },
-    { header: "Formato", key: "formato", width: 12 },
-    { header: "Venda", key: "venda", width: 16 },
-    { header: "% Desvio Venda", key: "desvioVenda", width: 16 },
-    { header: "Lucro", key: "lucro", width: 16 },
-    { header: "% Lucro", key: "percLucro", width: 12 },
-    { header: "% Desvio Lucro", key: "desvioLucro", width: 16 },
-  ];
+  lojas.addRow(cabecalhoTabela("Loja"));
   lojas.getRow(1).font = { bold: true };
-  for (const linha of dados.linhasLojas) {
-    lojas.addRow({
-      codigo: linha.loja.codUnid,
-      nome: linha.loja.nomeLoja,
-      formato: linha.loja.formato,
-      venda: linha.atual.venda,
-      desvioVenda: desvioTexto(linha.desvioVenda),
-      lucro: linha.atual.lucro,
-      percLucro: formatPercent(linha.atual.percLucro),
-      desvioLucro: desvioTexto(linha.desvioLucro),
-    });
-  }
-  lojas.getColumn("venda").numFmt = '"R$" #,##0.00';
-  lojas.getColumn("lucro").numFmt = '"R$" #,##0.00';
+  for (const linha of linhasDaTabela(dados, lojasParaLinhas(dados))) lojas.addRow(linha);
+  lojas.getColumn(2).width = 32;
 
   const buffer = await workbook.xlsx.writeBuffer();
   baixarBlob(
@@ -150,54 +133,37 @@ export async function exportarPdf(dados: DadosExportacao) {
   doc.text(`Recorte ativo: ${dados.descricaoRecorte}`, 14, 23);
   doc.text(`Gerado em: ${new Date().toLocaleString("pt-BR")}`, 14, 28);
 
+  // Cabeçalho com as 3 primeiras colunas ativas — o resto está nas tabelas abaixo.
+  const valoresKpi = valoresDaLinha(dados.config, dados.kpiAtual, dados.kpiComparacao);
   doc.setFontSize(11);
   doc.setTextColor("#18181b");
-  const kpiLinha = [
-    `Venda: ${formatMoeda(dados.kpiAtual.venda)} (${desvioTexto(
-      dados.kpiComparacao
-        ? ((dados.kpiAtual.venda - dados.kpiComparacao.venda) / (dados.kpiComparacao.venda || 1)) * 100
-        : null,
-    )})`,
-    `Lucro: ${formatMoeda(dados.kpiAtual.lucro)} (${desvioTexto(
-      dados.kpiComparacao
-        ? ((dados.kpiAtual.lucro - dados.kpiComparacao.lucro) / (dados.kpiComparacao.lucro || 1)) * 100
-        : null,
-    )})`,
-    `% Lucro: ${formatPercent(dados.kpiAtual.percLucro)}`,
-  ];
-  doc.text(kpiLinha.join("   |   "), 14, 36);
+  doc.text(
+    dados.colunas
+      .slice(0, 3)
+      .map((c) => `${c.rotulo}: ${celula(c, valoresKpi[c.ref] ?? null)}`)
+      .join("   |   "),
+    14,
+    36,
+  );
+
+  const cabecalho = (primeira: string) => [["Código", primeira, ...dados.colunas.map((c) => c.rotulo)]];
 
   autoTable(doc, {
     startY: 42,
-    head: [[labelNivel(dados.nivelEstrutura), "Venda", "% Desvio Venda", "Lucro", "% Lucro", "% Desvio Lucro"]],
-    body: dados.linhasEstrutura.map((linha) => [
-      linha.codigo ? `${linha.codigo} - ${linha.nome}` : linha.nome,
-      formatMoeda(linha.atual.venda),
-      desvioTexto(linha.desvioVenda),
-      formatMoeda(linha.atual.lucro),
-      formatPercent(linha.atual.percLucro),
-      desvioTexto(linha.desvioLucro),
-    ]),
+    head: cabecalho(labelNivel(dados.nivelEstrutura)),
+    body: linhasDaTabela(dados, estruturaParaLinhas(dados)),
     headStyles: { fillColor: [0, 76, 151] },
-    styles: { fontSize: 9 },
+    styles: { fontSize: 7 },
   });
 
   const finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY;
 
   autoTable(doc, {
     startY: finalY + 10,
-    head: [["Loja", "Formato", "Venda", "% Desvio Venda", "Lucro", "% Lucro", "% Desvio Lucro"]],
-    body: dados.linhasLojas.map((linha) => [
-      `${linha.loja.codUnid} - ${linha.loja.nomeLoja}`,
-      linha.loja.formato,
-      formatMoeda(linha.atual.venda),
-      desvioTexto(linha.desvioVenda),
-      formatMoeda(linha.atual.lucro),
-      formatPercent(linha.atual.percLucro),
-      desvioTexto(linha.desvioLucro),
-    ]),
+    head: cabecalho("Loja"),
+    body: linhasDaTabela(dados, lojasParaLinhas(dados)),
     headStyles: { fillColor: [0, 76, 151] },
-    styles: { fontSize: 9 },
+    styles: { fontSize: 7 },
   });
 
   doc.save(`${nomeArquivoBase()}.pdf`);

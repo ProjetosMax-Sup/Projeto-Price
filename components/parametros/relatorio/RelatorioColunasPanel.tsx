@@ -4,12 +4,12 @@ import { useEffect, useState } from "react";
 import { AtivasTab } from "@/components/parametros/relatorio/AtivasTab";
 import { CalculadasTab } from "@/components/parametros/relatorio/CalculadasTab";
 import { NativasTab } from "@/components/parametros/relatorio/NativasTab";
-import { podePublicar } from "@/lib/parametros/colunas-relatorio";
+import { podePublicar, refsNativasInexistentes } from "@/lib/parametros/colunas-relatorio";
 import type { ColunaNativa, ConfigRelatorio } from "@/lib/parametros/types";
 
 const MODULOS = [
   { slug: "desempenho-comercial", label: "Desempenho Comercial", implementado: true },
-  { slug: "entradas-saidas", label: "Entradas e Saídas", implementado: false },
+  { slug: "entradas-saidas", label: "Entradas e Saídas", implementado: true },
   { slug: "compra-venda", label: "Compra e Venda", implementado: false },
   { slug: "perdas-quebras", label: "Perdas e Quebras", implementado: false },
   { slug: "raio-x-fornecedor", label: "Raio X Fornecedor", implementado: false },
@@ -65,9 +65,21 @@ export function RelatorioColunasPanel({ dicionario }: { dicionario: ColunaNativa
   if (!config || config.modulo !== modulo) return <p className="text-sm text-zinc-400">Carregando...</p>;
 
   const publicavel = podePublicar(config);
+  // O arquivo do ERP pode mudar de layout e levar embora uma coluna que alguma
+  // fórmula usa — aparece aqui em vez de virar número errado na tela.
+  const colunasSumidas = refsNativasInexistentes(config, dicionario);
 
   return (
     <div className="flex flex-col gap-4">
+      {colunasSumidas.length > 0 && (
+        <p className="rounded-lg border border-vermelho/30 bg-vermelho/5 px-4 py-3 text-sm text-vermelho">
+          Este relatório usa {colunasSumidas.length === 1 ? "uma coluna que não existe" : "colunas que não existem"} mais
+          no arquivo do ERP: <strong>{colunasSumidas.join(", ")}</strong>. Confira a exportação — se a mudança for
+          permanente, troque {colunasSumidas.length === 1 ? "essa coluna" : "essas colunas"} nas fórmulas que{" "}
+          {colunasSumidas.length === 1 ? "a" : "as"} usam.
+        </p>
+      )}
+
       <div className="flex flex-wrap items-center gap-2">
         {MODULOS.map((m) => (
           <button

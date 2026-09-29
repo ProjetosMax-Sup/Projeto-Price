@@ -18,6 +18,8 @@ import {
   type ResultadoDesempenho,
 } from "@/lib/desempenho/consulta";
 import { exportarExcel, exportarPdf } from "@/lib/desempenho/export";
+import type { ColunaRenderizavel } from "@/lib/desempenho/colunas-configuradas";
+import type { ConfigRelatorio } from "@/lib/parametros/types";
 import type { Loja } from "@/lib/types";
 
 /** Altura (px) do header fixo do site (`ModuleNav`) — soma-se à altura do bloco Filtros+KPIs pra formar o offset sticky das tabelas. */
@@ -50,6 +52,8 @@ export function DesempenhoDashboard({
   periodoAtualPadrao,
   periodoComparacaoPadrao,
   datasDisponiveisInicial,
+  config,
+  colunas,
 }: {
   lojas: Loja[];
   compradores: string[];
@@ -66,6 +70,9 @@ export function DesempenhoDashboard({
   periodoAtualPadrao: IntervaloData | null;
   periodoComparacaoPadrao: IntervaloData | null;
   datasDisponiveisInicial: string[];
+  /** Configuração de colunas vinda de /parametros — define o que a tabela mostra e como calcula. */
+  config: ConfigRelatorio;
+  colunas: ColunaRenderizavel[];
 }) {
   const [filtros, setFiltros] = useState<Filtros>(CONSULTA_PADRAO.filtros);
   const [periodoAtual, setPeriodoAtual] = useState<IntervaloData | null>(periodoAtualPadrao);
@@ -213,7 +220,7 @@ export function DesempenhoDashboard({
   async function aoExportar(formato: "excel" | "pdf") {
     setExportando(formato);
     try {
-      const dados = { descricaoRecorte, nivelEstrutura: resultado.estruturaNivel, ...resultado };
+      const dados = { descricaoRecorte, nivelEstrutura: resultado.estruturaNivel, config, colunas, ...resultado };
       if (formato === "excel") {
         await exportarExcel(dados);
       } else {
@@ -349,7 +356,7 @@ export function DesempenhoDashboard({
             datasDisponiveis={datasDisponiveis}
           />
 
-          <KpiCards atual={resultado.kpiAtual} comparacao={resultado.kpiComparacao} />
+          <KpiCards atual={resultado.kpiAtual} comparacao={resultado.kpiComparacao} config={config} colunas={colunas} />
         </div>
 
         <StatusBar
@@ -373,6 +380,8 @@ export function DesempenhoDashboard({
             onClickLinha={aoClicarEstrutura}
             onVoltarPara={aoVoltarPara}
             stickyTop={stickyTop}
+            config={config}
+            colunas={colunas}
           />
           <LojasPanel
             linhas={resultado.linhasLojas}
@@ -382,6 +391,8 @@ export function DesempenhoDashboard({
             mesmasLojasAtivo={filtros.mesmasLojas}
             modoRanking={modoRankingLojas}
             onToggleModo={() => setModoRankingLojas((m) => !m)}
+            config={config}
+            colunas={colunas}
           />
         </div>
 

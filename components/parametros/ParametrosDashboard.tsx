@@ -5,13 +5,11 @@ import { DepartamentosTable } from "@/components/parametros/DepartamentosTable";
 import { DicionarioColunasTable } from "@/components/parametros/DicionarioColunasTable";
 import { LojasTable } from "@/components/parametros/LojasTable";
 import { RelatorioColunasPanel } from "@/components/parametros/relatorio/RelatorioColunasPanel";
-import { UsuariosTable } from "@/components/parametros/UsuariosTable";
-import type { ColunaNativa, DepartamentoCadastro, LojaCadastro, UsuarioCadastro } from "@/lib/parametros/types";
+import type { ColunaNativa, DepartamentoCadastro, LojaCadastro } from "@/lib/parametros/types";
 
 const ABAS = [
   { valor: "lojas", label: "Lojas" },
   { valor: "departamentos", label: "Departamentos" },
-  { valor: "usuarios", label: "Usuários" },
   { valor: "dicionario", label: "Dicionário de Colunas" },
   { valor: "colunas", label: "Colunas (por relatório)" },
 ] as const;
@@ -19,20 +17,15 @@ const ABAS = [
 export function ParametrosDashboard({
   lojasIniciais,
   departamentosIniciais,
-  usuariosIniciais,
-  statusContasIniciais,
   dicionarioInicial,
 }: {
   lojasIniciais: LojaCadastro[];
   departamentosIniciais: DepartamentoCadastro[];
-  usuariosIniciais: UsuarioCadastro[];
-  statusContasIniciais: Record<string, boolean>;
   dicionarioInicial: ColunaNativa[];
 }) {
   const [aba, setAba] = useState<(typeof ABAS)[number]["valor"]>("lojas");
   const [lojas, setLojas] = useState<LojaCadastro[]>(lojasIniciais);
   const [departamentos, setDepartamentos] = useState<DepartamentoCadastro[]>(departamentosIniciais);
-  const [usuarios, setUsuarios] = useState<UsuarioCadastro[]>(usuariosIniciais);
   const [dicionario, setDicionario] = useState<ColunaNativa[]>(dicionarioInicial);
 
   // Formatos vêm de Lojas em tempo real (mesmo antes de salvar) — Departamentos precisa saber
@@ -46,30 +39,11 @@ export function ParametrosDashboard({
     return Array.from(nomes).sort((a, b) => a.localeCompare(b, "pt-BR"));
   }, [lojas]);
 
-  // Opções pros MultiSelect de Departamentos/Lojas em Usuários — mesma ideia, dependem do estado
-  // ao vivo das outras duas abas (seção 2.4: acesso é direto por código, nunca por nome de comprador).
-  const departamentosOpcoes = useMemo(
-    () =>
-      departamentos
-        .filter((d) => d.codigo.trim())
-        .map((d) => ({ value: d.codigo, label: `${d.codigo} - ${d.nome || "(sem nome)"}` })),
-    [departamentos],
-  );
-  const lojasOpcoes = useMemo(
-    () =>
-      lojas
-        .filter((l) => l.codigo.trim())
-        .map((l) => ({ value: l.codigo, label: `${l.codigo} - ${l.nomeCustomizado || "(sem nome)"}` })),
-    [lojas],
-  );
-
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="font-display text-2xl font-bold text-zinc-900">Parâmetros</h1>
-        <p className="text-sm text-zinc-500">
-          Cadastro de Lojas, Departamentos e Usuários, e configuração de colunas por relatório.
-        </p>
+        <p className="text-sm text-zinc-500">Cadastro de Lojas e Departamentos, e configuração de colunas por relatório.</p>
       </div>
 
       <div className="flex flex-wrap gap-1 border-b border-zinc-200">
@@ -90,15 +64,6 @@ export function ParametrosDashboard({
       {aba === "lojas" && <LojasTable lojas={lojas} onChange={setLojas} />}
       {aba === "departamentos" && (
         <DepartamentosTable departamentos={departamentos} onChange={setDepartamentos} formatos={formatos} />
-      )}
-      {aba === "usuarios" && (
-        <UsuariosTable
-          usuarios={usuarios}
-          onChange={setUsuarios}
-          departamentosOpcoes={departamentosOpcoes}
-          lojasOpcoes={lojasOpcoes}
-          statusContasIniciais={statusContasIniciais}
-        />
       )}
       {aba === "dicionario" && <DicionarioColunasTable colunas={dicionario} onChange={setDicionario} />}
       {aba === "colunas" && <RelatorioColunasPanel dicionario={dicionario} />}

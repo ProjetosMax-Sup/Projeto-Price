@@ -108,6 +108,15 @@ function fecharMetricas(m: Metricas): Metricas {
   };
 }
 
+/** Registros com todos os valores (venda/lucro/qtde) zerados não representam movimentação real
+ * pra este dash — ex: departamento "Apropriações" com linhas de ajuste contábil sem valor
+ * monetário nem quantidade (confirmado em 2026-09-21). Usado só pra decidir se um NÓ da Estrutura
+ * (departamento, produto, ...) aparece na tabela — não afeta Lojas, que sempre mostram todas
+ * (inclusive fechadas no período, ver `agregarPorLoja`). */
+function temMovimento(m: Metricas): boolean {
+  return m.venda !== 0 || m.vendaRegular !== 0 || m.vendaOferta !== 0 || m.lucro !== 0 || m.lucroRegular !== 0 || m.lucroOferta !== 0 || m.qtdeVendas !== 0;
+}
+
 export interface LojaAgregada {
   loja: Loja;
   atual: Metricas;
@@ -207,21 +216,23 @@ export function agregarPorEstrutura(
   const mapaAtual = acumular(registrosAtual);
   const mapaComp = acumular(registrosComparacao);
 
-  return Array.from(mapaAtual.entries()).map(([chave, dadosAtual]) => {
-    const dadosComp = mapaComp.get(chave);
-    const atual = fecharMetricas(dadosAtual.metricas);
-    const comparacao = dadosComp ? fecharMetricas(dadosComp.metricas) : null;
-    return {
-      chave,
-      codigo: dadosAtual.codigo,
-      nome: dadosAtual.nome,
-      nivel,
-      atual,
-      comparacao,
-      desvioVenda: comparacao ? calcDesvio(atual.venda, comparacao.venda) : null,
-      desvioLucro: comparacao ? calcDesvio(atual.lucro, comparacao.lucro) : null,
-    };
-  });
+  return Array.from(mapaAtual.entries())
+    .map(([chave, dadosAtual]) => {
+      const dadosComp = mapaComp.get(chave);
+      const atual = fecharMetricas(dadosAtual.metricas);
+      const comparacao = dadosComp ? fecharMetricas(dadosComp.metricas) : null;
+      return {
+        chave,
+        codigo: dadosAtual.codigo,
+        nome: dadosAtual.nome,
+        nivel,
+        atual,
+        comparacao,
+        desvioVenda: comparacao ? calcDesvio(atual.venda, comparacao.venda) : null,
+        desvioLucro: comparacao ? calcDesvio(atual.lucro, comparacao.lucro) : null,
+      };
+    })
+    .filter((linha) => temMovimento(linha.atual) || (linha.comparacao !== null && temMovimento(linha.comparacao)));
 }
 
 /**
@@ -253,21 +264,23 @@ export function agregarPorProduto(
   const mapaAtual = acumular(registrosAtual);
   const mapaComp = acumular(registrosComparacao);
 
-  return Array.from(mapaAtual.entries()).map(([chave, dadosAtual]) => {
-    const dadosComp = mapaComp.get(chave);
-    const atual = fecharMetricas(dadosAtual.metricas);
-    const comparacao = dadosComp ? fecharMetricas(dadosComp.metricas) : null;
-    return {
-      chave,
-      codigo: chave,
-      nome: dadosAtual.nome,
-      nivel: "produto" as const,
-      atual,
-      comparacao,
-      desvioVenda: comparacao ? calcDesvio(atual.venda, comparacao.venda) : null,
-      desvioLucro: comparacao ? calcDesvio(atual.lucro, comparacao.lucro) : null,
-    };
-  });
+  return Array.from(mapaAtual.entries())
+    .map(([chave, dadosAtual]) => {
+      const dadosComp = mapaComp.get(chave);
+      const atual = fecharMetricas(dadosAtual.metricas);
+      const comparacao = dadosComp ? fecharMetricas(dadosComp.metricas) : null;
+      return {
+        chave,
+        codigo: chave,
+        nome: dadosAtual.nome,
+        nivel: "produto" as const,
+        atual,
+        comparacao,
+        desvioVenda: comparacao ? calcDesvio(atual.venda, comparacao.venda) : null,
+        desvioLucro: comparacao ? calcDesvio(atual.lucro, comparacao.lucro) : null,
+      };
+    })
+    .filter((linha) => temMovimento(linha.atual) || (linha.comparacao !== null && temMovimento(linha.comparacao)));
 }
 
 export function somarMetricas(registros: RegistroDesempenho[]): Metricas {

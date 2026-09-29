@@ -1,14 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ordemAtivasEfetiva } from "@/lib/parametros/colunas-relatorio";
+import { ordemAtivasEfetiva, rotuloDaColuna } from "@/lib/parametros/colunas-relatorio";
 import type { ColunaNativa, ConfigRelatorio } from "@/lib/parametros/types";
-
-function labelParaRef(ref: string, dicionario: ColunaNativa[], config: ConfigRelatorio): string {
-  const nativa = dicionario.find((c) => c.ref === ref);
-  if (nativa) return nativa.traducao;
-  return config.calculadas.find((c) => c.id === ref)?.nome ?? ref;
-}
 
 export function AtivasTab({
   dicionario,
@@ -38,11 +32,21 @@ export function AtivasTab({
     }
   }
 
+  function definirPrincipal(ref: string) {
+    const jaEra = config.papeis?.principal === ref;
+    onChange({ ...config, papeis: { ...config.papeis, principal: jaEra ? undefined : ref } });
+  }
+
   return (
     <div className="flex flex-col gap-2">
       <p className="text-sm text-zinc-500">
         Ordem final de exibição do relatório (e da exportação Excel/PDF) — arraste pra reordenar. Junta
         automaticamente tudo que está marcado como visível em Nativas e Calculadas.
+        <br />
+        <span className="text-zinc-400">
+          A estrela marca a coluna <strong>principal</strong>: é a que os KPIs do topo, o Top Altas/Quedas e a
+          ordenação padrão usam. Sem ela, o relatório não sabe qual número é o mais importante.
+        </span>
       </p>
       {ordem.length === 0 ? (
         <p className="rounded-lg border border-dashed border-zinc-300 px-4 py-6 text-center text-sm text-zinc-400">
@@ -70,9 +74,20 @@ export function AtivasTab({
             >
               <span className="flex items-center gap-2 text-zinc-700">
                 <span className="text-zinc-300">⠿</span>
-                {labelParaRef(ref, dicionario, config)}
+                <button
+                  onClick={() => definirPrincipal(ref)}
+                  title={config.papeis?.principal === ref ? "Coluna principal — clique pra desmarcar" : "Marcar como coluna principal"}
+                  aria-label="Marcar como coluna principal"
+                  className={config.papeis?.principal === ref ? "text-azul" : "text-zinc-200 hover:text-zinc-400"}
+                >
+                  ★
+                </button>
+                {rotuloDaColuna(ref, config, dicionario)}
                 {ref.startsWith("calc_") && (
                   <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] text-zinc-500">calculada</span>
+                )}
+                {config.papeis?.principal === ref && (
+                  <span className="rounded bg-azul/10 px-1.5 py-0.5 text-[11px] font-medium text-azul">principal</span>
                 )}
               </span>
               <button onClick={() => ocultar(ref)} className="text-xs font-medium text-zinc-400 hover:text-vermelho">

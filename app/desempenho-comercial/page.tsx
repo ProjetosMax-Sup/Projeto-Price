@@ -7,7 +7,13 @@ import { construirIndiceDepartamentos, listaCompradoresCadastro, listaDepartamen
 import { datasDisponiveis, periodoMesAnteriorDisponivel, periodoMesMaisRecente } from "@/lib/desempenho/datas";
 import { lojasDoCadastro } from "@/lib/desempenho/loja-cadastro";
 import { calcularLabelPeriodo } from "@/lib/desempenho/periodo";
-import { obterOuSemearConfigRelatorio, obterOuSemearDepartamentosCadastro, obterOuSemearLojasCadastro } from "@/lib/parametros/store";
+import { colunasDoRelatorio } from "@/lib/desempenho/colunas-configuradas";
+import {
+  obterOuSemearConfigRelatorio,
+  obterOuSemearDepartamentosCadastro,
+  obterOuSemearDicionarioColunas,
+  obterOuSemearLojasCadastro,
+} from "@/lib/parametros/store";
 import type { RegistroDesempenho } from "@/lib/types";
 
 // Os arquivos-fonte mudam a cada atualização do time — nunca pré-renderizar
@@ -47,11 +53,15 @@ export default async function DesempenhoComercialPage() {
   if (!temAcesso) return semAcesso();
 
   const provider = getDataProvider();
-  const [lojasCadastro, departamentosCadastro, desempenho] = await Promise.all([
+  const [lojasCadastro, departamentosCadastro, dicionario, desempenho] = await Promise.all([
     obterOuSemearLojasCadastro(),
     obterOuSemearDepartamentosCadastro(),
+    obterOuSemearDicionarioColunas(),
     provider.getDesempenho(),
   ]);
+  // Quais colunas a tabela mostra, em que ordem e como cada uma é calculada — tudo
+  // vem de /parametros; o código não decide mais isso (ver docs/exemplos-motor-colunas).
+  const colunas = colunasDoRelatorio(configRelatorio, dicionario);
 
   const lojas = lojasDoCadastro(lojasCadastro);
   const indiceComprador = construirIndiceDepartamentos(departamentosCadastro);
@@ -109,6 +119,8 @@ export default async function DesempenhoComercialPage() {
           periodoAtualPadrao={periodoAtualPadrao}
           periodoComparacaoPadrao={periodoComparacaoPadrao}
           datasDisponiveisInicial={datasDisponiveisInicial}
+          config={configRelatorio}
+          colunas={colunas}
         />
       </main>
     </div>

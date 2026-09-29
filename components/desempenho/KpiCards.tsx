@@ -1,6 +1,8 @@
 import { Semaforo } from "@/components/ui/Semaforo";
 import type { Metricas } from "@/lib/desempenho/aggregate";
+import { valoresDaLinha, type ColunaRenderizavel } from "@/lib/desempenho/colunas-configuradas";
 import { calcDesvio, formatMoeda, formatPercent } from "@/lib/desempenho/format";
+import type { ConfigRelatorio } from "@/lib/parametros/types";
 
 function KpiCard({
   titulo,
@@ -28,45 +30,54 @@ function KpiCard({
   );
 }
 
+/**
+ * Três cards: a coluna marcada como **principal** em /parametros (a estrela na aba
+ * Ativas) e as duas colunas seguintes da ordem configurada. É assim que o topo da
+ * tela deixa de depender de "venda/lucro/% lucro" estarem escritos no código.
+ */
 export function KpiCards({
   atual,
   comparacao,
+  config,
+  colunas,
 }: {
   atual: Metricas;
   comparacao: Metricas | null;
+  config: ConfigRelatorio;
+  colunas: ColunaRenderizavel[];
 }) {
-  const desvioVenda = comparacao ? calcDesvio(atual.venda, comparacao.venda) : null;
-  const desvioLucro = comparacao ? calcDesvio(atual.lucro, comparacao.lucro) : null;
-  const desvioPercLucro = comparacao ? atual.percLucro - comparacao.percLucro : null;
+  const valoresAtual = valoresDaLinha(config, atual, comparacao);
+  const refPrincipal = config.papeis?.principal;
+  const principal = colunas.find((c) => c.ref === refPrincipal) ?? colunas[0];
+  const demais = colunas.filter((c) => c.ref !== principal?.ref && !c.ehComparacao && !c.semaforo).slice(0, 2);
+  const emDestaque = [principal, ...demais].filter((c): c is ColunaRenderizavel => Boolean(c));
 
-  const percRegularVenda = atual.venda !== 0 ? (atual.vendaRegular / atual.venda) * 100 : 0;
-  const percOfertaVenda = atual.venda !== 0 ? (atual.vendaOferta / atual.venda) * 100 : 0;
-  const percRegularLucro = atual.lucro !== 0 ? (atual.lucroRegular / atual.lucro) * 100 : 0;
-  const percOfertaLucro = atual.lucro !== 0 ? (atual.lucroOferta / atual.lucro) * 100 : 0;
+  const formatar = (coluna: ColunaRenderizavel, valor: number | null) => {
+    if (valor === null) return "—";
+    return coluna.formato === "moeda" ? formatMoeda(valor) : formatPercent(valor);
+  };
 
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-      <KpiCard
-        titulo="Venda"
-        valor={formatMoeda(atual.venda)}
-        desvio={desvioVenda}
-        linhaComparacao={comparacao ? `vs. ${formatMoeda(comparacao.venda)} na comparação` : undefined}
-        linhaDetalhe={`Regular ${formatMoeda(atual.vendaRegular)} (${formatPercent(percRegularVenda, 0)}) · Oferta ${formatMoeda(atual.vendaOferta)} (${formatPercent(percOfertaVenda, 0)})`}
-      />
-      <KpiCard
-        titulo="Lucro"
-        valor={formatMoeda(atual.lucro)}
-        desvio={desvioLucro}
-        linhaComparacao={comparacao ? `vs. ${formatMoeda(comparacao.lucro)} na comparação` : undefined}
-        linhaDetalhe={`Regular ${formatMoeda(atual.lucroRegular)} (${formatPercent(percRegularLucro, 0)}) · Oferta ${formatMoeda(atual.lucroOferta)} (${formatPercent(percOfertaLucro, 0)})`}
-      />
-      <KpiCard
-        titulo="% Lucro"
-        valor={formatPercent(atual.percLucro)}
-        desvio={desvioPercLucro}
-        linhaComparacao={comparacao ? `vs. ${formatPercent(comparacao.percLucro)} na comparação` : undefined}
-        linhaDetalhe="Desvio em pontos percentuais"
-      />
+      {emDestaque.map((coluna) => {
+        const valorAtual = valoresAtual[coluna.ref] ?? null;
+        // Comparação do card: o mesmo valor no período anterior, avaliado pelo mesmo
+        // caminho da tabela — sem fórmula paralela escrita à mão aqui.
+        const valorComparacao = comparacao ? (valoresDaLinha(config, comparacao, null)[coluna.ref] ?? null) : null;
+        const desvio =
+          valorAtual !== null && valorComparacao !== null ? calcDesvio(valorAtual, valorComparacao) : null;
+        return (
+          <KpiCard
+            key={coluna.ref}
+            titulo={coluna.rotulo}
+            valor={formatar(coluna, valorAtual)}
+            desvio={desvio}
+            linhaComparacao={
+              valorComparacao !== null ? `vs. ${formatar(coluna, valorComparacao)} na comparação` : undefined
+            }
+          />
+        );
+      })}
     </div>
   );
 }

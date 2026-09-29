@@ -273,11 +273,13 @@ de módulos diferentes têm o mesmo nome.
 - Mudança de fórmula/regra de cálculo → **recalcula** os relatórios já
   gerados (nunca fica congelado na regra antiga).
 - Processamento pesado (agregação, cálculo de colunas) continua no cron
-  diário → cache Redis, como já documentado em `docs/deploy.md`. Mudanças em
-  Parâmetros só valem de fato após o próximo cron **ou** um reprocessamento
-  manual: botão "Reprocessar agora" (por relatório, recalcula colunas) e
-  botão "Reprocessar comprador" (recalcula a resolução de comprador por
-  Departamento + Formato, seção 2.3).
+  diário → cache Redis **em produção**, como já documentado em
+  `docs/deploy.md`. Mudanças em Parâmetros só valem de fato após o próximo
+  cron **ou** um reprocessamento manual: botão "Reprocessar agora" (por
+  relatório, recalcula colunas) e botão "Reprocessar comprador" (recalcula a
+  resolução de comprador por Departamento + Formato, seção 2.3). Rodando
+  local (sem Redis), não há cron nenhum — a agregação roda ao vivo a cada
+  requisição, então uma mudança em Parâmetros já vale na próxima consulta.
 - **Permissão de acesso não depende do cron** — departamento/loja por
   usuário é avaliado em tempo real, direto contra o cadastro (é um filtro
   simples tipo IN-list, não uma agregação pesada). Mudar o acesso de um

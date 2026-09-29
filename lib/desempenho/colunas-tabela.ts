@@ -2,9 +2,19 @@ import type { Metricas } from "./aggregate";
 import { calcDesvio } from "./format";
 
 /**
- * Conjunto de colunas compartilhado pelas tabelas de Estrutura Mercadológica e
- * de Lojas — mesmas métricas nos dois lugares (pedido do usuário, seguindo o
- * layout de uma planilha de referência).
+ * ⚠️ NÃO É MAIS O QUE A TELA USA. Desde 2026-09-29 as colunas do Desempenho
+ * Comercial vêm da configuração de /parametros, via
+ * `lib/desempenho/colunas-configuradas.ts` + `lib/parametros/avaliador.ts`.
+ *
+ * Este arquivo continua no projeto como **oráculo de regressão**: é a definição
+ * antiga, já aprovada e conferida em produção, contra a qual
+ * `app/api/verificar-avaliador` compara os números do avaliador, linha a linha.
+ * Enquanto esse endpoint acusar 0 divergências, a configuração reproduz
+ * exatamente o relatório de antes.
+ *
+ * Só apagar (junto com o endpoint) quando não fizer mais sentido comparar — ex.:
+ * depois que alguém alterar as colunas de propósito pela tela, momento em que
+ * divergir passa a ser o esperado.
  */
 export const COLUNAS_METRICAS = [
   { chave: "vAtual", rotulo: "R$ Valor Total Atual", tipo: "moeda", largura: 110 },
@@ -26,6 +36,26 @@ export const COLUNAS_METRICAS = [
 
 export type ColunaMetrica = (typeof COLUNAS_METRICAS)[number]["chave"];
 export type TipoColuna = (typeof COLUNAS_METRICAS)[number]["tipo"];
+
+/** Largura (px) da 1ª coluna (nome da loja/nó de estrutura) e da última ("Part.") — usadas junto
+ * com a soma das métricas pra calcular `LARGURA_MINIMA_TABELA` abaixo. 280 (não 200) porque a
+ * linha de Loja tem código + nome + badge de formato (ex: "007 - Vila Brasília" + "Atacado") na
+ * mesma célula truncada — 200px cortava o badge no meio pra nomes mais longos (confirmado em
+ * 2026-09-21). Mantido em sincronia manualmente com os `min-w-[280px]` em
+ * LojasPanel.tsx/EstruturaPanel.tsx (Tailwind não aceita variável JS dentro de `[...]`). */
+export const LARGURA_COLUNA_NOME = 280;
+export const LARGURA_COLUNA_PART = 64;
+
+/**
+ * Largura mínima (px) da tabela inteira (nome + todas as métricas + Part.) — usada como
+ * `minWidth` no `<table>` de LojasPanel/EstruturaPanel. Sem isso, `table-fixed` + `width: 100%`
+ * espreme a coluna de nome (sem largura própria) até quase zero quando a soma das métricas já
+ * ocupa mais que o painel, em vez de deixar o `overflow-x-auto` do container rolar (confirmado em
+ * 2026-09-21: coluna "Loja" mostrando só "00..." truncado). `minWidth` > `width: 100%` faz o
+ * CSS priorizar o mínimo e a tabela ficar maior que o container, acionando o scroll horizontal.
+ */
+export const LARGURA_MINIMA_TABELA =
+  LARGURA_COLUNA_NOME + COLUNAS_METRICAS.reduce((soma, c) => soma + c.largura, 0) + LARGURA_COLUNA_PART;
 
 /** Colunas que mostram um valor do período de Comparação (marcadas visualmente diferente na tabela). */
 export function ehColunaComparacao(chave: ColunaMetrica): boolean {

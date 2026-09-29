@@ -36,9 +36,18 @@ export function formatNumero(valor: number): string {
 }
 
 /** %Desvio entre atual e comparação. null quando não há base de comparação. */
+/**
+ * Variação percentual entre os dois períodos. Divide pelo **módulo** da base: com
+ * base negativa (departamento que fechou o período anterior no prejuízo), dividir
+ * pelo valor com sinal inverte a leitura — sair de −100 pra −50 é melhora, mas
+ * apareceria como −50%. Corrigido em 2026-09-29; antes usava o valor com sinal.
+ *
+ * Base zero não é 0%: é "não há com o que comparar" (`null` → célula vazia), a
+ * menos que o atual também seja zero.
+ */
 export function calcDesvio(atual: number, comparacao: number): number | null {
   if (comparacao === 0) return atual === 0 ? 0 : null;
-  return ((atual - comparacao) / comparacao) * 100;
+  return ((atual - comparacao) / Math.abs(comparacao)) * 100;
 }
 
 const MESES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];

@@ -3,14 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node --max-old-space-size=8192 node_modules/next/dist/bin/next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "node --max-old-space-size=8192 node_modules/next/dist/bin/next start",
     "lint": "eslint"
   },
   "dependencies": {
-    "@clerk/localizations": "^4.17.1",
-    "@clerk/nextjs": "^7.9.4",
     "@supabase/supabase-js": "^2.116.0",
     "exceljs": "^4.4.0",
     "ioredis": "^6.0.0",

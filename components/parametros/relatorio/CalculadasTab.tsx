@@ -3,22 +3,32 @@
 import { useState } from "react";
 import {
   calculadaQuebrada,
+  erroDaCalculada,
   novoIdCalculada,
   quemDependeDe,
   refsDisponiveisParaTermo,
+  rotuloDaColuna,
 } from "@/lib/parametros/colunas-relatorio";
 import type { ColunaCalculada, ColunaNativa, ConfigRelatorio, TermoFormula } from "@/lib/parametros/types";
 
-function labelParaRef(ref: string, dicionario: ColunaNativa[], config: ConfigRelatorio): string {
-  const nativa = dicionario.find((c) => c.ref === ref);
-  if (nativa) return nativa.traducao;
-  return config.calculadas.find((c) => c.id === ref)?.nome ?? ref;
-}
+const labelParaRef = (ref: string, dicionario: ColunaNativa[], config: ConfigRelatorio) =>
+  rotuloDaColuna(ref, config, dicionario);
 
 function resumoFormula(c: ColunaCalculada, dicionario: ColunaNativa[], config: ConfigRelatorio): string {
   const termo = (t: TermoFormula) => `${t.sinal} ${labelParaRef(t.colunaRef, dicionario, config)}`;
-  if (c.tipo === "soma") return c.termos.map(termo).join(" ");
-  return `(${c.numerador.map(termo).join(" ")}) / (${c.denominador.map(termo).join(" ")})`;
+  const nome = (ref: string) => labelParaRef(ref, dicionario, config);
+  switch (c.tipo) {
+    case "soma":
+      return c.termos.map(termo).join(" ");
+    case "razao":
+      return `(${c.numerador.map(termo).join(" ")}) / (${c.denominador.map(termo).join(" ")})`;
+    case "valorDoPeriodo":
+      return `${nome(c.coluna)} — período ${c.periodo === "comparacao" ? "de Comparação" : "Atual"}`;
+    case "desvio":
+      return `variação % de ${nome(c.coluna)} vs. Comparação`;
+    case "difPP":
+      return `${nome(c.coluna)}: Atual − Comparação (em p.p.)`;
+  }
 }
 
 function ListaTermos({
@@ -92,26 +102,31 @@ export function CalculadasTab({
   const [editando, setEditando] = useState<ColunaCalculada | null>(null);
   const [erroEditor, setErroEditor] = useState<string | null>(null);
 
-  const opcoes = refsDisponiveisParaTermo(config, editando?.id);
+  // Numa soma, o dropdown nem chega a oferecer razão (percentual) como termo — o erro
+  // não acontece porque a opção não existe, em vez de acontecer e ser barrado depois.
+  const opcoes = refsDisponiveisParaTermo(config, dicionario, editando?.id, editando?.tipo ?? "razao");
 
-  function novaColuna(tipo: "soma" | "razao") {
+  function novaColuna(tipo: ColunaCalculada["tipo"]) {
     setErroEditor(null);
+    const base = { id: novoIdCalculada(), nome: "", oculta: false };
     setEditando(
       tipo === "soma"
-        ? { id: novoIdCalculada(), nome: "", tipo: "soma", termos: [], oculta: false }
-        : { id: novoIdCalculada(), nome: "", tipo: "razao", numerador: [], denominador: [], oculta: false },
+        ? { ...base, tipo: "soma", termos: [] }
+        : tipo === "razao"
+          ? { ...base, tipo: "razao", numerador: [], denominador: [] }
+          : tipo === "valorDoPeriodo"
+            ? { ...base, tipo: "valorDoPeriodo", coluna: opcoes[0] ?? "", periodo: "comparacao" }
+            : tipo === "desvio"
+              ? { ...base, tipo: "desvio", coluna: opcoes[0] ?? "" }
+              : { ...base, tipo: "difPP", coluna: opcoes[0] ?? "" },
     );
   }
 
   function salvarEdicao() {
     if (!editando) return;
-    if (!editando.nome.trim()) return setErroEditor("Nome da coluna obrigatório.");
-    if (config.calculadas.some((c) => c.nome === editando.nome && c.id !== editando.id)) {
-      return setErroEditor("Já existe uma coluna calculada com esse nome neste relatório.");
-    }
-    const semTermos =
-      editando.tipo === "soma" ? editando.termos.length === 0 : editando.numerador.length === 0 || editando.denominador.length === 0;
-    if (semTermos) return setErroEditor("Adicione ao menos 1 termo.");
+    // Mesma função que a rota de API usa — tela e servidor nunca divergem.
+    const erro = erroDaCalculada(editando, config);
+    if (erro) return setErroEditor(erro);
 
     const existe = config.calculadas.some((c) => c.id === editando.id);
     onChange({
@@ -144,6 +159,11 @@ export function CalculadasTab({
       <p className="text-sm text-zinc-500">
         Fórmulas específicas deste relatório — sempre por seleção estruturada (sinal + coluna), nunca texto livre. Um
         termo pode ser uma coluna nativa marcada em &quot;Nativas&quot; ou outra coluna calculada já criada aqui.
+        <br />
+        <span className="text-zinc-400">
+          Percentuais (razão) não aparecem como opção dentro de uma soma: somar percentuais dá resultado errado no
+          subtotal e no total. Manual completo em <code className="text-zinc-500">docs/manual-de-formulas.md</code>.
+        </span>
       </p>
 
       <div className="overflow-x-auto rounded-lg border border-zinc-200">
@@ -204,19 +224,24 @@ export function CalculadasTab({
       </div>
 
       {!editando && (
-        <div className="flex gap-3">
-          <button
-            onClick={() => novaColuna("soma")}
-            className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
-          >
-            + Soma/Subtração
-          </button>
-          <button
-            onClick={() => novaColuna("razao")}
-            className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
-          >
-            + Razão (%)
-          </button>
+        <div className="flex flex-wrap gap-3">
+          {(
+            [
+              ["soma", "+ Soma/Subtração"],
+              ["razao", "+ Razão (%)"],
+              ["valorDoPeriodo", "+ Valor de outro período"],
+              ["desvio", "+ % Desvio"],
+              ["difPP", "+ Diferença em p.p."],
+            ] as const
+          ).map(([tipo, rotulo]) => (
+            <button
+              key={tipo}
+              onClick={() => novaColuna(tipo)}
+              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
+            >
+              {rotulo}
+            </button>
+          ))}
         </div>
       )}
 
@@ -229,7 +254,7 @@ export function CalculadasTab({
             className="w-80 rounded border border-zinc-300 px-2 py-1.5 text-sm"
           />
 
-          {editando.tipo === "soma" ? (
+          {editando.tipo === "soma" && (
             <ListaTermos
               termos={editando.termos}
               opcoes={opcoes}
@@ -237,7 +262,9 @@ export function CalculadasTab({
               config={config}
               onChange={(termos) => setEditando({ ...editando, termos })}
             />
-          ) : (
+          )}
+
+          {editando.tipo === "razao" && (
             <div className="flex flex-col gap-3 sm:flex-row">
               <div className="flex-1">
                 <p className="mb-1 text-xs font-medium text-zinc-500">Numerador</p>
@@ -259,6 +286,50 @@ export function CalculadasTab({
                   onChange={(denominador) => setEditando({ ...editando, denominador })}
                 />
               </div>
+            </div>
+          )}
+
+          {(editando.tipo === "valorDoPeriodo" || editando.tipo === "desvio" || editando.tipo === "difPP") && (
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-zinc-500">Coluna de origem</span>
+                <select
+                  value={editando.coluna}
+                  onChange={(e) => setEditando({ ...editando, coluna: e.target.value })}
+                  className="w-72 rounded border border-zinc-300 px-2 py-1 text-sm"
+                >
+                  <option value="" disabled>
+                    Selecione uma coluna...
+                  </option>
+                  {opcoes.map((ref) => (
+                    <option key={ref} value={ref}>
+                      {labelParaRef(ref, dicionario, config)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {editando.tipo === "valorDoPeriodo" && (
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs font-medium text-zinc-500">Período</span>
+                  <select
+                    value={editando.periodo}
+                    onChange={(e) => setEditando({ ...editando, periodo: e.target.value as "atual" | "comparacao" })}
+                    className="w-44 rounded border border-zinc-300 px-2 py-1 text-sm"
+                  >
+                    <option value="comparacao">Comparação</option>
+                    <option value="atual">Atual</option>
+                  </select>
+                </label>
+              )}
+
+              <p className="text-xs text-zinc-400">
+                {editando.tipo === "valorDoPeriodo"
+                  ? "Mostra o valor dessa mesma coluna no período escolhido."
+                  : editando.tipo === "desvio"
+                    ? "Variação percentual entre o período Atual e o de Comparação."
+                    : "Diferença em pontos percentuais — use com colunas que já são %."}
+              </p>
             </div>
           )}
 

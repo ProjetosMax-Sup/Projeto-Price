@@ -37,6 +37,15 @@ yarn-error.log*
 # vercel
 .vercel
 
+# cadastros de Parâmetros (Lojas/Departamentos/Dicionário) — estado local editável
+# pela própria plataforma, não código-fonte (ver lib/parametros/store.ts)
+/data/parametros/
+
+# arquivos removidos na conversão pra app 100% local (ver CLAUDE.md) — mantidos aqui
+# só de cautela, não fazem mais parte do projeto; pode apagar a pasta inteira quando
+# tiver confirmado que a conversão está OK.
+/_arquivado-conversao-local/
+
 # ferramentas locais (harness do Claude Code, etc.)
 .claude/
 

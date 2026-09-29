@@ -44,11 +44,19 @@ export interface UsuarioCadastro {
  * seção 3.1) — só documenta nome/tradução/tipo de cada coluna existente.
  */
 export interface ColunaNativa {
-  /** Posição no arquivo (string p/ servir de chave estável em refs). */
+  /** Identidade da coluna nas configurações de relatório: o **nome** dela no arquivo
+   * (`nomeArquivo`), não a posição. Nome é estável; posição não — em 2026-09-29 o ERP
+   * exportou o `bdSetembro` com 4 colunas a menos e deslocou tudo depois da posição 74,
+   * o que faria toda config apontar pra coluna errada silenciosamente (ver
+   * `docs/exemplos-motor-colunas/README.md`, cenário 4). */
   ref: string;
+  /** Posição no arquivo — informativa (ordem de exibição do dicionário e rastreio da
+   * origem). Nunca usar como identidade: muda quando o ERP altera o layout. */
   posicao: number;
   /** Nome bruto combinado (as duas linhas do cabeçalho). */
   nomeArquivo: string;
+  /** Como exibir — sem isso, "Valor" e "Qtde Vendas" sairiam do mesmo jeito na tela. */
+  formato?: FormatoColuna;
   /** A que movimento se aplica (ex.: "Vendas", "Compras", "Estoque") — editável, texto livre. */
   movimento: string;
   /** Tradução/significado amigável — editável. */
@@ -66,9 +74,56 @@ export interface TermoFormula {
   colunaRef: string;
 }
 
+/** Como o número aparece na tela e na exportação. Não é decoração: "DDE" e "% Lucro"
+ * são as duas uma razão, mas uma é quantidade de dias e a outra é percentual. */
+export type FormatoColuna = "moeda" | "percentual" | "numero" | "pontosPercentuais";
+
+/**
+ * Os tipos de conta que o avaliador sabe executar (`lib/parametros/avaliador.ts`).
+ * Cada tipo novo é uma função a mais lá e um formulário a mais no editor — nunca
+ * mexe em relatório que já funciona. Ver `docs/manual-de-formulas.md`.
+ *
+ * `formato` é opcional: sem ele vale o padrão do tipo (ver `formatoDaCalculada`).
+ */
 export type ColunaCalculada =
-  | { id: string; nome: string; tipo: "soma"; termos: TermoFormula[]; oculta: boolean }
-  | { id: string; nome: string; tipo: "razao"; numerador: TermoFormula[]; denominador: TermoFormula[]; oculta: boolean };
+  /** Combinação linear de colunas — a única que soma normalmente na agregação. */
+  | { id: string; nome: string; tipo: "soma"; termos: TermoFormula[]; formato?: FormatoColuna; oculta: boolean }
+  /** Divisão de dois grupos de termos; só existe depois de agregar. */
+  | {
+      id: string;
+      nome: string;
+      tipo: "razao";
+      numerador: TermoFormula[];
+      denominador: TermoFormula[];
+      formato?: FormatoColuna;
+      oculta: boolean;
+    }
+  /** O valor de outra coluna no período escolhido — é assim que "Comparação" deixa
+   * de ser um punhado de colunas fixas e passa a valer pra qualquer coluna. */
+  | {
+      id: string;
+      nome: string;
+      tipo: "valorDoPeriodo";
+      coluna: string;
+      periodo: "atual" | "comparacao";
+      formato?: FormatoColuna;
+      oculta: boolean;
+    }
+  /** Variação percentual de uma coluna contra o período de Comparação. */
+  | { id: string; nome: string; tipo: "desvio"; coluna: string; formato?: FormatoColuna; oculta: boolean }
+  /** Diferença em pontos percentuais entre Atual e Comparação — pra coluna que já é %. */
+  | { id: string; nome: string; tipo: "difPP"; coluna: string; formato?: FormatoColuna; oculta: boolean };
+
+/**
+ * Papéis das colunas — âncoras pro código. Nenhuma parte do app pode depender do
+ * NOME de uma coluna ("Venda" pode virar "Faturamento" em outra rede) nem do ref
+ * direto (a composição muda por cliente): quem precisa de "a coluna principal"
+ * pergunta pelo papel. Ver `docs/exemplos-motor-colunas/README.md`, cenário 5.
+ */
+export interface PapeisRelatorio {
+  /** Ref de nativa ou id de calculada que alimenta KPI, Top Altas/Quedas e ordenação padrão. */
+  principal?: string;
+}
 
 /**
  * Configuração "Por Relatório" (seção 3) — uma por módulo (slug), 100%
@@ -82,6 +137,16 @@ export interface ConfigRelatorio {
   calculadas: ColunaCalculada[];
   /** Ordem final de exibição (refs de nativa ou id de calculada) — só a aba Ativas decide isso. */
   ordemAtivas: string[];
+  /**
+   * Nome da coluna **neste relatório**, por ref de nativa — sobrepõe a tradução do
+   * Dicionário. A mesma coluna do arquivo é "R$ Valor Total Atual" no Desempenho
+   * Comercial e "Vendas" no Entradas e Saídas; o Dicionário guarda como o ERP
+   * chama ("Valor"), que é outra coisa. Calculada não precisa disso: o `nome` dela
+   * já é por relatório. Ausente = usa a tradução do Dicionário.
+   */
+  rotulos?: Record<string, string>;
+  /** Ausente enquanto ninguém tiver escolhido uma coluna principal neste relatório. */
+  papeis?: PapeisRelatorio;
   /** "Quem acessa este relatório" (seção 3.3) — condição 1 das duas que precisam valer juntas. */
   acessoComprador: boolean;
   acessoGestor: boolean;
