@@ -17,6 +17,9 @@ import type { ConfigRelatorio } from "@/lib/parametros/types";
 type Coluna = "nome" | string;
 
 const SUBTOTAL_BG = "bg-[#E4ECF6]";
+/** Segundo Total (com Apropriações/Sem Comprador incluídos) — cor própria, diferente do
+ * primeiro, pra não confundir qual dos dois é a leitura principal ao passar o olho. */
+const SUBTOTAL_ALT_BG = "bg-amber-50";
 
 /**
  * "Apropriações" (departamento contábil, sem produto/venda de verdade) e "Sem
@@ -198,7 +201,9 @@ export function HierarquiaPanel({
           <tbody>
             {ordenadas.length > 0 && (
               <tr className={`border-b-2 border-azul/20 ${SUBTOTAL_BG}`}>
-                <td className={`sticky left-0 z-10 min-w-[280px] px-4 py-2 font-semibold text-azul ${SUBTOTAL_BG}`}>Total</td>
+                <td className={`sticky left-0 z-10 min-w-[280px] px-4 py-2 font-semibold text-azul ${SUBTOTAL_BG}`}>
+                  {temExclusao ? "Total S/ Apropriações" : "Total"}
+                </td>
                 {colunas.map((c) => (
                   <CelulaMetrica key={c.ref} coluna={c} valor={(temExclusao ? subtotalPrincipalValores : subtotalGeralValores)[c.ref] ?? null} enfase />
                 ))}
@@ -209,17 +214,17 @@ export function HierarquiaPanel({
               </tr>
             )}
             {temExclusao && (
-              <tr className={`border-b-2 border-azul/20 ${SUBTOTAL_BG}`}>
+              <tr className={`border-b-2 border-amber-300/60 ${SUBTOTAL_ALT_BG}`}>
                 <td
-                  className={`sticky left-0 z-10 min-w-[280px] px-4 py-2 text-xs font-semibold text-azul/70 ${SUBTOTAL_BG}`}
+                  className={`sticky left-0 z-10 min-w-[280px] px-4 py-2 text-xs font-semibold text-amber-700 ${SUBTOTAL_ALT_BG}`}
                   title={`Inclui ${linhasExcluidas.map((l) => l.nome).join(", ")}`}
                 >
-                  Total (com tudo)
+                  Total C/ Apropriações
                 </td>
                 {colunas.map((c) => (
                   <CelulaMetrica key={c.ref} coluna={c} valor={subtotalGeralValores[c.ref] ?? null} />
                 ))}
-                <td className="px-3 py-2 text-right text-xs tabular-nums text-azul/70">100%</td>
+                <td className="px-3 py-2 text-right text-xs tabular-nums text-amber-700">100%</td>
               </tr>
             )}
             {ordenadas.map((linha, i) => {
