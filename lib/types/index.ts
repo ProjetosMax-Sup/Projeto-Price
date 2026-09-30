@@ -49,22 +49,6 @@ export interface MovimentoVendas {
   qtdeVendasRegular: number;
   vendasRegular: number;
   lucrosRegular: number;
-
-  /**
-   * Campos nativos além dos já nomeados acima — usados por módulos além do
-   * Desempenho Comercial (hoje: Entradas e Saídas, ver `lib/parametros/seed.ts`
-   * > `semearColunasEntradasSaidas`). **Array, não objeto**: na escala deste
-   * arquivo (4+ milhões de registros), um `Record<string, number>` por
-   * registro empurra o V8 pro "modo dicionário" (tabela hash por objeto) em
-   * vez de um array compacto — chegou a estourar 8GB de heap sozinho
-   * (confirmado em 2026-09-30). Posição `i` corresponde ao ref
-   * `REFS_NATIVOS_ENTRADAS_SAIDAS[i]` (`config/data-sources.ts`) — use
-   * `valorNativo(movimento, ref)` (`lib/data-providers/normalizar-desempenho.ts`)
-   * pra ler por nome em vez de indexar na mão. Opcional: `undefined` num
-   * registro vindo do cache do Redis de produção (ver dataset-cache.ts) ou do
-   * mock, que ainda não preservam este campo.
-   */
-  nativos?: number[];
 }
 
 export interface RegistroDesempenho {

@@ -196,7 +196,10 @@ export function semearColunasDesempenhoComercial(): ConfigRelatorio {
  * — por Departamento, mesmo eixo de drill-down do Desempenho Comercial).
  *
  * Os refs em si vêm de `config/data-sources.ts` (fonte única, compartilhada
- * com o parser que os extrai — ver `normalizar-desempenho.ts` > CAMPOS_MOVIMENTO).
+ * com o parser dedicado que os extrai — ver
+ * `lib/data-providers/normalizar-entradas-saidas.ts`, ainda não plugado em
+ * nenhuma rota/cache; parser separado do Desempenho Comercial de propósito,
+ * ver comentário no topo daquele arquivo).
  */
 const REF_COMPRAS = REF_ENTRADAS_COMPRAS;
 const REFS_OUTRAS_ENTRADAS = REFS_ENTRADAS_OUTRAS;

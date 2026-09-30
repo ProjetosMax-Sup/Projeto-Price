@@ -1,4 +1,4 @@
-import { CABECALHO_REFERENCIA_MENSAL, REFS_NATIVOS_ENTRADAS_SAIDAS } from "@/config/data-sources";
+import { CABECALHO_REFERENCIA_MENSAL } from "@/config/data-sources";
 import { parseTabela, validarCabecalhoOuFalhar } from "./parse-tabela";
 import type { Loja, MovimentoVendas, PeriodoDesempenho, Produto } from "@/lib/types";
 
@@ -54,11 +54,12 @@ export function normalizarProdutos(conteudo: string): Produto[] {
 // contra os arquivos reais (ver docs/parametros.md seção 1) — então a extração por
 // nome (parseTabela) continua funcionando sem precisar de posição fixa.
 //
-// REFS_NATIVOS_ENTRADAS_SAIDAS entrou aqui pra alimentar `movimento.nativos` (ver
-// lib/types/index.ts) — são os campos que o Entradas e Saídas usa nas fórmulas de
-// `lib/parametros/seed.ts`, e essa é a fonte única dos dois (config/data-sources.ts).
-// Nunca peça um campo numa fórmula sem também listá-lo aqui, senão a coluna
-// existe na config mas não tem dado de verdade.
+// ⚠️ Nunca adicionar campos aqui só pra atender OUTRO módulo (ex: Entradas e
+// Saídas) — um campo a mais em `MovimentoVendas` engorda cada um dos 5+ milhões
+// de registros que o Desempenho Comercial já mantém em memória, e isso já
+// quase triplicou o tempo de resposta dele numa tentativa anterior (60s → 2min47,
+// confirmado em 2026-09-30, revertido no mesmo commit). Módulo novo = parser
+// separado (ver `normalizar-entradas-saidas.ts`), nunca campo a mais aqui.
 const CAMPOS_MOVIMENTO = [
   "Código",
   "Descricao",
@@ -74,7 +75,6 @@ const CAMPOS_MOVIMENTO = [
   "Vendas Oferta",
   "Lucros Oferta",
   "Data",
-  ...REFS_NATIVOS_ENTRADAS_SAIDAS,
 ] as const;
 
 function linhaParaMovimento(l: Record<(typeof CAMPOS_MOVIMENTO)[number], string>): MovimentoVendas {
@@ -84,11 +84,6 @@ function linhaParaMovimento(l: Record<(typeof CAMPOS_MOVIMENTO)[number], string>
   const qtdeVendasOferta = parseNumeroBr(l["Qtde Vendas Oferta"]);
   const vendasOferta = parseNumeroBr(l["Vendas Oferta"]);
   const lucrosOferta = parseNumeroBr(l["Lucros Oferta"]);
-
-  // Array, não objeto — ver o porquê no comentário de `MovimentoVendas.nativos`
-  // (lib/types/index.ts). Posição = índice em REFS_NATIVOS_ENTRADAS_SAIDAS; ler
-  // por nome com `valorNativo()` abaixo, nunca indexando na mão.
-  const nativos = REFS_NATIVOS_ENTRADAS_SAIDAS.map((ref) => parseNumeroBr(l[ref]));
 
   return {
     codigo: l["Código"],
@@ -109,7 +104,6 @@ function linhaParaMovimento(l: Record<(typeof CAMPOS_MOVIMENTO)[number], string>
     qtdeVendasRegular: qtdeVendasTotal - qtdeVendasOferta,
     vendasRegular: valorTotal - vendasOferta,
     lucrosRegular: lucrosTotal - lucrosOferta,
-    nativos,
   };
 }
 
@@ -148,19 +142,6 @@ export function normalizarMovimentos(
     produtosDescartados: codigosDescartados.size,
     produtosDescartadosCodigos: Array.from(codigosDescartados),
   };
-}
-
-// Construído uma vez (não por registro) — é o que permite ler `movimento.nativos`
-// por NOME sem pagar o custo de um objeto por registro (ver MovimentoVendas.nativos).
-const INDICE_NATIVOS = new Map<string, number>(REFS_NATIVOS_ENTRADAS_SAIDAS.map((ref, i) => [ref, i]));
-
-/** Valor de um campo nativo adicional (Compras/Outras Entradas/Estoque/...) pelo
- * nome da coluna — `0` se o ref não existir na lista extraída ou o registro vier
- * do cache de produção (`nativos` ausente, ver dataset-cache.ts). */
-export function valorNativo(movimento: MovimentoVendas, ref: string): number {
-  const indice = INDICE_NATIVOS.get(ref);
-  if (indice === undefined || !movimento.nativos) return 0;
-  return movimento.nativos[indice] ?? 0;
 }
 
 /**
