@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { HierarquiaPanel } from "@/components/entradas-saidas/HierarquiaPanel";
 import { KpiCardsEntradasSaidas } from "@/components/entradas-saidas/KpiCardsEntradasSaidas";
 import type { ColunaRenderizavel } from "@/lib/desempenho/colunas-configuradas";
@@ -53,6 +53,20 @@ export function EntradasSaidasDashboard({
   const [carregando, setCarregando] = useState(false);
   const primeiraRenderizacao = useRef(true);
   const idRequisicaoRef = useRef(0);
+
+  // Altura real do bloco de KPIs (varia com o tamanho da tela / wrap dos cards) — sem medir de
+  // verdade, um valor cravado corta o cabeçalho sticky das tabelas por baixo dele (mesma técnica
+  // de `DesempenhoDashboard.tsx`, ali já correta desde o início).
+  const kpiRef = useRef<HTMLDivElement>(null);
+  const [alturaKpi, setAlturaKpi] = useState(0);
+  useLayoutEffect(() => {
+    const elemento = kpiRef.current;
+    if (!elemento) return;
+    const observer = new ResizeObserver(() => setAlturaKpi(elemento.offsetHeight));
+    observer.observe(elemento);
+    return () => observer.disconnect();
+  }, []);
+  const stickyTop = ALTURA_NAV + alturaKpi;
 
   useEffect(() => {
     if (primeiraRenderizacao.current) {
@@ -142,6 +156,7 @@ export function EntradasSaidasDashboard({
       </div>
 
       <div
+        ref={kpiRef}
         className="sticky z-30 -mx-6 flex flex-col gap-4 border-b border-zinc-200 bg-zinc-50 px-6 pb-3 pt-3"
         style={{ top: ALTURA_NAV }}
       >
@@ -157,7 +172,7 @@ export function EntradasSaidasDashboard({
           colunas={colunas}
           onClickLinha={aoClicarDepartamento}
           onVoltarPara={aoVoltarDepartamento}
-          stickyTop={ALTURA_NAV + 88}
+          stickyTop={stickyTop}
           ordenacaoPadrao="nome"
         />
         <HierarquiaPanel
@@ -168,7 +183,7 @@ export function EntradasSaidasDashboard({
           colunas={colunas}
           onClickLinha={aoClicarComprador}
           onVoltarPara={aoVoltarComprador}
-          stickyTop={ALTURA_NAV + 88}
+          stickyTop={stickyTop}
           ordenacaoPadrao="principal"
         />
       </div>

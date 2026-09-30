@@ -266,8 +266,11 @@ export function semearColunasEntradasSaidas(): ConfigRelatorio {
     },
     {
       id: novoIdCalculada(),
-      nome: "DDE (Qtde)",
+      nome: "DDE (Dias de Estoque)",
       tipo: "razao",
+      // Sem isso, razão cai no padrão "percentual" (multiplica por 100 e mostra
+      // "%") — DDE é dias de estoque, um número puro, não um percentual.
+      formato: "numero",
       numerador: [{ sinal: "+", colunaRef: REF_ESTOQUE }],
       denominador: [{ sinal: "+", colunaRef: REF_QTDE_VMD }],
       oculta: false,

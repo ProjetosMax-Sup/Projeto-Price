@@ -18,6 +18,29 @@ type Coluna = "nome" | string;
 
 const SUBTOTAL_BG = "bg-[#E4ECF6]";
 
+/**
+ * "Apropriações" (departamento contábil, sem produto/venda de verdade) e "Sem
+ * Comprador" (departamento sem comprador cadastrado) distorcem a leitura
+ * principal do relatório — por isso ficam de fora do primeiro Total (o que
+ * importa no dia a dia) e aparecem à parte, marcadas em vermelho, no segundo
+ * Total (com tudo, pra bater com o número contábil fechado). Mesmo padrão
+ * visual de "Mesmas Lojas" no Desempenho Comercial.
+ */
+function ehExcluidoDoTotalPrincipal(nome: string): boolean {
+  const normalizado = nome
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .trim();
+  return normalizado === "apropriacoes" || normalizado === "sem comprador" || normalizado === "s/ comprador";
+}
+
+function somarValoresNativos(linhas: NoEntradasSaidas[]): Record<string, number> {
+  const soma: Record<string, number> = {};
+  for (const linha of linhas) for (const [ref, valor] of Object.entries(linha.valores)) soma[ref] = (soma[ref] ?? 0) + valor;
+  return soma;
+}
+
 function Colgroup({ colunas }: { colunas: ColunaRenderizavel[] }) {
   return (
     <colgroup>
@@ -93,11 +116,21 @@ export function HierarquiaPanel({
   }, [linhas, ordenacao, ordenacaoPadrao, valoresPorChave]);
 
   const totalPrincipal = linhas.reduce((soma, l) => soma + principalDe(l), 0);
-  const subtotalValores = useMemo(() => {
-    const somaNativos: Record<string, number> = {};
-    for (const linha of linhas) for (const [ref, valor] of Object.entries(linha.valores)) somaNativos[ref] = (somaNativos[ref] ?? 0) + valor;
-    return avaliarColunas(config, { atual: somaNativos, comparacao: null });
-  }, [linhas, config]);
+  const linhasExcluidas = useMemo(() => linhas.filter((l) => ehExcluidoDoTotalPrincipal(l.nome)), [linhas]);
+  const temExclusao = linhasExcluidas.length > 0;
+  const linhasSemExclusao = useMemo(() => linhas.filter((l) => !ehExcluidoDoTotalPrincipal(l.nome)), [linhas]);
+
+  // Com exclusão: dois totais — "Total" (o principal, sem Apropriações/Sem Comprador, vem
+  // primeiro por ser a leitura do dia a dia) e "Total (com tudo)" (inclui tudo, pra bater
+  // com o fechamento contábil). Sem exclusão nenhuma linha marcada: só o Total de sempre.
+  const subtotalPrincipalValores = useMemo(
+    () => avaliarColunas(config, { atual: somarValoresNativos(linhasSemExclusao), comparacao: null }),
+    [linhasSemExclusao, config],
+  );
+  const subtotalGeralValores = useMemo(
+    () => avaliarColunas(config, { atual: somarValoresNativos(linhas), comparacao: null }),
+    [linhas, config],
+  );
   const larguraMinima = larguraMinimaTabela(colunas);
 
   return (
@@ -167,29 +200,55 @@ export function HierarquiaPanel({
               <tr className={`border-b-2 border-azul/20 ${SUBTOTAL_BG}`}>
                 <td className={`sticky left-0 z-10 min-w-[280px] px-4 py-2 font-semibold text-azul ${SUBTOTAL_BG}`}>Total</td>
                 {colunas.map((c) => (
-                  <CelulaMetrica key={c.ref} coluna={c} valor={subtotalValores[c.ref] ?? null} enfase />
+                  <CelulaMetrica key={c.ref} coluna={c} valor={(temExclusao ? subtotalPrincipalValores : subtotalGeralValores)[c.ref] ?? null} enfase />
                 ))}
-                <td className="px-3 py-2 text-right font-semibold tabular-nums text-azul">100%</td>
+                {/* Linha de Comparação % faz sentido contra o total GERAL (as próprias linhas somam
+                    nisso, ver `totalPrincipal`) — quando este Total é o principal (parcial, sem
+                    Apropriações/Sem Comprador), "100%" seria enganoso aqui. */}
+                <td className="px-3 py-2 text-right font-semibold tabular-nums text-azul">{temExclusao ? "—" : "100%"}</td>
               </tr>
             )}
-            {ordenadas.map((linha, i) => (
-              <tr
-                key={linha.chave}
-                onClick={() => onClickLinha(linha)}
-                className={`cursor-pointer border-t border-zinc-100 hover:bg-azul/5 ${i % 2 === 1 ? "bg-zinc-50" : "bg-white"}`}
-              >
-                <td className={`sticky left-0 z-10 min-w-[280px] truncate px-4 py-2 font-medium text-zinc-800 ${i % 2 === 1 ? "bg-zinc-50" : "bg-white"}`}>
-                  {linha.codigo && <span className="font-normal text-zinc-400">{linha.codigo} - </span>}
-                  {linha.nome}
+            {temExclusao && (
+              <tr className={`border-b-2 border-azul/20 ${SUBTOTAL_BG}`}>
+                <td
+                  className={`sticky left-0 z-10 min-w-[280px] px-4 py-2 text-xs font-semibold text-azul/70 ${SUBTOTAL_BG}`}
+                  title={`Inclui ${linhasExcluidas.map((l) => l.nome).join(", ")}`}
+                >
+                  Total (com tudo)
                 </td>
                 {colunas.map((c) => (
-                  <CelulaMetrica key={c.ref} coluna={c} valor={valoresDe(linha)[c.ref] ?? null} />
+                  <CelulaMetrica key={c.ref} coluna={c} valor={subtotalGeralValores[c.ref] ?? null} />
                 ))}
-                <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap text-zinc-500">
-                  {totalPrincipal !== 0 ? `${((principalDe(linha) / totalPrincipal) * 100).toFixed(1)}%` : "—"}
-                </td>
+                <td className="px-3 py-2 text-right text-xs tabular-nums text-azul/70">100%</td>
               </tr>
-            ))}
+            )}
+            {ordenadas.map((linha, i) => {
+              const excluida = ehExcluidoDoTotalPrincipal(linha.nome);
+              const corFundo = i % 2 === 1 ? "bg-zinc-50" : "bg-white";
+              return (
+                <tr
+                  key={linha.chave}
+                  onClick={() => onClickLinha(linha)}
+                  title={excluida ? "Fora do Total principal — soma separado, ver linha 'Total (com tudo)'." : undefined}
+                  className={[
+                    "cursor-pointer border-t border-zinc-100 hover:bg-azul/5",
+                    corFundo,
+                    excluida ? "border-l-4 border-l-vermelho" : "",
+                  ].join(" ")}
+                >
+                  <td className={`sticky left-0 z-10 min-w-[280px] truncate px-4 py-2 font-medium ${excluida ? "text-vermelho" : "text-zinc-800"} ${corFundo}`}>
+                    {linha.codigo && <span className="font-normal text-zinc-400">{linha.codigo} - </span>}
+                    {linha.nome}
+                  </td>
+                  {colunas.map((c) => (
+                    <CelulaMetrica key={c.ref} coluna={c} valor={valoresDe(linha)[c.ref] ?? null} />
+                  ))}
+                  <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap text-zinc-500">
+                    {totalPrincipal !== 0 ? `${((principalDe(linha) / totalPrincipal) * 100).toFixed(1)}%` : "—"}
+                  </td>
+                </tr>
+              );
+            })}
             {ordenadas.length === 0 && (
               <tr>
                 <td colSpan={colunas.length + 2} className="px-4 py-8 text-center text-zinc-400">

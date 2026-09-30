@@ -1,4 +1,5 @@
 import { CABECALHO_REFERENCIA_MENSAL } from "@/config/data-sources";
+import { adivinharFormato } from "@/lib/parametros/dicionario";
 import { refsDaCalculada } from "@/lib/parametros/colunas-relatorio";
 import type { ColunaCalculada, ColunaNativa, ConfigRelatorio } from "@/lib/parametros/types";
 
@@ -26,8 +27,17 @@ function nomeDaPosicao(ref: string): string | null {
 
 /** Devolve o mesmo array quando não há nada a migrar (evita regravar à toa). */
 export function migrarDicionario(dicionario: ColunaNativa[]): ColunaNativa[] {
-  if (!dicionario.some((c) => ehRefAntigo(c.ref))) return dicionario;
-  return dicionario.map((coluna) => ({ ...coluna, ref: coluna.nomeArquivo }));
+  const refAntigo = dicionario.some((c) => ehRefAntigo(c.ref));
+  // `formato` (moeda/número/percentual) não existia antes de 2026-09-30 — cadastro salvo
+  // antes disso não tem essa chave, e cai no fallback "moeda" de `colunas-configuradas.ts`
+  // mesmo pra colunas de contagem (Qtde VMD, Estoque...). Recalcula só quem ainda não tem.
+  const semFormato = dicionario.some((c) => c.formato === undefined && c.tipoDado === "Número");
+  if (!refAntigo && !semFormato) return dicionario;
+  return dicionario.map((coluna) => ({
+    ...coluna,
+    ref: refAntigo ? coluna.nomeArquivo : coluna.ref,
+    formato: coluna.formato ?? adivinharFormato(coluna.nomeArquivo, coluna.tipoDado),
+  }));
 }
 
 function migrarRef(ref: string): string {

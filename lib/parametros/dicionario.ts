@@ -11,8 +11,9 @@ function adivinharTipo(nome: string): ColunaNativa["tipoDado"] {
 }
 
 /** Contagem (Qtde/Núm./Estoque) sai sem R$; o resto dos números do arquivo é valor
- * monetário. Palpite inicial — editável no Dicionário depois. */
-function adivinharFormato(nome: string, tipo: ColunaNativa["tipoDado"]): ColunaNativa["formato"] {
+ * monetário. Palpite inicial — editável no Dicionário depois. Exportada pra
+ * `migracao-refs.ts` conseguir recalcular em cadastros salvos antes desta função existir. */
+export function adivinharFormato(nome: string, tipo: ColunaNativa["tipoDado"]): ColunaNativa["formato"] {
   if (tipo !== "Número") return undefined;
   return /^(Qtde|Núm\.|Estoque Disponível|Estoque Diário)/.test(nome) ? "numero" : "moeda";
 }

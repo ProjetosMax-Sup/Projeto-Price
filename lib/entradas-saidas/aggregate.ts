@@ -161,7 +161,15 @@ function agregarPorEstrutura(linhas: LinhaReduzida[], nivel: NivelHierarquia): N
  * pelo nó ativo (ver `lib/entradas-saidas/consulta.ts`).
  */
 export function agregarDepartamento(linhas: LinhaReduzida[], nivel: NivelEstrutura): NoEntradasSaidas[] {
-  return nivel === "produto" ? agregarPorProduto(linhas) : agregarPorEstrutura(linhas, nivel);
+  if (nivel === "produto") return agregarPorProduto(linhas);
+  const nos = agregarPorEstrutura(linhas, nivel);
+  // Departamento contábil (ex: "Apropriações") não tem Seção/Categoria/Grupo/Sub Grupo de
+  // verdade — a Hierarquia de Grupos dos seus produtos é curta demais pra alcançar este
+  // nível, e `caminhoAteNivel` devolve `null` pra todo mundo (ver função acima). Sem este
+  // fallback a tabela fica vazia ao descer, mesmo com linhas de sobra — cai direto pra
+  // Produto (que agrupa por SKU, não depende da Hierarquia de Grupos) em vez de sumir.
+  if (nos.length === 0 && linhas.length > 0) return agregarPorProduto(linhas);
+  return nos;
 }
 
 /**
