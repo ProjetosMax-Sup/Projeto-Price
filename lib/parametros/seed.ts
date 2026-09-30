@@ -1,3 +1,10 @@
+import {
+  REF_ENTRADAS_COMPRAS,
+  REF_ENTRADAS_SAIDAS_ESTOQUE,
+  REF_ENTRADAS_SAIDAS_QTDE_VMD,
+  REFS_ENTRADAS_OUTRAS,
+  REFS_SAIDAS_OUTRAS,
+} from "@/config/data-sources";
 import { getDataProvider } from "@/lib/data-providers";
 import { compradorPorDptoAtual } from "@/lib/desempenho/compradores";
 import { entradasDepartamentos } from "@/lib/desempenho/departamentos";
@@ -182,53 +189,21 @@ export function semearColunasDesempenhoComercial(): ConfigRelatorio {
 }
 
 /**
- * Refs (posição no cabeçalho do arquivo mensal, ver CABECALHO_REFERENCIA_MENSAL)
- * usadas pelo Entradas e Saídas — desenhado a partir da planilha de referência
- * do time ("02. Entradas e Saídas.xlsx", aba "Entradas x Saídas": Compras,
- * Outras Entradas, Entradas Totais, Vendas, Outras Saídas, Saídas Totais,
- * Saldo, Estoque, Qtde VMD, DDE — por Departamento, mesmo eixo de drill-down
- * do Desempenho Comercial).
+ * Refs (nome de coluna, ver CABECALHO_REFERENCIA_MENSAL) usadas pelo Entradas e
+ * Saídas — desenhado a partir da planilha de referência do time ("02. Entradas
+ * e Saídas.xlsx", aba "Entradas x Saídas": Compras, Outras Entradas, Entradas
+ * Totais, Vendas, Outras Saídas, Saídas Totais, Saldo, Estoque, Qtde VMD, DDE
+ * — por Departamento, mesmo eixo de drill-down do Desempenho Comercial).
  *
- * ⚠️ Diferente do Desempenho Comercial: estes refs (exceto Vendas=48) ainda
- * NÃO são extraídos pelo parser (`lib/data-providers/normalizar-desempenho.ts`
- * > CAMPOS_MOVIMENTO só pega Código/Descricao/Complemento/Marca/Código
- * Barras/Unidade/Qtde Vendas/Valor/Lucros/Vendas Oferta/Lucros Oferta/Data) —
- * essa config já existe e documenta corretamente quais colunas o relatório
- * vai usar, mas pra ter dado de verdade é preciso primeiro estender o parser
- * pra extrair Compras/Outras Entradas/Outras Saídas/Estoque/Qtde VMD também
- * (ver docs/fonte-de-dados.md e docs/parametros.md antes de mexer nisso).
+ * Os refs em si vêm de `config/data-sources.ts` (fonte única, compartilhada
+ * com o parser que os extrai — ver `normalizar-desempenho.ts` > CAMPOS_MOVIMENTO).
  */
-const REF_COMPRAS = "Compras";
-const REFS_OUTRAS_ENTRADAS = [
-  "Outras Entradas",
-  "Transfer. Entradas",
-  "Devoluções Venda",
-  "Trocas Entradas",
-  "Bonific Entradas",
-  "Consig Entradas",
-  "Produção",
-  "Sobras Estoque",
-  "Simp. Rem. Entradas",
-  "Valor Reman Entradas",
-];
+const REF_COMPRAS = REF_ENTRADAS_COMPRAS;
+const REFS_OUTRAS_ENTRADAS = REFS_ENTRADAS_OUTRAS;
 const REF_VENDAS = "Valor";
-const REFS_OUTRAS_SAIDAS = [
-  "Perdas",
-  "Outras Saídas",
-  "Transfer. Saídas",
-  "Devoluções Compra",
-  "Trocas Saídas",
-  "Doações",
-  "Bonific Saídas",
-  "Consig Saídas",
-  "Consumos Internos",
-  "Transf Mat. Prima",
-  "Faltas Estoque",
-  "Simp. Rem. Saídas",
-  "Valor Reman Saídas",
-];
-const REF_QTDE_VMD = "Qtde Venda Média Diária";
-const REF_ESTOQUE = "Estoque Disponível";
+const REFS_OUTRAS_SAIDAS = REFS_SAIDAS_OUTRAS;
+const REF_QTDE_VMD = REF_ENTRADAS_SAIDAS_QTDE_VMD;
+const REF_ESTOQUE = REF_ENTRADAS_SAIDAS_ESTOQUE;
 
 export function semearColunasEntradasSaidas(): ConfigRelatorio {
   const idOutrasEntradas = novoIdCalculada();

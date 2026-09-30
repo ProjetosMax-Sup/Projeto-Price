@@ -163,3 +163,52 @@ export const CABECALHO_REFERENCIA_MENSAL = [
   "Estoque Diário",
   "",
 ] as const;
+
+/**
+ * Refs nativos (nomes de coluna, sempre um item de `CABECALHO_REFERENCIA_MENSAL`)
+ * que o módulo Entradas e Saídas usa nas fórmulas de `lib/parametros/seed.ts` —
+ * fonte única também pro parser (`lib/data-providers/normalizar-desempenho.ts`
+ * > CAMPOS_MOVIMENTO), pra nunca existir uma fórmula pedindo um campo que o
+ * parser não extrai. "Valor" (Vendas) já é extraído pelo Desempenho Comercial,
+ * não precisa repetir aqui.
+ */
+export const REF_ENTRADAS_COMPRAS = "Compras";
+export const REFS_ENTRADAS_OUTRAS = [
+  "Outras Entradas",
+  "Transfer. Entradas",
+  "Devoluções Venda",
+  "Trocas Entradas",
+  "Bonific Entradas",
+  "Consig Entradas",
+  "Produção",
+  "Sobras Estoque",
+  "Simp. Rem. Entradas",
+  "Valor Reman Entradas",
+] as const;
+export const REFS_SAIDAS_OUTRAS = [
+  "Perdas",
+  "Outras Saídas",
+  "Transfer. Saídas",
+  "Devoluções Compra",
+  "Trocas Saídas",
+  "Doações",
+  "Bonific Saídas",
+  "Consig Saídas",
+  "Consumos Internos",
+  "Transf Mat. Prima",
+  "Faltas Estoque",
+  "Simp. Rem. Saídas",
+  "Valor Reman Saídas",
+] as const;
+export const REF_ENTRADAS_SAIDAS_QTDE_VMD = "Qtde Venda Média Diária";
+export const REF_ENTRADAS_SAIDAS_ESTOQUE = "Estoque Disponível";
+
+/** Todos os refs acima, num array só — o que `CAMPOS_MOVIMENTO` precisa extrair
+ * além do que o Desempenho Comercial já usa. */
+export const REFS_NATIVOS_ENTRADAS_SAIDAS = [
+  REF_ENTRADAS_COMPRAS,
+  ...REFS_ENTRADAS_OUTRAS,
+  ...REFS_SAIDAS_OUTRAS,
+  REF_ENTRADAS_SAIDAS_QTDE_VMD,
+  REF_ENTRADAS_SAIDAS_ESTOQUE,
+] as const;

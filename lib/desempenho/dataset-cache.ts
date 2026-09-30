@@ -43,6 +43,12 @@ export interface DatasetProcessado {
   produtosDescartadosCodigos: string[];
 }
 
+// ⚠️ `movimento.nativos` (Compras/Outras Entradas/Estoque/... — ver lib/types/index.ts)
+// NÃO é preservado neste formato compacto: só os 6 campos que o Desempenho Comercial
+// usa entram no tuple. Enquanto isso, o Entradas e Saídas só tem dado de verdade lendo
+// local (FileDataProvider) — ver CAMPOS_MOVIMENTO em normalizar-desempenho.ts. Estender
+// LinhaCompacta (ou trocar por um formato menos posicional) é pré-requisito pra esse
+// módulo funcionar em produção via OneDrive+Redis.
 function paraLinhaCompacta(m: MovimentoVendas): LinhaCompacta {
   return [
     m.codigo,
