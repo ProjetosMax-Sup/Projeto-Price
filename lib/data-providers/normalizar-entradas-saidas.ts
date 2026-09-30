@@ -22,12 +22,14 @@ import type { Loja, Produto } from "@/lib/types";
 // Entradas e Saídas precisa — "Valor" já existe em MovimentoVendas.valorTotal,
 // mas aqui, num registro próprio, é mais simples incluir tudo no mesmo lugar.
 const REFS_NATIVOS = [...REFS_NATIVOS_ENTRADAS_SAIDAS, "Valor"] as const;
-const CAMPOS = ["Código", "Unidade Código", "Data", ...REFS_NATIVOS] as const;
+const CAMPOS = ["Código", "Descricao", "Complemento", "Unidade Código", "Data", ...REFS_NATIVOS] as const;
 
 const INDICE_NATIVOS = new Map<string, number>(REFS_NATIVOS.map((ref, i) => [ref, i]));
 
 export interface RegistroEntradasSaidas {
   codigo: string; // SKU, join com Produto.codigo
+  descricao: string;
+  complemento: string;
   unidadeCodigo: string; // join com Loja.codUnid
   data: string;
   produto: Produto | null;
@@ -72,6 +74,8 @@ export function normalizarEntradasSaidas(
     const unidadeCodigo = l["Unidade Código"];
     return {
       codigo: l["Código"],
+      descricao: l["Descricao"],
+      complemento: l["Complemento"],
       unidadeCodigo,
       data: l["Data"],
       produto: produtosPorCodigo.get(l["Código"]) ?? null,

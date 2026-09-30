@@ -4,6 +4,8 @@ import { ARQUIVOS_DESEMPENHO_COMERCIAL, arquivosMensaisDisponiveis, CABECALHO_RE
 import { criarCacheVersionado } from "./cache-versionado";
 import { decodificarComFallback } from "./parse-tabela";
 import { normalizarLojas, normalizarMovimentos, normalizarProdutos, unirMovimentos } from "./normalizar-desempenho";
+import { normalizarEntradasSaidas } from "./normalizar-entradas-saidas";
+import { reduzirPorProdutoLoja, type LinhaReduzida } from "@/lib/entradas-saidas/aggregate";
 import type { Loja, PeriodoDesempenho, Produto } from "@/lib/types";
 import type { DataProvider } from "./types";
 
@@ -77,6 +79,67 @@ const getDesempenhoCache = criarCacheVersionado(versaoMensal, async (): Promise<
   return unirMovimentos(resultados.filter((r): r is PeriodoDesempenho => r !== null));
 });
 
+/**
+ * Cache do Entradas e Saídas — **por arquivo mensal, já reduzido**, ao
+ * contrário de `getDesempenhoCache` (que guarda TODOS os meses brutos pra
+ * sempre). Motivo: os dois datasets brutos completos (~7-8GB cada) chegaram a
+ * coexistir no mesmo processo e derrubar o servidor por falta de memória
+ * (confirmado em 2026-09-30 — "JavaScript heap out of memory" com os dois
+ * módulos acessados ao mesmo tempo, mesmo processo, heap de 8GB).
+ *
+ * Como o Entradas e Saídas sempre opera num mês só por vez (decisão de
+ * 2026-09-30, sem Atual/Comparação), não precisa reter os 9 meses de
+ * registros brutos — só o resultado já reduzido por Produto×Loja de CADA
+ * arquivo (ordens de grandeza menor: dezenas de milhares de linhas, não
+ * milhões). `RegistroEntradasSaidas[]` de um arquivo nunca sai do escopo desta
+ * função — fica elegível pro GC assim que a redução termina.
+ */
+const cacheReducaoPorArquivo = new Map<string, { versao: number; linhas: LinhaReduzida[] }>();
+
+async function linhasReduzidasDoArquivo(
+  arquivo: ArquivoConfig,
+  produtosPorCodigo: Map<string, Produto>,
+  lojasPorCodigo: Map<string, Loja>,
+): Promise<LinhaReduzida[]> {
+  const versao = await mtime(arquivo);
+  const emCache = cacheReducaoPorArquivo.get(arquivo.nome);
+  if (emCache && emCache.versao === versao) return emCache.linhas;
+
+  const buffer = await lerConteudoBuffer(arquivo);
+  const conteudo = decodificarComFallback(buffer, arquivo.encoding, CABECALHO_REFERENCIA_MENSAL, arquivo.nome);
+  const registros = normalizarEntradasSaidas(conteudo, produtosPorCodigo, lojasPorCodigo);
+  const linhas = reduzirPorProdutoLoja(registros);
+  cacheReducaoPorArquivo.set(arquivo.nome, { versao, linhas });
+  return linhas;
+}
+
+/**
+ * Linhas reduzidas do Entradas e Saídas — só do(s) arquivo(s) pedido(s)
+ * (`nomesArquivo`, ex: `["bdSetembro.txt"]`) ou de todos os meses disponíveis
+ * se omitido. Um mês fora do padrão nunca derruba os demais — loga alto e
+ * segue sem ele, mesmo comportamento de `getDesempenhoCache`.
+ */
+async function getLinhasReduzidasEntradasSaidas(nomesArquivo?: string[]): Promise<LinhaReduzida[]> {
+  const [arquivos, { produtosPorCodigo, lojasPorCodigo }] = await Promise.all([listarArquivosMensais(), indices()]);
+  const alvo = nomesArquivo ? arquivos.filter((a) => nomesArquivo.includes(a.nome)) : arquivos;
+  const resultados = await Promise.all(
+    alvo.map((arquivo) =>
+      linhasReduzidasDoArquivo(arquivo, produtosPorCodigo, lojasPorCodigo).catch((erro) => {
+        console.error(`Falha ao processar ${arquivo.nome} (Entradas e Saídas), excluído do conjunto:`, erro);
+        return [] as LinhaReduzida[];
+      }),
+    ),
+  );
+  return resultados.flat();
+}
+
+/** Nomes (`bd<Mês>.txt`) dos arquivos mensais disponíveis agora — pra montar o
+ * seletor de período do Entradas e Saídas sem precisar ler/reduzir nenhum
+ * arquivo (só `readdir`, igual `listarArquivosMensais`). */
+async function listarNomesArquivosMensais(): Promise<string[]> {
+  return (await listarArquivosMensais()).map((a) => a.nome);
+}
+
 /** Lê os arquivos direto do disco — usado em desenvolvimento local (DESEMPENHO_COMERCIAL_DATA_DIR). */
 export function createFileDataProvider(): DataProvider {
   return {
@@ -84,4 +147,18 @@ export function createFileDataProvider(): DataProvider {
     getProdutos: getProdutosCache,
     getDesempenho: getDesempenhoCache,
   };
+}
+
+/**
+ * Fora da interface `DataProvider` de propósito (ainda só existe caminho
+ * local — sem suporte a OneDrive/produção, ver docs/exemplos-motor-colunas).
+ * Quando o Entradas e Saídas precisar rodar em produção, migrar pra um método
+ * opcional em `DataProvider`, igual `getDesempenho`.
+ */
+export function getEntradasSaidasReduzido(nomesArquivo?: string[]): Promise<LinhaReduzida[]> {
+  return getLinhasReduzidasEntradasSaidas(nomesArquivo);
+}
+
+export function getMesesDisponiveisEntradasSaidas(): Promise<string[]> {
+  return listarNomesArquivosMensais();
 }

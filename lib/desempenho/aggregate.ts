@@ -34,7 +34,9 @@ export function parseHierarquia(hierarquiaGrupos: string): string[] {
 export type NivelHierarquia = (typeof NIVEIS_HIERARQUIA)[number];
 
 /** Caminho (chave de agrupamento) até o nível pedido, ex: "Mercearia > Enlatados". */
-function caminhoAteNivel(hierarquiaGrupos: string, nivel: NivelHierarquia): string | null {
+/** Exportada pra reuso em `lib/entradas-saidas/aggregate.ts` — pura, sem nada específico
+ * de Desempenho Comercial (só olha a Hierarquia de Grupos do produto). */
+export function caminhoAteNivel(hierarquiaGrupos: string, nivel: NivelHierarquia): string | null {
   const niveis = parseHierarquia(hierarquiaGrupos);
   const idx = NIVEIS_ESTRUTURA.indexOf(nivel);
   if (niveis.length <= idx) return null;

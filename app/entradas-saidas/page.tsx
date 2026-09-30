@@ -1,12 +1,58 @@
+import { NOMES_MESES_ARQUIVO } from "@/config/data-sources";
+import { EntradasSaidasDashboard } from "@/components/entradas-saidas/EntradasSaidasDashboard";
 import { ModuleNav } from "@/components/ui/ModuleNav";
+import { getEntradasSaidasReduzido, getMesesDisponiveisEntradasSaidas } from "@/lib/data-providers/file-provider";
+import { colunasDoRelatorio } from "@/lib/desempenho/colunas-configuradas";
+import { construirIndiceDepartamentos } from "@/lib/desempenho/comprador-cadastro";
+import { CONSULTA_ENTRADAS_SAIDAS_PADRAO, computarEntradasSaidas } from "@/lib/entradas-saidas/consulta";
+import {
+  obterOuSemearConfigRelatorio,
+  obterOuSemearDepartamentosCadastro,
+  obterOuSemearDicionarioColunas,
+} from "@/lib/parametros/store";
 
-export default function EntradasSaidasPage() {
+// Os arquivos-fonte mudam a cada atualização do time — nunca pré-renderizar
+// com dados presos ao momento do build.
+export const dynamic = "force-dynamic";
+
+/** Nomes de arquivo (`bd<Mês>.txt`) → nomes de mês, na ordem do calendário —
+ * pra saber qual é "o mês mais recente" sem precisar ler conteúdo nenhum. */
+function ordenarMeses(nomesArquivo: string[]): string[] {
+  const presentes = new Set(nomesArquivo.map((n) => n.match(/^bd(\w+)\.txt$/)?.[1]).filter(Boolean));
+  return NOMES_MESES_ARQUIVO.filter((m) => presentes.has(m));
+}
+
+export default async function EntradasSaidasPage() {
+  const [nomesArquivo, departamentosCadastro, dicionario, config] = await Promise.all([
+    getMesesDisponiveisEntradasSaidas(),
+    obterOuSemearDepartamentosCadastro(),
+    obterOuSemearDicionarioColunas(),
+    obterOuSemearConfigRelatorio("entradas-saidas"),
+  ]);
+
+  const indiceComprador = construirIndiceDepartamentos(departamentosCadastro);
+  const colunas = colunasDoRelatorio(config, dicionario);
+
+  // Padrão: o mês mais recente disponível — arquivos não carregam ano, então
+  // "mais recente" aqui é só o último na ordem do calendário (Jan→Dez) entre
+  // os que existem, mesma limitação que já existia no nome dos arquivos.
+  const mesesDisponiveisInicial = ordenarMeses(nomesArquivo);
+  const mesPadrao = mesesDisponiveisInicial.at(-1) ?? null;
+
+  const linhasIniciais = await getEntradasSaidasReduzido(mesPadrao ? [`bd${mesPadrao}.txt`] : []);
+  const resultadoInicial = computarEntradasSaidas(linhasIniciais, CONSULTA_ENTRADAS_SAIDAS_PADRAO, indiceComprador);
+
   return (
     <div className="flex min-h-full flex-col">
       <ModuleNav active="entradas-saidas" />
-      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col items-center justify-center px-6 py-8 text-center">
-        <h1 className="font-display text-2xl font-bold text-zinc-900">Entradas e Saídas</h1>
-        <p className="mt-2 text-sm text-zinc-500">Módulo ainda não implementado.</p>
+      <main className="mx-auto w-full max-w-[1800px] flex-1 px-6 py-6">
+        <EntradasSaidasDashboard
+          config={config}
+          colunas={colunas}
+          resultadoInicial={resultadoInicial}
+          mesPadrao={mesPadrao}
+          mesesDisponiveisInicial={mesesDisponiveisInicial}
+        />
       </main>
     </div>
   );

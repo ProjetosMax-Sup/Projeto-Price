@@ -43,6 +43,15 @@ export function arquivoMensal(nomeMes: (typeof NOMES_MESES_ARQUIVO)[number]): { 
   return { nome: `bd${nomeMes}.txt`, encoding: "latin1" };
 }
 
+/** "2026-09" → "bdSetembro.txt" — usado pelo Entradas e Saídas (`lib/entradas-saidas`), que
+ * opera sempre num mês só por vez, pra selecionar direto o arquivo certo sem precisar ler
+ * os outros meses. `null` se o mês (1-12) for inválido. */
+export function nomeArquivoDoMesIso(mesIso: string): string | null {
+  const mes = Number(mesIso.slice(5, 7));
+  const nomeMes = NOMES_MESES_ARQUIVO[mes - 1];
+  return nomeMes ? arquivoMensal(nomeMes).nome : null;
+}
+
 /**
  * Restrição temporária de quais meses processar (ex: "Julho,Agosto,Setembro") — só existe
  * porque o dataset completo (9+ meses, 4+ milhões de registros) estourou a memória do plano
