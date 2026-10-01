@@ -9,7 +9,6 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.116.0",
     "exceljs": "^4.4.0",
     "ioredis": "^6.0.0",
     "jspdf": "^4.2.1",

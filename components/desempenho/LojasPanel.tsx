@@ -111,9 +111,11 @@ export function LojasPanel({
   // scroll horizontal de um pro outro via ref, já que não são o mesmo elemento de scroll.
   const headerScrollRef = useRef<HTMLDivElement>(null);
 
+  // 1º clique numa coluna: maior pro menor (pedido de 2026-10-01 — "dir: -1" é
+  // descendente na fórmula de `ordenar` acima). 2º clique: inverte pra menor pro maior.
   function aoClicarColuna(coluna: Coluna) {
     setOrdenacao((atual) =>
-      atual?.coluna === coluna ? { coluna, dir: atual.dir === 1 ? -1 : 1 } : { coluna, dir: 1 },
+      atual?.coluna === coluna ? { coluna, dir: atual.dir === 1 ? -1 : 1 } : { coluna, dir: -1 },
     );
   }
 

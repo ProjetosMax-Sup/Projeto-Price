@@ -9,25 +9,25 @@ import { obterOuSemearConfigRelatorio, obterOuSemearDepartamentosCadastro } from
 
 /**
  * Espelho de app/api/entradas-saidas/route.ts — mesmíssima consulta (dois
- * drill-downs independentes, Departamento e Comprador), só com um filtro a
- * mais antes de agregar (Formato, ou "Todos") e a Meta injetada depois (ver
- * `lib/compra-venda/aggregate.ts` — ponderada pela Venda atual quando "Todos"
- * mistura formatos, e também repassada pro Comprador, ponderada pelos
- * Departamentos que ele compra).
+ * drill-downs independentes, Departamento e Comprador, vários meses de uma vez
+ * desde 2026-10-01), só com um filtro a mais antes de agregar (Formato, ou
+ * "Todos") e a Meta injetada depois (ver `lib/compra-venda/aggregate.ts` —
+ * ponderada pela Venda atual quando "Todos" mistura formatos, e também
+ * repassada pro Comprador, ponderada pelos Departamentos que ele compra).
  */
 export async function POST(request: Request) {
-  let corpo: ConsultaEntradasSaidas & { mes: string | null; formato: string };
+  let corpo: ConsultaEntradasSaidas & { meses: string[]; formato: string };
   try {
     corpo = await request.json();
   } catch {
     return NextResponse.json({ erro: "JSON inválido" }, { status: 400 });
   }
 
-  const nomeArquivo = corpo.mes && (NOMES_MESES_ARQUIVO as readonly string[]).includes(corpo.mes)
-    ? arquivoMensal(corpo.mes as (typeof NOMES_MESES_ARQUIVO)[number]).nome
-    : null;
+  const nomesArquivo = (corpo.meses ?? [])
+    .filter((m): m is (typeof NOMES_MESES_ARQUIVO)[number] => (NOMES_MESES_ARQUIVO as readonly string[]).includes(m))
+    .map((m) => arquivoMensal(m).nome);
   const [linhasBrutas, departamentosCadastro, config] = await Promise.all([
-    getEntradasSaidasReduzido(nomeArquivo ? [nomeArquivo] : undefined),
+    getEntradasSaidasReduzido(nomesArquivo),
     obterOuSemearDepartamentosCadastro(),
     obterOuSemearConfigRelatorio("compra-venda"),
   ]);

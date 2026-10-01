@@ -115,7 +115,9 @@ export type ColunaCalculada =
   | { id: string; nome: string; tipo: "difPP"; coluna: string; formato?: FormatoColuna; oculta: boolean }
   /** Diferença entre duas colunas quaisquer do MESMO período (não Atual×Comparação
    * como difPP — ex.: "Meta - Realizado" no Compra e Venda). `heatmap` pinta a
-   * célula numa escala vermelho→verde pelo valor em vez do texto cinza padrão. */
+   * célula numa escala vermelho→verde pelo valor em vez do texto cinza padrão.
+   * `heatmapInvertido` troca o sentido da escala (verde→vermelho pelo valor) —
+   * pra diferenças onde valor NEGATIVO é o bom (ex.: "Custo - Meta"). */
   | {
       id: string;
       nome: string;
@@ -124,6 +126,7 @@ export type ColunaCalculada =
       colunaB: string;
       formato?: FormatoColuna;
       heatmap?: boolean;
+      heatmapInvertido?: boolean;
       oculta: boolean;
     };
 

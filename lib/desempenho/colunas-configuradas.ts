@@ -24,6 +24,8 @@ export interface ColunaRenderizavel {
   ehComparacao: boolean;
   /** "Meta - Realizado" e afins: fundo em escala vermelho→verde pelo valor, em vez de texto cinza. */
   heatmap: boolean;
+  /** Troca o sentido da escala do heatmap (verde→vermelho pelo valor) — ver `ColunaCalculada` tipo "diferenca". */
+  heatmapInvertido: boolean;
 }
 
 /** Larguras herdadas do layout aprovado (antes fixas em `colunas-tabela.ts`). */
@@ -57,6 +59,7 @@ export function colunasDoRelatorio(config: ConfigRelatorio, dicionario: ColunaNa
         semaforo: false,
         ehComparacao: false,
         heatmap: false,
+        heatmapInvertido: false,
       };
     }
     const formato = formatoDaCalculada(calculada);
@@ -69,6 +72,7 @@ export function colunasDoRelatorio(config: ConfigRelatorio, dicionario: ColunaNa
       semaforo,
       ehComparacao: calculada.tipo === "valorDoPeriodo" && calculada.periodo === "comparacao",
       heatmap: calculada.tipo === "diferenca" && calculada.heatmap === true,
+      heatmapInvertido: calculada.tipo === "diferenca" && calculada.heatmapInvertido === true,
     };
   });
 }

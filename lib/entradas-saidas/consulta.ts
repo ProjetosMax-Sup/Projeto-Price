@@ -49,6 +49,13 @@ export interface ConsultaEntradasSaidas {
    * vira "departamento"; clicou numa de Comprador (inclusive escolher o
    * comprador), vira "comprador". Painel não-navegável, só reflete o recorte. */
   focoLojas: "departamento" | "comprador";
+  /** Código do Produto clicado no último nível do drill-down (folha, sem como
+   * descer mais) — decisão de 2026-10-01: clicar num Produto não navega a
+   * tabela Departamento/Comprador (não tem pra onde descer), mas o painel
+   * Lojas ainda deve estreitar pra SÓ as lojas que têm aquele produto, em vez
+   * de continuar mostrando o agregado do pai (Sub Grupo/Categoria). `null` =
+   * sem produto em foco, painel Lojas reflete o nível normal do breadcrumb. */
+  produtoFoco: string | null;
 }
 
 export const CONSULTA_ENTRADAS_SAIDAS_PADRAO: ConsultaEntradasSaidas = {
@@ -57,6 +64,7 @@ export const CONSULTA_ENTRADAS_SAIDAS_PADRAO: ConsultaEntradasSaidas = {
   caminhoDentroComprador: [],
   lojas: [],
   focoLojas: "departamento",
+  produtoFoco: null,
 };
 
 export interface ResultadoEntradasSaidas {
@@ -107,7 +115,8 @@ export function computarEntradasSaidas(
   }
 
   // --- painel Lojas (informativo, não-navegável — reflete o foco atual) ---
-  const linhasFoco = consulta.focoLojas === "departamento" ? baseDepartamento : baseComprador;
+  let linhasFoco = consulta.focoLojas === "departamento" ? baseDepartamento : baseComprador;
+  if (consulta.produtoFoco) linhasFoco = linhasFoco.filter((l) => l.codigo === consulta.produtoFoco);
   const linhasLoja = agregarPorLoja(linhasFoco);
 
   return { kpi: somarLinhas(linhas), nivelDepartamento, linhasDepartamento, nivelComprador, linhasComprador, linhasLoja };

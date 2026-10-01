@@ -4,6 +4,10 @@ import { useMemo, useRef, useState } from "react";
 import { RankingBar } from "@/components/charts/RankingBar";
 import { CelulaMetrica } from "@/components/desempenho/CelulaMetrica";
 import { ThOrdenavel } from "@/components/desempenho/ThOrdenavel";
+import { BotaoFoco } from "@/components/ui/BotaoFoco";
+import { PortalFoco } from "@/components/ui/PortalFoco";
+import { useEscalaParaCaber } from "@/components/ui/useEscalaParaCaber";
+import { useFoco } from "@/components/ui/useFoco";
 import { agregarMetricas, labelNivel, type EstruturaAgregada, type NivelEstrutura, type NoSelecionado } from "@/lib/desempenho/aggregate";
 import {
   LARGURA_COLUNA_PART,
@@ -124,9 +128,12 @@ export function EstruturaPanel({
     setOrdenacao(null);
   }
 
+  // 1º clique numa coluna: maior pro menor (pedido de 2026-10-01 — "dir: -1" é
+  // descendente na fórmula de `ordenarPor` abaixo). 2º clique: inverte pra menor
+  // pro maior. 3º: volta pra maior pro menor, e assim por diante.
   function aoClicarColuna(coluna: Coluna) {
     setOrdenacao((atual) =>
-      atual?.coluna === coluna ? { coluna, dir: atual.dir === 1 ? -1 : 1 } : { coluna, dir: 1 },
+      atual?.coluna === coluna ? { coluna, dir: atual.dir === 1 ? -1 : 1 } : { coluna, dir: -1 },
     );
   }
 
@@ -144,9 +151,26 @@ export function EstruturaPanel({
   const valoresSubtotal = valoresDaLinha(config, subtotalAtual, subtotalComparacao);
   const larguraMinima = larguraMinimaTabela(colunas);
 
+  // Foco: painel vira overlay de tela cheia (fixed inset-0), perde borda/sombra/cantos
+  // arredondados (edge-to-edge), e o conteúdo abaixo do título é ESCALADO (zoom out/in)
+  // pra caber inteiro sem scroll — não é só "tela cheia com scroll", é ver todas as
+  // linhas/colunas de uma vez, qualquer resolução (ver `useEscalaParaCaber`). Como nada
+  // rola mais, `stickyTopEfetivo` não precisa ser 0 de verdade: só zera o deslocamento
+  // do nav/filtros, que deixou de existir aqui.
+  const { focado, alternar } = useFoco();
+  const stickyTopEfetivo = focado ? 0 : stickyTop;
+  const { containerRef, contentRef, escala } = useEscalaParaCaber(focado, larguraMinima);
+
   return (
-    <div className="flex flex-col rounded-lg border border-zinc-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between rounded-t-lg bg-azul px-4 py-3">
+    <PortalFoco ativo={focado}>
+    <div
+      className={
+        focado
+          ? "fixed inset-0 z-50 flex flex-col bg-white"
+          : "flex flex-col rounded-lg border border-zinc-200 bg-white shadow-sm"
+      }
+    >
+      <div className={`flex items-center justify-between bg-azul px-4 py-3 ${focado ? "" : "rounded-t-lg"}`}>
         <div className="text-sm">
           <h2 className="font-display font-semibold text-white">{TITULO_NIVEL[nivel]}</h2>
           {caminho.length > 0 && (
@@ -169,24 +193,32 @@ export function EstruturaPanel({
             </div>
           )}
         </div>
-        <div className="flex overflow-hidden rounded-md border border-white/30 text-xs font-medium">
-          <button
-            type="button"
-            onClick={() => modoRanking && onToggleModo()}
-            className={`px-3 py-1.5 ${!modoRanking ? "bg-white text-azul" : "text-white/80 hover:bg-white/10"}`}
-          >
-            Tabela
-          </button>
-          <button
-            type="button"
-            onClick={() => !modoRanking && onToggleModo()}
-            className={`px-3 py-1.5 ${modoRanking ? "bg-white text-azul" : "text-white/80 hover:bg-white/10"}`}
-          >
-            Ranking
-          </button>
+        <div className="flex items-center gap-2">
+          <div className="flex overflow-hidden rounded-md border border-white/30 text-xs font-medium">
+            <button
+              type="button"
+              onClick={() => modoRanking && onToggleModo()}
+              className={`px-3 py-1.5 ${!modoRanking ? "bg-white text-azul" : "text-white/80 hover:bg-white/10"}`}
+            >
+              Tabela
+            </button>
+            <button
+              type="button"
+              onClick={() => !modoRanking && onToggleModo()}
+              className={`px-3 py-1.5 ${modoRanking ? "bg-white text-azul" : "text-white/80 hover:bg-white/10"}`}
+            >
+              Ranking
+            </button>
+          </div>
+          <BotaoFoco focado={focado} onClick={alternar} />
         </div>
       </div>
 
+      <div
+        ref={containerRef}
+        className={focado ? "flex min-h-0 flex-1 items-start justify-center overflow-auto" : undefined}
+      >
+      <div ref={contentRef} style={focado ? { display: "inline-block", zoom: escala } : undefined}>
       {modoRanking ? (
         <div className="space-y-1 p-3">
           {ordenadas.map((linha) => (
@@ -211,10 +243,14 @@ export function EstruturaPanel({
               mesmo quando esse ancestral nunca chega a rolar por conta própria. Por isso o
               cabeçalho vira sua própria tabela sticky (sem overflow-x-auto entre ele e a página) e
               sincroniza o scroll horizontal com o corpo via `scrollLeft` (ref abaixo). */}
+          {/* Em Foco, `sticky` sai de vez: nada rola ali (o próprio propósito do modo), e
+              `sticky` + `zoom` (ver useEscalaParaCaber) numa ancestral é uma combinação
+              com bug conhecido no Chrome/Edge — sobra um vão em branco fantasma no
+              topo, mesmo com `top: 0`. */}
           <div
             ref={headerScrollRef}
-            className="sticky z-20 overflow-x-hidden bg-azul text-[13px] font-medium tracking-wide text-white/80 uppercase"
-            style={{ top: stickyTop }}
+            className={`${focado ? "" : "sticky"} z-20 overflow-x-hidden bg-azul text-[13px] font-medium tracking-wide text-white/80 uppercase`}
+            style={focado ? undefined : { top: stickyTopEfetivo }}
           >
             <table className="table-fixed text-sm" style={{ width: "100%", minWidth: larguraMinima }}>
               <Colgroup colunas={colunas} />
@@ -245,7 +281,7 @@ export function EstruturaPanel({
             </table>
           </div>
           <div
-            className="overflow-x-auto rounded-b-lg"
+            className={`overflow-x-auto ${focado ? "" : "rounded-b-lg"}`}
             onScroll={(e) => {
               if (headerScrollRef.current) headerScrollRef.current.scrollLeft = e.currentTarget.scrollLeft;
             }}
@@ -296,6 +332,9 @@ export function EstruturaPanel({
           </div>
         </>
       )}
+      </div>
+      </div>
     </div>
+    </PortalFoco>
   );
 }

@@ -112,6 +112,20 @@ export function injetarMetas(
   });
 }
 
+/** Departamento/Seção/.../Comprador sem NENHUM movimento no mês (Compra e Venda
+ * zerados os dois) — linha morta pro recorte escolhido (ex.: Loja que não compra
+ * nem vende naquele Departamento), só polui a tabela sem informar nada (pedido
+ * de 2026-10-01). Only os dois juntos: uma linha com Venda e Compra zerada é
+ * "sem movimento" de verdade, mas só uma delas zerada ainda é informação real
+ * (ex.: comprou mas ainda não vendeu). */
+function semMovimento(no: NoEntradasSaidas): boolean {
+  return (no.valores.Compras ?? 0) === 0 && (no.valores.Valor ?? 0) === 0;
+}
+
+function removerSemMovimento(nos: NoEntradasSaidas[]): NoEntradasSaidas[] {
+  return nos.filter((no) => !semMovimento(no));
+}
+
 /** Aplica a MESMA meta a todos os nós — usado quando o drill-down já passou do
  * nível Departamento (Seção/Categoria/Grupo/Sub Grupo/Produto): a meta é
  * cadastrada só por Departamento, então por enquanto (decisão de 2026-09-30)
@@ -176,5 +190,9 @@ export function injetarMetasNoResultado(
     );
   }
 
-  return { ...resultado, linhasDepartamento, linhasComprador };
+  return {
+    ...resultado,
+    linhasDepartamento: removerSemMovimento(linhasDepartamento),
+    linhasComprador: removerSemMovimento(linhasComprador),
+  };
 }

@@ -6,14 +6,16 @@ Plataforma web interna para o time de Inteligência de Mercado / Comercial da MA
 Supermercados (rede de 11 lojas: 4 varejo, 7 atacado — confirmado em `bdLojas.txt`).
 Composta por 5 módulos:
 
-1. **Desempenho Comercial** ← único módulo implementado até agora
-2. Entradas e Saídas ← só existe um loader pro Supabase (`lib/entradas-saidas/`),
-   sem UI nem rota/cron chamando ele ainda — não conta como módulo pronto.
-   **Em construção** — desenvolver localmente primeiro (ver "App local vs
-   produção" abaixo), só subir pra produção quando validado.
-3. Compra e Venda
-4. Perdas e Quebras
-5. Raio X Fornecedor
+1. **Desempenho Comercial** ← implementado
+2. **Entradas e Saídas** ← implementado (`lib/entradas-saidas/`, drill-down
+   Departamento e Comprador→Departamento, painel de Lojas informativo,
+   seletor de período com múltiplos meses). Lê os `bd<Mês>.txt` direto (mesmo
+   `DataProvider`/parser do Desempenho Comercial) — a ideia antiga de carregar
+   num banco Supabase à parte foi abandonada, nunca chegou a ir pra frente.
+3. **Compra e Venda** ← implementado (mesmo motor do Entradas e Saídas, com
+   filtro de Formato a mais e Meta ponderada por Departamento)
+4. Perdas e Quebras ← não construído ainda
+5. Raio X Fornecedor ← não construído ainda
 
 Além dos 5 módulos, a camada de **Parâmetros** (`/parametros` — Lojas,
 Departamentos, motor de colunas Nativas/Calculadas/Ativas) já está construída

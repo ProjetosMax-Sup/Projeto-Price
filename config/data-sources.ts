@@ -175,11 +175,10 @@ export const CABECALHO_REFERENCIA_MENSAL = [
 
 /**
  * Refs nativos (nomes de coluna, sempre um item de `CABECALHO_REFERENCIA_MENSAL`)
- * que o módulo Entradas e Saídas usa nas fórmulas de `lib/parametros/seed.ts` —
- * fonte única também pro parser (`lib/data-providers/normalizar-desempenho.ts`
- * > CAMPOS_MOVIMENTO), pra nunca existir uma fórmula pedindo um campo que o
- * parser não extrai. "Valor" (Vendas) já é extraído pelo Desempenho Comercial,
- * não precisa repetir aqui.
+ * usados por nome em fórmulas específicas de `lib/parametros/seed.ts` — mantidos
+ * à parte mesmo depois de `REFS_NATIVOS_ENTRADAS_SAIDAS` virar "todas as colunas"
+ * abaixo, porque o código ainda referencia ESTES por nome (ex.: "Compras" como
+ * termo de "% Compra/Venda", Estoque/VMD como fotografia).
  */
 export const REF_ENTRADAS_COMPRAS = "Compras";
 export const REFS_ENTRADAS_OUTRAS = [
@@ -212,12 +211,45 @@ export const REFS_SAIDAS_OUTRAS = [
 export const REF_ENTRADAS_SAIDAS_QTDE_VMD = "Qtde Venda Média Diária";
 export const REF_ENTRADAS_SAIDAS_ESTOQUE = "Estoque Disponível";
 
-/** Todos os refs acima, num array só — o que `CAMPOS_MOVIMENTO` precisa extrair
- * além do que o Desempenho Comercial já usa. */
-export const REFS_NATIVOS_ENTRADAS_SAIDAS = [
-  REF_ENTRADAS_COMPRAS,
-  ...REFS_ENTRADAS_OUTRAS,
-  ...REFS_SAIDAS_OUTRAS,
+/** Colunas de `CABECALHO_REFERENCIA_MENSAL` que são identificador/texto, não
+ * métrica — nunca fazem sentido num termo de fórmula (somar um "Nome Fornecedor"
+ * não quer dizer nada). Ficam de fora de `REFS_NATIVOS_ENTRADAS_SAIDAS`. */
+const REFS_ENTRADAS_SAIDAS_IDENTIFICADORES = new Set([
+  "Código",
+  "Descricao",
+  "Complemento",
+  "Marca",
+  "Dpto",
+  "Código Barras",
+  "Unidade Código",
+  "Unidade Nome",
+  "Código do Fornecedor",
+  "Nome Fornecedor",
+  "Data",
+]);
+
+/** Colunas "foto" — já são um valor acumulado/médio do mês inteiro, repetido em
+ * toda linha (confirmado no arquivo real pra Estoque/VMD em 2026-09-30, mesma
+ * lógica se estende às demais "Médio"/Estoque daqui). Tomadas de UMA ocorrência
+ * (a mais recente), nunca somadas — somar contaria o mesmo valor várias vezes. */
+export const REFS_ENTRADAS_SAIDAS_SNAPSHOT = [
   REF_ENTRADAS_SAIDAS_QTDE_VMD,
   REF_ENTRADAS_SAIDAS_ESTOQUE,
+  "Estoque Diário",
+  "Estoques Preço Venda",
+  "Ct Médio Vendas",
+  "Valor Venda Média Diária",
 ] as const;
+
+/** TODAS as colunas numéricas de `CABECALHO_REFERENCIA_MENSAL` (identificador
+ * fora) — decisão de 2026-10-01: o Dicionário já promete as 83 colunas do
+ * arquivo pra qualquer fórmula (ver docs/exemplos-motor-colunas/README.md), mas
+ * só "Compras"/"Valor" chegavam a ser extraídas de verdade pro Entradas e
+ * Saídas/Compra e Venda — qualquer outra resolvia sempre 0, silenciosamente
+ * (bug real, achado com "Lucros" em "% Margem"). Seguro ampliar aqui porque
+ * este parser é à parte do Desempenho Comercial (ver aviso em
+ * `normalizar-desempenho.ts` > CAMPOS_MOVIMENTO) — não retém os registros
+ * brutos, só o já reduzido por Produto×Loja. */
+export const REFS_NATIVOS_ENTRADAS_SAIDAS = CABECALHO_REFERENCIA_MENSAL.filter(
+  (ref) => ref !== "" && !REFS_ENTRADAS_SAIDAS_IDENTIFICADORES.has(ref),
+);

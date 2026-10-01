@@ -7,25 +7,28 @@ import { obterOuSemearDepartamentosCadastro } from "@/lib/parametros/store";
 
 /**
  * Espelho de app/api/desempenho-comercial/route.ts, mas pro Entradas e Saídas:
- * `mes` (nome do mês, ex: "Setembro" — os arquivos `bd<Mês>.txt` não carregam
- * ano, então o seletor de período aqui também não) seleciona diretamente o
- * arquivo a ler, nunca os outros meses. A redução (parte cara) fica cacheada
- * por arquivo em `file-provider.ts` — ver o comentário lá sobre por que isso
- * mudou de "todos os meses sempre em memória" pra "só o mês pedido".
+ * `meses` (nomes dos meses, ex: `["Agosto", "Setembro"]` — os arquivos
+ * `bd<Mês>.txt` não carregam ano, então o seletor de período aqui também não)
+ * seleciona diretamente os arquivos a ler, nunca os outros meses — mais de um
+ * mês de uma vez desde 2026-10-01 (antes era só 1, ver `mesclarMeses` em
+ * `lib/entradas-saidas/aggregate.ts` pra como os meses se combinam). A redução
+ * (parte cara) fica cacheada por arquivo em `file-provider.ts` — ver o
+ * comentário lá sobre por que isso mudou de "todos os meses sempre em memória"
+ * pra "só os meses pedidos".
  */
 export async function POST(request: Request) {
-  let corpo: ConsultaEntradasSaidas & { mes: string | null };
+  let corpo: ConsultaEntradasSaidas & { meses: string[] };
   try {
     corpo = await request.json();
   } catch {
     return NextResponse.json({ erro: "JSON inválido" }, { status: 400 });
   }
 
-  const nomeArquivo = corpo.mes && (NOMES_MESES_ARQUIVO as readonly string[]).includes(corpo.mes)
-    ? arquivoMensal(corpo.mes as (typeof NOMES_MESES_ARQUIVO)[number]).nome
-    : null;
+  const nomesArquivo = (corpo.meses ?? [])
+    .filter((m): m is (typeof NOMES_MESES_ARQUIVO)[number] => (NOMES_MESES_ARQUIVO as readonly string[]).includes(m))
+    .map((m) => arquivoMensal(m).nome);
   const [linhas, departamentosCadastro] = await Promise.all([
-    getEntradasSaidasReduzido(nomeArquivo ? [nomeArquivo] : undefined),
+    getEntradasSaidasReduzido(nomesArquivo),
     obterOuSemearDepartamentosCadastro(),
   ]);
   const indiceComprador = construirIndiceDepartamentos(departamentosCadastro);

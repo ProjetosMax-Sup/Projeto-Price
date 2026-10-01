@@ -17,11 +17,11 @@ import type { Loja, Produto } from "@/lib/types";
  * plugado em nenhum cache/rota (ver "Próximo passo" abaixo).
  */
 
-// "Valor" (Vendas, ver REF_VENDAS em lib/parametros/seed.ts) não está em
-// REFS_NATIVOS_ENTRADAS_SAIDAS porque aquele array é sobre os campos que só o
-// Entradas e Saídas precisa — "Valor" já existe em MovimentoVendas.valorTotal,
-// mas aqui, num registro próprio, é mais simples incluir tudo no mesmo lugar.
-const REFS_NATIVOS = [...REFS_NATIVOS_ENTRADAS_SAIDAS, "Valor"] as const;
+// REFS_NATIVOS_ENTRADAS_SAIDAS já é TODAS as colunas numéricas do arquivo
+// (ver config/data-sources.ts) — inclui "Valor"/"Lucros" e qualquer outra que
+// uma fórmula de Entradas e Saídas/Compra e Venda venha a usar, sem precisar
+// listar campo por campo aqui.
+const REFS_NATIVOS = REFS_NATIVOS_ENTRADAS_SAIDAS;
 const CAMPOS = ["Código", "Descricao", "Complemento", "Unidade Código", "Data", ...REFS_NATIVOS] as const;
 
 const INDICE_NATIVOS = new Map<string, number>(REFS_NATIVOS.map((ref, i) => [ref, i]));

@@ -3,6 +3,10 @@
 import { useMemo, useRef, useState } from "react";
 import { CelulaMetrica } from "@/components/desempenho/CelulaMetrica";
 import { ThOrdenavel } from "@/components/desempenho/ThOrdenavel";
+import { BotaoFoco } from "@/components/ui/BotaoFoco";
+import { PortalFoco } from "@/components/ui/PortalFoco";
+import { useEscalaParaCaber } from "@/components/ui/useEscalaParaCaber";
+import { useFoco } from "@/components/ui/useFoco";
 import { labelNivel, type NivelEstrutura } from "@/lib/desempenho/aggregate";
 import {
   LARGURA_COLUNA_PART,
@@ -36,6 +40,15 @@ function ehExcluidoDoTotalPrincipal(nome: string): boolean {
     .toLowerCase()
     .trim();
   return normalizado === "apropriacoes" || normalizado === "sem comprador" || normalizado === "s/ comprador";
+}
+
+/** Chave de ordenação da 1ª coluna: código pra todo mundo (Departamento, Seção, ...,
+ * Comprador quando tem), exceto Produto — SKU não é sequência significativa pra
+ * ordenar, aí usa o nome mesmo (pedido de 2026-10-01, mesma regra de `EstruturaPanel`
+ * > `chaveNome`). */
+function chaveOrdenacaoNome(no: NoEntradasSaidas): string {
+  if (no.nivel === "produto") return no.nome;
+  return no.codigo ?? no.nome;
 }
 
 /** "Meta" (Compra e Venda, ref sintético — ver lib/compra-venda/aggregate.ts) não pode
@@ -123,22 +136,24 @@ export function HierarquiaPanel({
   const valoresDe = (linha: NoEntradasSaidas) => valoresPorChave.get(linha.chave) ?? {};
   const principalDe = (linha: NoEntradasSaidas) => valorPrincipal(config, valoresDe(linha), colunas);
 
+  // 1º clique numa coluna: maior pro menor (pedido de 2026-10-01 — "dir: -1" é
+  // descendente na fórmula abaixo). 2º clique: inverte pra menor pro maior.
   function aoClicarColuna(coluna: Coluna) {
-    setOrdenacao((atual) => (atual?.coluna === coluna ? { coluna, dir: atual.dir === 1 ? -1 : 1 } : { coluna, dir: 1 }));
+    setOrdenacao((atual) => (atual?.coluna === coluna ? { coluna, dir: atual.dir === 1 ? -1 : 1 } : { coluna, dir: -1 }));
   }
 
   const ordenadas = useMemo(() => {
     if (ordenacao) {
       const { coluna, dir } = ordenacao;
       return [...linhas].sort((a, b) => {
-        if (coluna === "nome") return dir * a.nome.localeCompare(b.nome, "pt-BR");
+        if (coluna === "nome") return dir * chaveOrdenacaoNome(a).localeCompare(chaveOrdenacaoNome(b), "pt-BR");
         const va = valoresDe(a)[coluna] ?? -Infinity;
         const vb = valoresDe(b)[coluna] ?? -Infinity;
         return dir * (va - vb);
       });
     }
     if (ordenacaoPadrao === "principal") return [...linhas].sort((a, b) => principalDe(b) - principalDe(a));
-    return [...linhas].sort((a, b) => (a.codigo ?? a.nome).localeCompare(b.codigo ?? b.nome, "pt-BR"));
+    return [...linhas].sort((a, b) => chaveOrdenacaoNome(a).localeCompare(chaveOrdenacaoNome(b), "pt-BR"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [linhas, ordenacao, ordenacaoPadrao, valoresPorChave]);
 
@@ -160,9 +175,22 @@ export function HierarquiaPanel({
   );
   const larguraMinima = larguraMinimaTabela(colunas);
 
+  // Mesmo mecanismo de `EstruturaPanel` — ver comentário lá: Foco escala o conteúdo pra
+  // caber sem scroll, não só expande pra tela cheia com scroll.
+  const { focado, alternar } = useFoco();
+  const stickyTopEfetivo = focado ? 0 : stickyTop;
+  const { containerRef, contentRef, escala } = useEscalaParaCaber(focado, larguraMinima);
+
   return (
-    <div className="flex flex-col rounded-lg border border-zinc-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between rounded-t-lg bg-azul px-4 py-3">
+    <PortalFoco ativo={focado}>
+    <div
+      className={
+        focado
+          ? "fixed inset-0 z-50 flex flex-col bg-white"
+          : "flex flex-col rounded-lg border border-zinc-200 bg-white shadow-sm"
+      }
+    >
+      <div className={`flex items-center justify-between bg-azul px-4 py-3 ${focado ? "" : "rounded-t-lg"}`}>
         <div className="text-sm">
           <h2 className="font-display font-semibold text-white">{titulo}</h2>
           {breadcrumb.length > 0 && (
@@ -185,12 +213,22 @@ export function HierarquiaPanel({
             </div>
           )}
         </div>
+        <BotaoFoco focado={focado} onClick={alternar} />
       </div>
 
       <div
+        ref={containerRef}
+        className={focado ? "flex min-h-0 flex-1 items-start justify-center overflow-auto" : undefined}
+      >
+      <div ref={contentRef} style={focado ? { display: "inline-block", zoom: escala } : undefined}>
+      {/* Em Foco, `sticky` sai de vez: nada rola ali (o próprio propósito do modo), e
+          `sticky` + `zoom` (ver useEscalaParaCaber) numa ancestral é uma combinação
+          com bug conhecido no Chrome/Edge — sobra um vão em branco fantasma no topo,
+          mesmo com `top: 0`. */}
+      <div
         ref={headerScrollRef}
-        className="sticky z-20 overflow-x-hidden bg-azul text-[13px] font-medium tracking-wide text-white/80 uppercase"
-        style={{ top: stickyTop }}
+        className={`${focado ? "" : "sticky"} z-20 overflow-x-hidden bg-azul text-[13px] font-medium tracking-wide text-white/80 uppercase`}
+        style={focado ? undefined : { top: stickyTopEfetivo }}
       >
         <table className="table-fixed text-sm" style={{ width: "100%", minWidth: larguraMinima }}>
           <Colgroup colunas={colunas} />
@@ -215,7 +253,7 @@ export function HierarquiaPanel({
         </table>
       </div>
       <div
-        className="overflow-x-auto rounded-b-lg"
+        className={`overflow-x-auto ${focado ? "" : "rounded-b-lg"}`}
         onScroll={(e) => {
           if (headerScrollRef.current) headerScrollRef.current.scrollLeft = e.currentTarget.scrollLeft;
         }}
@@ -288,7 +326,10 @@ export function HierarquiaPanel({
           </tbody>
         </table>
       </div>
+      </div>
+      </div>
     </div>
+    </PortalFoco>
   );
 }
 

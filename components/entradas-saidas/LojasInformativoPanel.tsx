@@ -31,11 +31,19 @@ export interface ColunaLojas {
   semHeatmap?: boolean;
 }
 
+const HEATMAP_MATIZ_VERMELHO = 0;
+const HEATMAP_MATIZ_VERDE = 120;
+
+/** Mesma escala (2 matizes fixos, sem amarelo, intensidade pela distância do
+ * pivô) de `CelulaMetrica`, mas com pivô/amplitude relativos ao recorte em
+ * vez de uma saturação fixa — ver comentário de `ColunaLojas` acima. */
 function corHeatmapRelativo(valor: number, pivot: number, amplitude: number): string {
-  if (amplitude === 0) return "hsl(60, 40%, 94%)";
+  if (amplitude === 0) return "hsl(0, 0%, 94%)";
   const t = Math.max(-1, Math.min(1, (valor - pivot) / amplitude));
-  // t=1 (máximo do recorte, mais excesso) → vermelho (matiz 0); t=-1 → verde (matiz 120).
-  return `hsl(${60 - t * 60}, 75%, 88%)`;
+  // t>=0 (acima do pivô, mais excesso) → vermelho; t<0 → verde.
+  const matiz = t >= 0 ? HEATMAP_MATIZ_VERMELHO : HEATMAP_MATIZ_VERDE;
+  const luminosidade = 90 - Math.abs(t) * 30;
+  return `hsl(${matiz}, 70%, ${luminosidade}%)`;
 }
 
 function formatarValor(valor: number, formato: ColunaLojas["formato"]): string {
@@ -83,8 +91,10 @@ export function LojasInformativoPanel({
     return { pivot: media, amplitude: Math.max(...vals.map((v) => Math.abs(v - media)), 1) };
   });
 
+  // Código da loja, não o nome customizado (pedido de 2026-10-01 — mesma regra dos
+  // outros painéis: Departamento/Loja ordenam pelo código, nunca por alfabeto).
   const ordenadas = [...linhasAvaliadas].sort((a, b) =>
-    (a.loja?.nomeCustomizado ?? a.no.codigo).localeCompare(b.loja?.nomeCustomizado ?? b.no.codigo, "pt-BR"),
+    (a.loja?.codigo ?? a.no.codigo).localeCompare(b.loja?.codigo ?? b.no.codigo, "pt-BR"),
   );
 
   return (

@@ -29,7 +29,7 @@ function resumoFormula(c: ColunaCalculada, dicionario: ColunaNativa[], config: C
     case "difPP":
       return `${nome(c.coluna)}: Atual − Comparação (em p.p.)`;
     case "diferenca":
-      return `${nome(c.colunaA)} − ${nome(c.colunaB)}${c.heatmap ? " · mapa de calor" : ""}`;
+      return `${nome(c.colunaA)} − ${nome(c.colunaB)}${c.heatmap ? ` · mapa de calor${c.heatmapInvertido ? " (invertido)" : ""}` : ""}`;
   }
 }
 
@@ -122,7 +122,14 @@ export function CalculadasTab({
               ? { ...base, tipo: "desvio", coluna: opcoes[0] ?? "" }
               : tipo === "difPP"
                 ? { ...base, tipo: "difPP", coluna: opcoes[0] ?? "" }
-                : { ...base, tipo: "diferenca", colunaA: opcoes[0] ?? "", colunaB: opcoes[0] ?? "", heatmap: false },
+                : {
+                    ...base,
+                    tipo: "diferenca",
+                    colunaA: opcoes[0] ?? "",
+                    colunaB: opcoes[0] ?? "",
+                    heatmap: false,
+                    heatmapInvertido: false,
+                  },
     );
   }
 
@@ -379,13 +386,34 @@ export function CalculadasTab({
                 <input
                   type="checkbox"
                   checked={editando.heatmap ?? false}
-                  onChange={(e) => setEditando({ ...editando, heatmap: e.target.checked })}
+                  onChange={(e) =>
+                    setEditando({
+                      ...editando,
+                      heatmap: e.target.checked,
+                      heatmapInvertido: e.target.checked ? editando.heatmapInvertido : false,
+                    })
+                  }
                   className="accent-azul"
                 />
                 Mapa de calor (vermelho → verde pelo valor)
               </label>
+              {editando.heatmap && (
+                <label className="flex items-center gap-1.5 pb-1.5 text-sm text-zinc-600">
+                  <input
+                    type="checkbox"
+                    checked={editando.heatmapInvertido ?? false}
+                    onChange={(e) => setEditando({ ...editando, heatmapInvertido: e.target.checked })}
+                    className="accent-azul"
+                  />
+                  Inverter (verde → vermelho pelo valor)
+                </label>
+              )}
               <p className="w-full text-xs text-zinc-400">
                 Diferença dentro do mesmo período (não Atual × Comparação) — ex.: Meta − Realizado.
+                {editando.heatmap &&
+                  (editando.heatmapInvertido
+                    ? " Invertido: valor negativo fica verde, positivo fica vermelho (use quando ficar abaixo é o bom, ex.: Custo − Meta)."
+                    : " Padrão: valor positivo fica verde, negativo fica vermelho.")}
               </p>
             </div>
           )}

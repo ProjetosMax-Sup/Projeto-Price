@@ -15,7 +15,7 @@ import type { ConfigRelatorio, LojaCadastro } from "@/lib/parametros/types";
 const ALTURA_NAV = 52;
 
 async function buscarResultado(
-  consulta: ConsultaEntradasSaidas & { mes: string | null; formato: string },
+  consulta: ConsultaEntradasSaidas & { meses: string[]; formato: string },
   signal: AbortSignal,
 ): Promise<ResultadoEntradasSaidas> {
   const resposta = await fetch("/api/compra-venda", {
@@ -53,13 +53,16 @@ export function CompraVendaDashboard({
   formatosDisponiveis: string[];
   lojasCadastro: LojaCadastro[];
 }) {
-  const [mes, setMes] = useState<string | null>(mesPadrao);
+  // Vários meses de uma vez desde 2026-10-01 (ver mesmo comentário em
+  // EntradasSaidasDashboard.tsx) — nunca fica vazio, zero mês não tem leitura.
+  const [meses, setMeses] = useState<string[]>(mesPadrao ? [mesPadrao] : []);
   const [formato, setFormato] = useState<string | null>(formatoPadrao);
   const [lojasSelecionadas, setLojasSelecionadas] = useState<string[]>([]);
   const [focoLojas, setFocoLojas] = useState<"departamento" | "comprador">("departamento");
   const [caminhoDepartamento, setCaminhoDepartamento] = useState<NoSelecionadoES[]>([]);
   const [compradorSelecionado, setCompradorSelecionado] = useState<string | null>(null);
   const [caminhoDentroComprador, setCaminhoDentroComprador] = useState<NoSelecionadoES[]>([]);
+  const [produtoFoco, setProdutoFoco] = useState<string | null>(null);
   const [resultado, setResultado] = useState<ResultadoEntradasSaidas>(resultadoInicial);
   const [carregando, setCarregando] = useState(false);
   const primeiraRenderizacao = useRef(true);
@@ -85,14 +88,15 @@ export function CompraVendaDashboard({
     const idDaRequisicao = ++idRequisicaoRef.current;
     const controller = new AbortController();
     setCarregando(true);
-    const consulta: ConsultaEntradasSaidas & { mes: string | null; formato: string } = {
-      mes,
+    const consulta: ConsultaEntradasSaidas & { meses: string[]; formato: string } = {
+      meses,
       formato,
       lojas: lojasSelecionadas,
       focoLojas,
       caminhoDepartamento,
       compradorSelecionado,
       caminhoDentroComprador,
+      produtoFoco,
     };
     buscarResultado(consulta, controller.signal)
       .then((dados) => {
@@ -105,32 +109,45 @@ export function CompraVendaDashboard({
         if (idRequisicaoRef.current === idDaRequisicao) setCarregando(false);
       });
     return () => controller.abort();
-  }, [mes, formato, lojasSelecionadas, focoLojas, caminhoDepartamento, compradorSelecionado, caminhoDentroComprador]);
+  }, [meses, formato, lojasSelecionadas, focoLojas, caminhoDepartamento, compradorSelecionado, caminhoDentroComprador, produtoFoco]);
 
   function aoClicarDepartamento(linha: NoEntradasSaidas) {
     setFocoLojas("departamento");
-    if (linha.nivel === "produto") return;
+    // Produto é a folha (sem pra onde descer) — a tabela Departamento continua
+    // mostrando a mesma lista, mas o painel Lojas estreita pra esse produto só.
+    if (linha.nivel === "produto") {
+      setProdutoFoco(linha.codigo ?? linha.chave);
+      return;
+    }
+    setProdutoFoco(null);
     setCaminhoDepartamento((atual) => [...atual, { nivel: linha.nivel as NivelHierarquia, chave: linha.chave, nome: linha.nome }]);
   }
 
   function aoClicarComprador(linha: NoEntradasSaidas) {
     setFocoLojas("comprador");
     if (linha.nivel === "comprador") {
+      setProdutoFoco(null);
       setCompradorSelecionado(linha.nome);
       setCaminhoDentroComprador([]);
       return;
     }
-    if (linha.nivel === "produto") return;
+    if (linha.nivel === "produto") {
+      setProdutoFoco(linha.codigo ?? linha.chave);
+      return;
+    }
+    setProdutoFoco(null);
     setCaminhoDentroComprador((atual) => [...atual, { nivel: linha.nivel as NivelHierarquia, chave: linha.chave, nome: linha.nome }]);
   }
 
   function aoVoltarDepartamento(indice: number) {
     setFocoLojas("departamento");
+    setProdutoFoco(null);
     setCaminhoDepartamento((atual) => atual.slice(0, indice + 1));
   }
 
   function aoVoltarComprador(indice: number) {
     setFocoLojas("comprador");
+    setProdutoFoco(null);
     if (indice === -1 && caminhoDentroComprador.length === 0) {
       setCompradorSelecionado(null);
       return;
@@ -198,21 +215,13 @@ export function CompraVendaDashboard({
               ))}
             </select>
           </label>
-          <label className="flex items-center gap-2 text-sm text-zinc-600">
-            Período:
-            <select
-              value={mes ?? ""}
-              onChange={(e) => setMes(e.target.value || null)}
-              className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
-            >
-              {mesesDisponiveisInicial.length === 0 && <option value="">Sem dados</option>}
-              {mesesDisponiveisInicial.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          </label>
+          <MultiSelect
+            rotulo="Período"
+            rotuloTodos="Nenhum mês"
+            opcoes={mesesDisponiveisInicial.map((m) => ({ value: m, label: m }))}
+            selecionados={meses}
+            onChange={(novos) => setMeses(novos.length > 0 ? novos : meses)}
+          />
         </div>
         <KpiCardsCompraVenda kpi={kpiAvaliado} config={config} colunas={colunas} />
       </div>

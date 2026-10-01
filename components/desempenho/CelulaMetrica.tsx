@@ -3,17 +3,26 @@ import type { ColunaRenderizavel } from "@/lib/desempenho/colunas-configuradas";
 import { formatMoeda, formatPercent } from "@/lib/desempenho/format";
 
 /**
- * Escala divergente vermelho→amarelo→verde pra "Meta - Realizado" (em p.p.):
- * 0 é o pivô (amarelo pálido), ±20p.p. já satura na cor cheia. Não é semáforo
- * (3 estados fixos) — aqui a intensidade cresce com a distância da meta.
+ * Escala divergente vermelho/verde pra "Meta - Realizado" (em p.p.): 0 é o
+ * pivô (quase branco), ±20p.p. já satura na cor cheia. Sem amarelo — só os
+ * dois matizes fixos, a intensidade (não o matiz) que cresce com a distância
+ * do pivô. Não é semáforo (3 estados fixos) — aqui é contínuo.
  */
 const HEATMAP_SATURACAO_PP = 20;
+const HEATMAP_MATIZ_VERMELHO = 0;
+const HEATMAP_MATIZ_VERDE = 120;
 
-function corHeatmap(valor: number): string {
+function corHeatmap(valor: number, invertido: boolean): string {
   const t = Math.max(-1, Math.min(1, valor / HEATMAP_SATURACAO_PP));
-  // Matiz: 0 (vermelho) até 120 (verde), passando por 60 (amarelo) no pivô.
-  const matiz = 60 + t * 60;
-  return `hsl(${matiz}, 75%, 88%)`;
+  const intensidade = Math.abs(t);
+  // Padrão: positivo = verde, negativo = vermelho. Invertido: o oposto
+  // (ex.: "Custo - Meta", onde passar da meta pra cima é ruim, não bom).
+  const positivoEhVerde = !invertido;
+  const ehVerde = t >= 0 ? positivoEhVerde : !positivoEhVerde;
+  const matiz = ehVerde ? HEATMAP_MATIZ_VERDE : HEATMAP_MATIZ_VERMELHO;
+  // Luminosidade: 90% (quase branco) no pivô até 60% (cor cheia) no extremo saturado.
+  const luminosidade = 90 - intensidade * 30;
+  return `hsl(${matiz}, 70%, ${luminosidade}%)`;
 }
 
 function formatar(valor: number, coluna: ColunaRenderizavel): string {
@@ -62,7 +71,7 @@ export function CelulaMetrica({
     return (
       <td
         className="px-3 py-2 text-right tabular-nums whitespace-nowrap text-zinc-800"
-        style={{ backgroundColor: corHeatmap(valor) }}
+        style={{ backgroundColor: corHeatmap(valor, coluna.heatmapInvertido) }}
       >
         {formatar(valor, coluna)}
       </td>

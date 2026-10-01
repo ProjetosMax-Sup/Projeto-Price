@@ -5,7 +5,7 @@ import { criarCacheVersionado } from "./cache-versionado";
 import { decodificarComFallback } from "./parse-tabela";
 import { normalizarLojas, normalizarMovimentos, normalizarProdutos, unirMovimentos } from "./normalizar-desempenho";
 import { normalizarEntradasSaidas } from "./normalizar-entradas-saidas";
-import { reduzirPorProdutoLoja, type LinhaReduzida } from "@/lib/entradas-saidas/aggregate";
+import { mesclarMeses, reduzirPorProdutoLoja, type LinhaReduzida } from "@/lib/entradas-saidas/aggregate";
 import type { Loja, PeriodoDesempenho, Produto } from "@/lib/types";
 import type { DataProvider } from "./types";
 
@@ -115,9 +115,13 @@ async function linhasReduzidasDoArquivo(
 
 /**
  * Linhas reduzidas do Entradas e Saídas — só do(s) arquivo(s) pedido(s)
- * (`nomesArquivo`, ex: `["bdSetembro.txt"]`) ou de todos os meses disponíveis
- * se omitido. Um mês fora do padrão nunca derruba os demais — loga alto e
- * segue sem ele, mesmo comportamento de `getDesempenhoCache`.
+ * (`nomesArquivo`, ex: `["bdAgosto.txt", "bdSetembro.txt"]`, mais de um mês de
+ * uma vez desde 2026-10-01) ou de todos os meses disponíveis se omitido. Um mês
+ * fora do padrão nunca derruba os demais — loga alto e segue sem ele, mesmo
+ * comportamento de `getDesempenhoCache`. `alvo` já sai na ordem cronológica de
+ * `listarArquivosMensais()` (Jan→Dez), não na ordem de `nomesArquivo` — é essa
+ * ordem que `mesclarMeses` depende pra saber qual mês é "o mais recente" nos
+ * campos de foto (Estoque, VMD, ...).
  */
 async function getLinhasReduzidasEntradasSaidas(nomesArquivo?: string[]): Promise<LinhaReduzida[]> {
   const [arquivos, { produtosPorCodigo, lojasPorCodigo }] = await Promise.all([listarArquivosMensais(), indices()]);
@@ -130,7 +134,7 @@ async function getLinhasReduzidasEntradasSaidas(nomesArquivo?: string[]): Promis
       }),
     ),
   );
-  return resultados.flat();
+  return mesclarMeses(resultados);
 }
 
 /** Nomes (`bd<Mês>.txt`) dos arquivos mensais disponíveis agora — pra montar o

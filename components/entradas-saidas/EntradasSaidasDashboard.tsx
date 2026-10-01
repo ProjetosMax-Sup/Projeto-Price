@@ -15,7 +15,7 @@ import type { NivelHierarquia } from "@/lib/desempenho/aggregate";
 const ALTURA_NAV = 52;
 
 async function buscarResultado(
-  consulta: ConsultaEntradasSaidas & { mes: string | null },
+  consulta: ConsultaEntradasSaidas & { meses: string[] },
   signal: AbortSignal,
 ): Promise<ResultadoEntradasSaidas> {
   const resposta = await fetch("/api/entradas-saidas", {
@@ -30,9 +30,12 @@ async function buscarResultado(
 
 /**
  * Dois drill-downs independentes (decisão de 2026-09-30): Departamento (raiz)
- * e Comprador→Departamento→... (raiz), sem tabela de Loja. Período é um mês
- * só por vez — os arquivos `bd<Mês>.txt` não carregam ano, então o seletor
- * aqui também não (mesma limitação que já existia no nome dos arquivos).
+ * e Comprador→Departamento→... (raiz), sem tabela de Loja. Período aceita
+ * vários meses de uma vez desde 2026-10-01 (os arquivos `bd<Mês>.txt` não
+ * carregam ano, então o seletor aqui também não — mesma limitação que já
+ * existia no nome dos arquivos). Como os meses somam entre si (ver
+ * `mesclarMeses` em `lib/entradas-saidas/aggregate.ts`), nunca deixa a seleção
+ * ficar vazia — zero mês escolhido não é "todos", é um estado sem sentido aqui.
  */
 export function EntradasSaidasDashboard({
   config,
@@ -49,12 +52,13 @@ export function EntradasSaidasDashboard({
   mesesDisponiveisInicial: string[];
   lojasCadastro: LojaCadastro[];
 }) {
-  const [mes, setMes] = useState<string | null>(mesPadrao);
+  const [meses, setMeses] = useState<string[]>(mesPadrao ? [mesPadrao] : []);
   const [lojasSelecionadas, setLojasSelecionadas] = useState<string[]>([]);
   const [focoLojas, setFocoLojas] = useState<"departamento" | "comprador">("departamento");
   const [caminhoDepartamento, setCaminhoDepartamento] = useState<NoSelecionadoES[]>([]);
   const [compradorSelecionado, setCompradorSelecionado] = useState<string | null>(null);
   const [caminhoDentroComprador, setCaminhoDentroComprador] = useState<NoSelecionadoES[]>([]);
+  const [produtoFoco, setProdutoFoco] = useState<string | null>(null);
   const [resultado, setResultado] = useState<ResultadoEntradasSaidas>(resultadoInicial);
   const [carregando, setCarregando] = useState(false);
   const primeiraRenderizacao = useRef(true);
@@ -82,13 +86,14 @@ export function EntradasSaidasDashboard({
     const idDaRequisicao = ++idRequisicaoRef.current;
     const controller = new AbortController();
     setCarregando(true);
-    const consulta: ConsultaEntradasSaidas & { mes: string | null } = {
-      mes,
+    const consulta: ConsultaEntradasSaidas & { meses: string[] } = {
+      meses,
       lojas: lojasSelecionadas,
       focoLojas,
       caminhoDepartamento,
       compradorSelecionado,
       caminhoDentroComprador,
+      produtoFoco,
     };
     buscarResultado(consulta, controller.signal)
       .then((dados) => {
@@ -101,32 +106,45 @@ export function EntradasSaidasDashboard({
         if (idRequisicaoRef.current === idDaRequisicao) setCarregando(false);
       });
     return () => controller.abort();
-  }, [mes, lojasSelecionadas, focoLojas, caminhoDepartamento, compradorSelecionado, caminhoDentroComprador]);
+  }, [meses, lojasSelecionadas, focoLojas, caminhoDepartamento, compradorSelecionado, caminhoDentroComprador, produtoFoco]);
 
   function aoClicarDepartamento(linha: NoEntradasSaidas) {
     setFocoLojas("departamento");
-    if (linha.nivel === "produto") return;
+    // Produto é a folha (sem pra onde descer) — a tabela Departamento continua
+    // mostrando a mesma lista, mas o painel Lojas estreita pra esse produto só.
+    if (linha.nivel === "produto") {
+      setProdutoFoco(linha.codigo ?? linha.chave);
+      return;
+    }
+    setProdutoFoco(null);
     setCaminhoDepartamento((atual) => [...atual, { nivel: linha.nivel as NivelHierarquia, chave: linha.chave, nome: linha.nome }]);
   }
 
   function aoClicarComprador(linha: NoEntradasSaidas) {
     setFocoLojas("comprador");
     if (linha.nivel === "comprador") {
+      setProdutoFoco(null);
       setCompradorSelecionado(linha.nome);
       setCaminhoDentroComprador([]);
       return;
     }
-    if (linha.nivel === "produto") return;
+    if (linha.nivel === "produto") {
+      setProdutoFoco(linha.codigo ?? linha.chave);
+      return;
+    }
+    setProdutoFoco(null);
     setCaminhoDentroComprador((atual) => [...atual, { nivel: linha.nivel as NivelHierarquia, chave: linha.chave, nome: linha.nome }]);
   }
 
   function aoVoltarDepartamento(indice: number) {
     setFocoLojas("departamento");
+    setProdutoFoco(null);
     setCaminhoDepartamento((atual) => atual.slice(0, indice + 1));
   }
 
   function aoVoltarComprador(indice: number) {
     setFocoLojas("comprador");
+    setProdutoFoco(null);
     // -1 com a trilha dentro do comprador já vazia volta pra lista de Compradores
     // (o título "Comprador" clicado no topo do próprio nível de comprador).
     if (indice === -1 && caminhoDentroComprador.length === 0) {
@@ -170,21 +188,15 @@ export function EntradasSaidasDashboard({
             selecionados={lojasSelecionadas}
             onChange={setLojasSelecionadas}
           />
-          <label className="flex items-center gap-2 text-sm text-zinc-600">
-            Período:
-            <select
-              value={mes ?? ""}
-              onChange={(e) => setMes(e.target.value || null)}
-              className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
-            >
-              {mesesDisponiveisInicial.length === 0 && <option value="">Sem dados</option>}
-              {mesesDisponiveisInicial.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          </label>
+          <MultiSelect
+            rotulo="Período"
+            rotuloTodos="Nenhum mês"
+            opcoes={mesesDisponiveisInicial.map((m) => ({ value: m, label: m }))}
+            selecionados={meses}
+            // Nunca deixa esvaziar — "nenhum mês" não tem leitura aqui (ao contrário de
+            // Loja, onde vazio = "todas"), então ignora a mudança que zeraria a seleção.
+            onChange={(novos) => setMeses(novos.length > 0 ? novos : meses)}
+          />
         </div>
       </div>
 

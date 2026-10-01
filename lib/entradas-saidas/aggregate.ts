@@ -1,10 +1,4 @@
-import {
-  REF_ENTRADAS_COMPRAS,
-  REF_ENTRADAS_SAIDAS_ESTOQUE,
-  REF_ENTRADAS_SAIDAS_QTDE_VMD,
-  REFS_ENTRADAS_OUTRAS,
-  REFS_SAIDAS_OUTRAS,
-} from "@/config/data-sources";
+import { REFS_ENTRADAS_SAIDAS_SNAPSHOT, REFS_NATIVOS_ENTRADAS_SAIDAS } from "@/config/data-sources";
 import { caminhoAteNivel, NIVEIS_ESTRUTURA, type NivelEstrutura, type NivelHierarquia } from "@/lib/desempenho/aggregate";
 import { nomeCompradorPorDptoCadastro, type IndiceDepartamentos } from "@/lib/desempenho/comprador-cadastro";
 import { valorNativoEntradasSaidas, type RegistroEntradasSaidas } from "@/lib/data-providers/normalizar-entradas-saidas";
@@ -22,9 +16,11 @@ import type { ValoresNativos } from "@/lib/parametros/avaliador";
  *   nível a mais na frente).
  */
 
-/** Refs que são fluxo do período (somam normalmente linha a linha) — todos os
- * nativos do Entradas e Saídas exceto Estoque/Qtde VMD, que são fotografia. */
-const REFS_FLUXO = [REF_ENTRADAS_COMPRAS, ...REFS_ENTRADAS_OUTRAS, ...REFS_SAIDAS_OUTRAS, "Valor"];
+/** Refs que são fluxo do período (somam normalmente linha a linha) — todas as
+ * nativas do Entradas e Saídas/Compra e Venda exceto `REFS_ENTRADAS_SAIDAS_SNAPSHOT`
+ * (Estoque/Qtde VMD e afins, que são fotografia, ver abaixo). */
+const REFS_SNAPSHOT_SET = new Set<string>(REFS_ENTRADAS_SAIDAS_SNAPSHOT);
+const REFS_FLUXO = REFS_NATIVOS_ENTRADAS_SAIDAS.filter((ref) => !REFS_SNAPSHOT_SET.has(ref));
 
 export type NivelEntradasSaidas = NivelEstrutura | "comprador";
 export const NIVEIS_ENTRADAS_SAIDAS: NivelEntradasSaidas[] = ["comprador", ...NIVEIS_ESTRUTURA];
@@ -32,11 +28,12 @@ export const NIVEIS_ENTRADAS_SAIDAS: NivelEntradasSaidas[] = ["comprador", ...NI
 /**
  * Uma linha por Produto×Loja, já reduzida do período inteiro: campos de fluxo
  * somados entre todas as datas (cada dia é movimento novo, soma normal);
- * Estoque/Qtde VMD tomados de uma ocorrência só (são o mesmo valor repetido em
- * toda linha do mês — confirmado no arquivo real em 2026-09-30; somar contaria
- * o mesmo estoque várias vezes). A partir daqui, agregações maiores (por
- * Departamento, por Comprador) somam esta linha normalmente — inclusive
- * Estoque/VMD, porque aí já é soma entre produtos DIFERENTES, que é válida.
+ * `REFS_ENTRADAS_SAIDAS_SNAPSHOT` (Estoque/Qtde VMD e afins) tomados de uma
+ * ocorrência só (são o mesmo valor repetido em toda linha do mês — confirmado
+ * no arquivo real em 2026-09-30; somar contaria o mesmo valor várias vezes). A
+ * partir daqui, agregações maiores (por Departamento, por Comprador) somam
+ * esta linha normalmente — inclusive os snapshot, porque aí já é soma entre
+ * produtos DIFERENTES, que é válida.
  */
 export interface LinhaReduzida {
   codigo: string;
@@ -61,7 +58,7 @@ function dataOrdenavel(data: string): string {
 export function reduzirPorProdutoLoja(registros: RegistroEntradasSaidas[]): LinhaReduzida[] {
   const mapa = new Map<
     string,
-    { codigo: string; descricao: string; complemento: string; dpto: string; hierarquiaGrupos: string; formatoLoja: string; lojaCodigo: string; fluxo: Record<string, number>; estoque: number; vmd: number; ultimaData: string }
+    { codigo: string; descricao: string; complemento: string; dpto: string; hierarquiaGrupos: string; formatoLoja: string; lojaCodigo: string; fluxo: Record<string, number>; snapshot: Record<string, number>; ultimaData: string }
   >();
 
   for (const r of registros) {
@@ -78,8 +75,7 @@ export function reduzirPorProdutoLoja(registros: RegistroEntradasSaidas[]): Linh
         formatoLoja: r.loja.formato,
         lojaCodigo: r.loja.codUnid,
         fluxo: {},
-        estoque: 0,
-        vmd: 0,
+        snapshot: {},
         ultimaData: "",
       };
       mapa.set(chave, entrada);
@@ -90,8 +86,9 @@ export function reduzirPorProdutoLoja(registros: RegistroEntradasSaidas[]): Linh
     const ordenavel = dataOrdenavel(r.data);
     if (ordenavel >= entrada.ultimaData) {
       entrada.ultimaData = ordenavel;
-      entrada.estoque = valorNativoEntradasSaidas(r, REF_ENTRADAS_SAIDAS_ESTOQUE);
-      entrada.vmd = valorNativoEntradasSaidas(r, REF_ENTRADAS_SAIDAS_QTDE_VMD);
+      for (const ref of REFS_ENTRADAS_SAIDAS_SNAPSHOT) {
+        entrada.snapshot[ref] = valorNativoEntradasSaidas(r, ref);
+      }
     }
   }
 
@@ -103,8 +100,41 @@ export function reduzirPorProdutoLoja(registros: RegistroEntradasSaidas[]): Linh
     hierarquiaGrupos: e.hierarquiaGrupos,
     formatoLoja: e.formatoLoja,
     lojaCodigo: e.lojaCodigo,
-    valores: { ...e.fluxo, [REF_ENTRADAS_SAIDAS_ESTOQUE]: e.estoque, [REF_ENTRADAS_SAIDAS_QTDE_VMD]: e.vmd },
+    valores: { ...e.fluxo, ...e.snapshot },
   }));
+}
+
+/**
+ * Junta as linhas já reduzidas de VÁRIOS meses (decisão de 2026-10-01 — período
+ * deixou de ser só 1 mês) numa linha só por Produto×Loja. Precisa ser feito aqui,
+ * não só concatenar os arrays (`.flat()`): campos de FLUXO (Compras, Valor, ...)
+ * somam normalmente entre meses, mas os de FOTO (`REFS_ENTRADAS_SAIDAS_SNAPSHOT`
+ * — Estoque Disponível, Qtde VMD, ...) são o mesmo problema de somar dentro de um
+ * mês só multiplicado: cada mês carrega seu PRÓPRIO snapshot (o estoque no fim
+ * daquele mês), e somar os snapshots de 2 meses inventa um "estoque" que não
+ * existe (contaria o mesmo estoque físico mais de uma vez). Por isso o campo de
+ * foto fica com o valor do mês mais RECENTE entre os escolhidos, nunca a soma —
+ * `porMes` precisa vir em ordem cronológica (mesma ordem de `NOMES_MESES_ARQUIVO`,
+ * garantida por quem chama, ver `file-provider.ts`).
+ */
+export function mesclarMeses(porMes: LinhaReduzida[][]): LinhaReduzida[] {
+  const mapa = new Map<string, LinhaReduzida>();
+  for (const linhasDoMes of porMes) {
+    for (const linha of linhasDoMes) {
+      const chave = `${linha.codigo}|${linha.lojaCodigo}`;
+      const anterior = mapa.get(chave);
+      if (!anterior) {
+        mapa.set(chave, linha);
+        continue;
+      }
+      const valoresFundidos: ValoresNativos = { ...anterior.valores };
+      for (const [ref, valor] of Object.entries(linha.valores)) {
+        valoresFundidos[ref] = REFS_SNAPSHOT_SET.has(ref) ? valor : (valoresFundidos[ref] ?? 0) + valor;
+      }
+      mapa.set(chave, { ...linha, valores: valoresFundidos });
+    }
+  }
+  return Array.from(mapa.values());
 }
 
 function somarValores(a: ValoresNativos, b: ValoresNativos): ValoresNativos {
