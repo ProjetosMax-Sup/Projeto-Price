@@ -3,14 +3,15 @@
 import { useEffect, useState } from "react";
 import { AtivasTab } from "@/components/parametros/relatorio/AtivasTab";
 import { CalculadasTab } from "@/components/parametros/relatorio/CalculadasTab";
+import { MetasTab } from "@/components/parametros/relatorio/MetasTab";
 import { NativasTab } from "@/components/parametros/relatorio/NativasTab";
 import { podePublicar, refsNativasInexistentes } from "@/lib/parametros/colunas-relatorio";
-import type { ColunaNativa, ConfigRelatorio } from "@/lib/parametros/types";
+import type { ColunaNativa, ConfigRelatorio, DepartamentoCadastro } from "@/lib/parametros/types";
 
 const MODULOS = [
   { slug: "desempenho-comercial", label: "Desempenho Comercial", implementado: true },
   { slug: "entradas-saidas", label: "Entradas e Saídas", implementado: true },
-  { slug: "compra-venda", label: "Compra e Venda", implementado: false },
+  { slug: "compra-venda", label: "Compra e Venda", implementado: true },
   { slug: "perdas-quebras", label: "Perdas e Quebras", implementado: false },
   { slug: "raio-x-fornecedor", label: "Raio X Fornecedor", implementado: false },
 ] as const;
@@ -18,10 +19,19 @@ const MODULOS = [
 const SUBABAS = [
   { valor: "nativas", label: "Nativas" },
   { valor: "calculadas", label: "Calculadas" },
+  { valor: "metas", label: "Metas" },
   { valor: "ativas", label: "Ativas" },
 ] as const;
 
-export function RelatorioColunasPanel({ dicionario }: { dicionario: ColunaNativa[] }) {
+export function RelatorioColunasPanel({
+  dicionario,
+  departamentos,
+  formatos,
+}: {
+  dicionario: ColunaNativa[];
+  departamentos: DepartamentoCadastro[];
+  formatos: string[];
+}) {
   const [modulo, setModulo] = useState<(typeof MODULOS)[number]["slug"]>("desempenho-comercial");
   const [subaba, setSubaba] = useState<(typeof SUBABAS)[number]["valor"]>("nativas");
   const [config, setConfig] = useState<ConfigRelatorio | null>(null);
@@ -173,6 +183,9 @@ export function RelatorioColunasPanel({ dicionario }: { dicionario: ColunaNativa
 
       {subaba === "nativas" && <NativasTab dicionario={dicionario} config={config} onChange={setConfig} />}
       {subaba === "calculadas" && <CalculadasTab dicionario={dicionario} config={config} onChange={setConfig} />}
+      {subaba === "metas" && (
+        <MetasTab departamentos={departamentos} formatos={formatos} config={config} onChange={setConfig} />
+      )}
       {subaba === "ativas" && <AtivasTab dicionario={dicionario} config={config} onChange={setConfig} />}
 
       <div className="flex items-center gap-3">

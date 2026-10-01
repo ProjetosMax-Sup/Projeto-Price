@@ -9,6 +9,7 @@ import {
   obterOuSemearConfigRelatorio,
   obterOuSemearDepartamentosCadastro,
   obterOuSemearDicionarioColunas,
+  obterOuSemearLojasCadastro,
 } from "@/lib/parametros/store";
 
 // Os arquivos-fonte mudam a cada atualização do time — nunca pré-renderizar
@@ -23,9 +24,10 @@ function ordenarMeses(nomesArquivo: string[]): string[] {
 }
 
 export default async function EntradasSaidasPage() {
-  const [nomesArquivo, departamentosCadastro, dicionario, config] = await Promise.all([
+  const [nomesArquivo, departamentosCadastro, lojasCadastro, dicionario, config] = await Promise.all([
     getMesesDisponiveisEntradasSaidas(),
     obterOuSemearDepartamentosCadastro(),
+    obterOuSemearLojasCadastro(),
     obterOuSemearDicionarioColunas(),
     obterOuSemearConfigRelatorio("entradas-saidas"),
   ]);
@@ -52,6 +54,7 @@ export default async function EntradasSaidasPage() {
           resultadoInicial={resultadoInicial}
           mesPadrao={mesPadrao}
           mesesDisponiveisInicial={mesesDisponiveisInicial}
+          lojasCadastro={lojasCadastro}
         />
       </main>
     </div>

@@ -2,23 +2,23 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { HierarquiaPanel } from "@/components/entradas-saidas/HierarquiaPanel";
-import { KpiCardsEntradasSaidas } from "@/components/entradas-saidas/KpiCardsEntradasSaidas";
 import { LojasInformativoPanel, type ColunaLojas } from "@/components/entradas-saidas/LojasInformativoPanel";
+import { KpiCardsCompraVenda } from "@/components/compra-venda/KpiCardsCompraVenda";
 import { MultiSelect } from "@/components/ui/MultiSelect";
 import type { ColunaRenderizavel } from "@/lib/desempenho/colunas-configuradas";
+import type { NivelHierarquia } from "@/lib/desempenho/aggregate";
 import type { NoEntradasSaidas } from "@/lib/entradas-saidas/aggregate";
 import type { ConsultaEntradasSaidas, NoSelecionadoES, ResultadoEntradasSaidas } from "@/lib/entradas-saidas/consulta";
 import { avaliarColunas } from "@/lib/parametros/avaliador";
 import type { ConfigRelatorio, LojaCadastro } from "@/lib/parametros/types";
-import type { NivelHierarquia } from "@/lib/desempenho/aggregate";
 
 const ALTURA_NAV = 52;
 
 async function buscarResultado(
-  consulta: ConsultaEntradasSaidas & { mes: string | null },
+  consulta: ConsultaEntradasSaidas & { mes: string | null; formato: string },
   signal: AbortSignal,
 ): Promise<ResultadoEntradasSaidas> {
-  const resposta = await fetch("/api/entradas-saidas", {
+  const resposta = await fetch("/api/compra-venda", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(consulta),
@@ -29,17 +29,19 @@ async function buscarResultado(
 }
 
 /**
- * Dois drill-downs independentes (decisão de 2026-09-30): Departamento (raiz)
- * e Comprador→Departamento→... (raiz), sem tabela de Loja. Período é um mês
- * só por vez — os arquivos `bd<Mês>.txt` não carregam ano, então o seletor
- * aqui também não (mesma limitação que já existia no nome dos arquivos).
+ * Espelho de EntradasSaidasDashboard.tsx (decisão de 2026-09-30: o layout
+ * "flat" anterior não ficou bom — mesma UI de drill-down duplo do Entradas e
+ * Saídas, com um seletor de Formato a mais, já que Compra e Venda é por
+ * Formato e o outro relatório não distingue isso).
  */
-export function EntradasSaidasDashboard({
+export function CompraVendaDashboard({
   config,
   colunas,
   resultadoInicial,
   mesPadrao,
   mesesDisponiveisInicial,
+  formatoPadrao,
+  formatosDisponiveis,
   lojasCadastro,
 }: {
   config: ConfigRelatorio;
@@ -47,9 +49,12 @@ export function EntradasSaidasDashboard({
   resultadoInicial: ResultadoEntradasSaidas;
   mesPadrao: string | null;
   mesesDisponiveisInicial: string[];
+  formatoPadrao: string | null;
+  formatosDisponiveis: string[];
   lojasCadastro: LojaCadastro[];
 }) {
   const [mes, setMes] = useState<string | null>(mesPadrao);
+  const [formato, setFormato] = useState<string | null>(formatoPadrao);
   const [lojasSelecionadas, setLojasSelecionadas] = useState<string[]>([]);
   const [focoLojas, setFocoLojas] = useState<"departamento" | "comprador">("departamento");
   const [caminhoDepartamento, setCaminhoDepartamento] = useState<NoSelecionadoES[]>([]);
@@ -60,9 +65,6 @@ export function EntradasSaidasDashboard({
   const primeiraRenderizacao = useRef(true);
   const idRequisicaoRef = useRef(0);
 
-  // Altura real do bloco de KPIs (varia com o tamanho da tela / wrap dos cards) — sem medir de
-  // verdade, um valor cravado corta o cabeçalho sticky das tabelas por baixo dele (mesma técnica
-  // de `DesempenhoDashboard.tsx`, ali já correta desde o início).
   const kpiRef = useRef<HTMLDivElement>(null);
   const [alturaKpi, setAlturaKpi] = useState(0);
   useLayoutEffect(() => {
@@ -79,11 +81,13 @@ export function EntradasSaidasDashboard({
       primeiraRenderizacao.current = false;
       return;
     }
+    if (!formato) return;
     const idDaRequisicao = ++idRequisicaoRef.current;
     const controller = new AbortController();
     setCarregando(true);
-    const consulta: ConsultaEntradasSaidas & { mes: string | null } = {
+    const consulta: ConsultaEntradasSaidas & { mes: string | null; formato: string } = {
       mes,
+      formato,
       lojas: lojasSelecionadas,
       focoLojas,
       caminhoDepartamento,
@@ -101,7 +105,7 @@ export function EntradasSaidasDashboard({
         if (idRequisicaoRef.current === idDaRequisicao) setCarregando(false);
       });
     return () => controller.abort();
-  }, [mes, lojasSelecionadas, focoLojas, caminhoDepartamento, compradorSelecionado, caminhoDentroComprador]);
+  }, [mes, formato, lojasSelecionadas, focoLojas, caminhoDepartamento, compradorSelecionado, caminhoDentroComprador]);
 
   function aoClicarDepartamento(linha: NoEntradasSaidas) {
     setFocoLojas("departamento");
@@ -127,8 +131,6 @@ export function EntradasSaidasDashboard({
 
   function aoVoltarComprador(indice: number) {
     setFocoLojas("comprador");
-    // -1 com a trilha dentro do comprador já vazia volta pra lista de Compradores
-    // (o título "Comprador" clicado no topo do próprio nível de comprador).
     if (indice === -1 && caminhoDentroComprador.length === 0) {
       setCompradorSelecionado(null);
       return;
@@ -138,17 +140,20 @@ export function EntradasSaidasDashboard({
 
   const kpiAvaliado = avaliarColunas(config, { atual: resultado.kpi, comparacao: null });
 
-  // Saldo é a coluna principal do relatório (ver seed.ts); DDE é achada pelo nome
-  // porque não tem papel próprio — não dá pra apontar as duas por posição fixa,
-  // a ordem das colunas é editável em Parâmetros.
-  const dde = config.calculadas.find((c) => c.nome.includes("DDE"));
-  const candidatasColunasLojas: (ColunaLojas | undefined)[] = [
-    config.papeis?.principal
-      ? { ref: config.papeis.principal, rotulo: "Saldo", formato: "moeda", pivotZero: true }
-      : undefined,
-    dde ? { ref: dde.id, rotulo: "DDE", formato: "numero", pivotZero: false } : undefined,
-  ];
-  const colunasLojas = candidatasColunasLojas.filter((c): c is ColunaLojas => c !== undefined);
+  // Compra/Venda em R$ + % Compra/Venda — pedido de 2026-09-30 (só a % sozinha
+  // não dava pra ler direito o tamanho da loja, uma tabela pequena com as três
+  // ajuda). "% Compra/Venda" não tem papel próprio — achada pelo nome, igual
+  // DDE no Entradas e Saídas (a ordem das colunas é editável em Parâmetros).
+  const colunasLojas: ColunaLojas[] = (() => {
+    const percCompraVenda = config.calculadas.find((c) => c.nome === "% Compra/Venda");
+    const base: ColunaLojas[] = [
+      { ref: "Compras", rotulo: config.rotulos?.Compras ?? "Compra", formato: "moeda", pivotZero: false, semHeatmap: true },
+      { ref: "Valor", rotulo: config.rotulos?.Valor ?? "Venda", formato: "moeda", pivotZero: false, semHeatmap: true },
+    ];
+    return percCompraVenda
+      ? [...base, { ref: percCompraVenda.id, rotulo: "% Compra/Venda", formato: "percentual", pivotZero: false }]
+      : base;
+  })();
 
   const breadcrumbDepartamento = caminhoDepartamento.map((n) => ({ nome: n.nome }));
   const breadcrumbComprador = compradorSelecionado
@@ -157,12 +162,20 @@ export function EntradasSaidasDashboard({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="font-display text-2xl font-bold text-zinc-900">Entradas e Saídas</h1>
-          <p className="mt-0.5 text-sm text-zinc-500">Compras, saídas e saldo por Departamento e por Comprador.</p>
-        </div>
-        <div className="flex items-center gap-2">
+      <div>
+        <h1 className="font-display text-2xl font-bold text-zinc-900">Compra e Venda</h1>
+        <p className="mt-0.5 text-sm text-zinc-500">% Compra/Venda, Margem e Meta por Departamento e por Comprador.</p>
+      </div>
+
+      {/* Filtros grudados junto com os KPIs (pedido de 2026-09-30) — sem isso eles
+          somem ao rolar a página, e ficam inacessíveis exatamente quando dá mais
+          vontade de trocar Loja/Formato pra comparar outro recorte. */}
+      <div
+        ref={kpiRef}
+        className="sticky z-30 -mx-6 flex flex-col gap-3 border-b border-zinc-200 bg-zinc-50 px-6 pb-3 pt-3"
+        style={{ top: ALTURA_NAV }}
+      >
+        <div className="flex flex-wrap items-center justify-end gap-3">
           <MultiSelect
             rotulo="Loja"
             rotuloTodos="Todas"
@@ -170,6 +183,21 @@ export function EntradasSaidasDashboard({
             selecionados={lojasSelecionadas}
             onChange={setLojasSelecionadas}
           />
+          <label className="flex items-center gap-2 text-sm text-zinc-600">
+            Formato:
+            <select
+              value={formato ?? ""}
+              onChange={(e) => setFormato(e.target.value || null)}
+              className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+            >
+              {formatosDisponiveis.length === 0 && <option value="">Sem formato cadastrado</option>}
+              {formatosDisponiveis.map((f) => (
+                <option key={f} value={f}>
+                  {f}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="flex items-center gap-2 text-sm text-zinc-600">
             Período:
             <select
@@ -186,14 +214,7 @@ export function EntradasSaidasDashboard({
             </select>
           </label>
         </div>
-      </div>
-
-      <div
-        ref={kpiRef}
-        className="sticky z-30 -mx-6 flex flex-col gap-4 border-b border-zinc-200 bg-zinc-50 px-6 pb-3 pt-3"
-        style={{ top: ALTURA_NAV }}
-      >
-        <KpiCardsEntradasSaidas kpi={kpiAvaliado} config={config} colunas={colunas} />
+        <KpiCardsCompraVenda kpi={kpiAvaliado} config={config} colunas={colunas} />
       </div>
 
       <div className={`flex flex-col gap-4 transition-opacity xl:flex-row ${carregando ? "pointer-events-none opacity-60" : ""}`}>

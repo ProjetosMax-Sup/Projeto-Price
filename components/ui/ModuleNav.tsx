@@ -9,8 +9,8 @@ type Modulo = {
 
 const MODULOS: Modulo[] = [
   { slug: "desempenho-comercial", label: "Desempenho Comercial", implementado: true },
-  { slug: "entradas-saidas", label: "Entradas e Saídas", implementado: false },
-  { slug: "compra-venda", label: "Compra e Venda", implementado: false },
+  { slug: "entradas-saidas", label: "Entradas e Saídas", implementado: true },
+  { slug: "compra-venda", label: "Compra e Venda", implementado: true },
   { slug: "perdas-quebras", label: "Perdas e Quebras", implementado: false },
   { slug: "raio-x-fornecedor", label: "Raio X Fornecedor", implementado: false },
 ];

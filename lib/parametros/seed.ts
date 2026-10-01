@@ -300,6 +300,88 @@ export function semearColunasEntradasSaidas(): ConfigRelatorio {
   return { ...config, ordemAtivas: ordemAtivasEfetiva(config) };
 }
 
+/**
+ * Compra e Venda (decisão de 2026-09-30, a partir da planilha de referência do
+ * time): mesmos dois refs nativos que o Entradas e Saídas já usa (Compras,
+ * Valor) — reaproveita o MESMO pipeline de parser/redução por arquivo
+ * (`lib/entradas-saidas/aggregate.ts`), só com agregação própria (por
+ * Departamento, filtrada por Formato — ver `lib/compra-venda/aggregate.ts`).
+ * "Meta" é ref sintético (não vem do arquivo): injetado na agregação a partir
+ * de `ConfigRelatorio.metas`, cadastrado na aba Metas de /parametros.
+ */
+const REF_META = "Meta";
+
+export function semearColunasCompraVenda(): ConfigRelatorio {
+  const idPercCompraVenda = novoIdCalculada();
+  const idMeta = novoIdCalculada();
+  const idMargem = novoIdCalculada();
+  const idMetaRealizado = novoIdCalculada();
+
+  const calculadas: ColunaCalculada[] = [
+    {
+      id: idPercCompraVenda,
+      nome: "% Compra/Venda",
+      tipo: "razao",
+      numerador: [{ sinal: "+", colunaRef: REF_COMPRAS }],
+      denominador: [{ sinal: "+", colunaRef: REF_VENDAS }],
+      formato: "percentual",
+      oculta: false,
+    },
+    // Meta em si, como coluna visível ao lado de "% Compra/Venda" — sem isso só dava
+    // pra ver o resultado dela dentro de "Meta - Realizado", nunca o valor cadastrado.
+    // "valorDoPeriodo" (período "atual") é só um jeito de expor o ref sintético "Meta"
+    // como coluna própria, com o formato certo (percentual) — não lê nada do arquivo.
+    {
+      id: idMeta,
+      nome: "Meta",
+      tipo: "valorDoPeriodo",
+      coluna: REF_META,
+      periodo: "atual",
+      formato: "percentual",
+      oculta: false,
+    },
+    {
+      id: idMargem,
+      nome: "% Margem",
+      tipo: "razao",
+      numerador: [
+        { sinal: "+", colunaRef: REF_VENDAS },
+        { sinal: "-", colunaRef: REF_COMPRAS },
+      ],
+      denominador: [{ sinal: "+", colunaRef: REF_VENDAS }],
+      formato: "percentual",
+      oculta: false,
+    },
+    {
+      id: idMetaRealizado,
+      nome: "Meta - Realizado",
+      tipo: "diferenca",
+      colunaA: REF_META,
+      colunaB: idPercCompraVenda,
+      formato: "pontosPercentuais",
+      heatmap: true,
+      oculta: false,
+    },
+  ];
+
+  const config: ConfigRelatorio = {
+    modulo: "compra-venda",
+    nativasVisiveis: [REF_COMPRAS, REF_VENDAS],
+    rotulos: {
+      [REF_COMPRAS]: "Compra",
+      [REF_VENDAS]: "Venda",
+      [REF_META]: "Meta",
+    },
+    calculadas,
+    ordemAtivas: [],
+    papeis: { principal: REF_VENDAS },
+    acessoComprador: true,
+    acessoGestor: true,
+    status: "Rascunho",
+  };
+  return { ...config, ordemAtivas: ordemAtivasEfetiva(config) };
+}
+
 export function semearDepartamentosCadastro(): DepartamentoCadastro[] {
   return entradasDepartamentos().map(({ codigo, nome }) => {
     const comprador = compradorPorDptoAtual(codigo);

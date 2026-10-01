@@ -66,7 +66,9 @@ export function ParametrosDashboard({
         <DepartamentosTable departamentos={departamentos} onChange={setDepartamentos} formatos={formatos} />
       )}
       {aba === "dicionario" && <DicionarioColunasTable colunas={dicionario} onChange={setDicionario} />}
-      {aba === "colunas" && <RelatorioColunasPanel dicionario={dicionario} />}
+      {aba === "colunas" && (
+        <RelatorioColunasPanel dicionario={dicionario} departamentos={departamentos} formatos={formatos} />
+      )}
     </div>
   );
 }

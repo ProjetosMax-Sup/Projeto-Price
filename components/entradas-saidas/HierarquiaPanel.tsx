@@ -38,9 +38,33 @@ function ehExcluidoDoTotalPrincipal(nome: string): boolean {
   return normalizado === "apropriacoes" || normalizado === "sem comprador" || normalizado === "s/ comprador";
 }
 
+/** "Meta" (Compra e Venda, ref sintético — ver lib/compra-venda/aggregate.ts) não pode
+ * somar direto: é percentual, e a soma de percentuais de partes diferentes não é o
+ * percentual do total. Precisa da média ponderada pela Venda de quem tem meta
+ * cadastrada — mesma regra usada no Comprador e no "Todos" (Formato). Só entra no
+ * total quando pelo menos uma linha tem "Meta"; senão nem aparece (nunca virou 0). */
+function metaPonderadaPorVenda(linhas: NoEntradasSaidas[]): number | undefined {
+  let somaPonderada = 0;
+  let pesoComMeta = 0;
+  for (const linha of linhas) {
+    const meta = linha.valores.Meta;
+    if (meta === undefined) continue;
+    somaPonderada += meta * (linha.valores.Valor ?? 0);
+    pesoComMeta += linha.valores.Valor ?? 0;
+  }
+  return pesoComMeta > 0 ? somaPonderada / pesoComMeta : undefined;
+}
+
 function somarValoresNativos(linhas: NoEntradasSaidas[]): Record<string, number> {
   const soma: Record<string, number> = {};
-  for (const linha of linhas) for (const [ref, valor] of Object.entries(linha.valores)) soma[ref] = (soma[ref] ?? 0) + valor;
+  for (const linha of linhas) {
+    for (const [ref, valor] of Object.entries(linha.valores)) {
+      if (ref === "Meta") continue;
+      soma[ref] = (soma[ref] ?? 0) + valor;
+    }
+  }
+  const meta = metaPonderadaPorVenda(linhas);
+  if (meta !== undefined) soma.Meta = meta;
   return soma;
 }
 

@@ -28,6 +28,8 @@ function resumoFormula(c: ColunaCalculada, dicionario: ColunaNativa[], config: C
       return `variação % de ${nome(c.coluna)} vs. Comparação`;
     case "difPP":
       return `${nome(c.coluna)}: Atual − Comparação (em p.p.)`;
+    case "diferenca":
+      return `${nome(c.colunaA)} − ${nome(c.colunaB)}${c.heatmap ? " · mapa de calor" : ""}`;
   }
 }
 
@@ -118,7 +120,9 @@ export function CalculadasTab({
             ? { ...base, tipo: "valorDoPeriodo", coluna: opcoes[0] ?? "", periodo: "comparacao" }
             : tipo === "desvio"
               ? { ...base, tipo: "desvio", coluna: opcoes[0] ?? "" }
-              : { ...base, tipo: "difPP", coluna: opcoes[0] ?? "" },
+              : tipo === "difPP"
+                ? { ...base, tipo: "difPP", coluna: opcoes[0] ?? "" }
+                : { ...base, tipo: "diferenca", colunaA: opcoes[0] ?? "", colunaB: opcoes[0] ?? "", heatmap: false },
     );
   }
 
@@ -232,6 +236,7 @@ export function CalculadasTab({
               ["valorDoPeriodo", "+ Valor de outro período"],
               ["desvio", "+ % Desvio"],
               ["difPP", "+ Diferença em p.p."],
+              ["diferenca", "+ Diferença entre colunas (Meta - Realizado)"],
             ] as const
           ).map(([tipo, rotulo]) => (
             <button
@@ -329,6 +334,58 @@ export function CalculadasTab({
                   : editando.tipo === "desvio"
                     ? "Variação percentual entre o período Atual e o de Comparação."
                     : "Diferença em pontos percentuais — use com colunas que já são %."}
+              </p>
+            </div>
+          )}
+
+          {editando.tipo === "diferenca" && (
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-zinc-500">Coluna A</span>
+                <select
+                  value={editando.colunaA}
+                  onChange={(e) => setEditando({ ...editando, colunaA: e.target.value })}
+                  className="w-64 rounded border border-zinc-300 px-2 py-1 text-sm"
+                >
+                  <option value="" disabled>
+                    Selecione uma coluna...
+                  </option>
+                  {opcoes.map((ref) => (
+                    <option key={ref} value={ref}>
+                      {labelParaRef(ref, dicionario, config)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <span className="pb-1.5 text-sm text-zinc-400">−</span>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-zinc-500">Coluna B</span>
+                <select
+                  value={editando.colunaB}
+                  onChange={(e) => setEditando({ ...editando, colunaB: e.target.value })}
+                  className="w-64 rounded border border-zinc-300 px-2 py-1 text-sm"
+                >
+                  <option value="" disabled>
+                    Selecione uma coluna...
+                  </option>
+                  {opcoes.map((ref) => (
+                    <option key={ref} value={ref}>
+                      {labelParaRef(ref, dicionario, config)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex items-center gap-1.5 pb-1.5 text-sm text-zinc-600">
+                <input
+                  type="checkbox"
+                  checked={editando.heatmap ?? false}
+                  onChange={(e) => setEditando({ ...editando, heatmap: e.target.checked })}
+                  className="accent-azul"
+                />
+                Mapa de calor (vermelho → verde pelo valor)
+              </label>
+              <p className="w-full text-xs text-zinc-400">
+                Diferença dentro do mesmo período (não Atual × Comparação) — ex.: Meta − Realizado.
               </p>
             </div>
           )}

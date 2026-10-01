@@ -51,6 +51,9 @@ function migrarCalculada(calculada: ColunaCalculada): ColunaCalculada {
   if (calculada.tipo === "razao") {
     return { ...calculada, numerador: calculada.numerador.map(termo), denominador: calculada.denominador.map(termo) };
   }
+  if (calculada.tipo === "diferenca") {
+    return { ...calculada, colunaA: migrarRef(calculada.colunaA), colunaB: migrarRef(calculada.colunaB) };
+  }
   // valorDoPeriodo/desvio/difPP: uma coluna só. Não existiam quando refs eram
   // numéricos, mas migrar é barato e evita um caso especial se alguém criar antes
   // de a migração rodar.

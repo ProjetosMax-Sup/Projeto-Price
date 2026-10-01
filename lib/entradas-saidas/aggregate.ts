@@ -45,6 +45,9 @@ export interface LinhaReduzida {
   dpto: string;
   hierarquiaGrupos: string;
   formatoLoja: string;
+  /** Código da loja (`codUnid`) — só usado pelo filtro de Loja (decisão de 2026-09-30);
+   * agregação por Departamento/Comprador nunca olha pra isso. */
+  lojaCodigo: string;
   valores: ValoresNativos;
 }
 
@@ -58,7 +61,7 @@ function dataOrdenavel(data: string): string {
 export function reduzirPorProdutoLoja(registros: RegistroEntradasSaidas[]): LinhaReduzida[] {
   const mapa = new Map<
     string,
-    { codigo: string; descricao: string; complemento: string; dpto: string; hierarquiaGrupos: string; formatoLoja: string; fluxo: Record<string, number>; estoque: number; vmd: number; ultimaData: string }
+    { codigo: string; descricao: string; complemento: string; dpto: string; hierarquiaGrupos: string; formatoLoja: string; lojaCodigo: string; fluxo: Record<string, number>; estoque: number; vmd: number; ultimaData: string }
   >();
 
   for (const r of registros) {
@@ -73,6 +76,7 @@ export function reduzirPorProdutoLoja(registros: RegistroEntradasSaidas[]): Linh
         dpto: r.produto.dpto,
         hierarquiaGrupos: r.produto.hierarquiaGrupos,
         formatoLoja: r.loja.formato,
+        lojaCodigo: r.loja.codUnid,
         fluxo: {},
         estoque: 0,
         vmd: 0,
@@ -98,6 +102,7 @@ export function reduzirPorProdutoLoja(registros: RegistroEntradasSaidas[]): Linh
     dpto: e.dpto,
     hierarquiaGrupos: e.hierarquiaGrupos,
     formatoLoja: e.formatoLoja,
+    lojaCodigo: e.lojaCodigo,
     valores: { ...e.fluxo, [REF_ENTRADAS_SAIDAS_ESTOQUE]: e.estoque, [REF_ENTRADAS_SAIDAS_QTDE_VMD]: e.vmd },
   }));
 }
@@ -206,6 +211,17 @@ export function filtrarPorNoEstrutura(linhas: LinhaReduzida[], nivel: NivelHiera
   return linhas.filter((l) => caminhoAteNivel(l.hierarquiaGrupos, nivel) === chave);
 }
 
+/** Filtro de Loja (decisão de 2026-09-30, Entradas e Saídas e Compra e Venda) —
+ * recorte prévio, igual Formato no Compra e Venda: reduz `linhas` ANTES de
+ * agregar por Departamento/Comprador, não cria tabela própria (isso é um
+ * pedido separado, ainda não construído). Lista vazia = nenhum filtro (todas
+ * as lojas), mesmo padrão do `MultiSelect` (seleção vazia = "Todas"). */
+export function filtrarPorLojas(linhas: LinhaReduzida[], codigosLoja: string[]): LinhaReduzida[] {
+  if (codigosLoja.length === 0) return linhas;
+  const selecionadas = new Set(codigosLoja);
+  return linhas.filter((l) => selecionadas.has(l.lojaCodigo));
+}
+
 /** Soma um conjunto de nós (ex: linhas de uma tabela) num subtotal. */
 export function somarNos(nos: NoEntradasSaidas[]): ValoresNativos {
   return nos.reduce((acc, no) => somarValores(acc, no.valores), {} as ValoresNativos);
@@ -214,4 +230,20 @@ export function somarNos(nos: NoEntradasSaidas[]): ValoresNativos {
 /** Soma um conjunto de linhas reduzidas direto (sem agrupar por nível) — usado pro KPI total. */
 export function somarLinhas(linhas: LinhaReduzida[]): ValoresNativos {
   return linhas.reduce((acc, l) => somarValores(acc, l.valores), {} as ValoresNativos);
+}
+
+/** Um nó da tabela informativa de Lojas (decisão de 2026-09-30: painel à parte,
+ * não-navegável, pra comparar lojas do MESMO recorte que está selecionado em
+ * Departamento ou Comprador — "essa loja está com excesso, essa está precisando",
+ * decisão de transferência interna). Nome/formato resolvidos à parte, pelo
+ * cadastro de Lojas — aqui só o código e os valores agregados. */
+export interface NoLoja {
+  codigo: string;
+  valores: ValoresNativos;
+}
+
+export function agregarPorLoja(linhas: LinhaReduzida[]): NoLoja[] {
+  const mapa = new Map<string, ValoresNativos>();
+  for (const l of linhas) mapa.set(l.lojaCodigo, somarValores(mapa.get(l.lojaCodigo) ?? {}, l.valores));
+  return Array.from(mapa.entries()).map(([codigo, valores]) => ({ codigo, valores }));
 }

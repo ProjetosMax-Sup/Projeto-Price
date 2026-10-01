@@ -58,8 +58,15 @@ export function refsDaCalculada(c: ColunaCalculada): string[] {
     case "desvio":
     case "difPP":
       return [c.coluna];
+    case "diferenca":
+      return [c.colunaA, c.colunaB];
   }
 }
+
+/** Refs sintéticos: não vêm do Dicionário (nunca vão aparecer lá), mas são refs
+ * válidos mesmo assim — injetados na agregação de quem precisa (ex.: "Meta",
+ * cadastrada em `ConfigRelatorio.metas`, não é coluna de arquivo nenhum). */
+const REFS_SINTETICOS = new Set(["Meta"]);
 
 /** Nativa é sempre valor de linha; calculada depende do tipo dela. */
 export function estagioDoRef(ref: string, config: ConfigRelatorio): EstagioCalculo {
@@ -75,6 +82,7 @@ export function refValida(ref: string, config: ConfigRelatorio): boolean {
 export function termosDaCalculada(c: ColunaCalculada): TermoFormula[] {
   if (c.tipo === "soma") return c.termos;
   if (c.tipo === "razao") return [...c.numerador, ...c.denominador];
+  if (c.tipo === "diferenca") return [{ sinal: "+", colunaRef: c.colunaA }, { sinal: "-", colunaRef: c.colunaB }];
   // valorDoPeriodo/desvio/difPP apontam pra uma coluna só, sem sinal.
   return [{ sinal: "+", colunaRef: c.coluna }];
 }
@@ -102,7 +110,7 @@ export function refsDisponiveisParaTermo(
 ): string[] {
   const nativas = dicionario.filter((c) => !c.chaveAutomatica).map((c) => c.ref);
   const calculadas = config.calculadas.filter((c) => c.id !== idCalculadaAtual).map((c) => c.id);
-  const todas = [...nativas, ...calculadas];
+  const todas = [...nativas, ...calculadas, ...REFS_SINTETICOS];
   if (tipoDaFormula !== "soma") return todas;
   return todas.filter((ref) => estagioDoRef(ref, config) === "linha");
 }
@@ -134,6 +142,17 @@ export function erroDaCalculada(coluna: ColunaCalculada, config: ConfigRelatorio
     return null;
   }
 
+  if (coluna.tipo === "diferenca") {
+    if (!coluna.colunaA || !coluna.colunaB) return `Coluna "${coluna.nome}": escolha as duas colunas (A e B).`;
+    if (!refValida(coluna.colunaA, config) || !refValida(coluna.colunaB, config)) {
+      return `Coluna "${coluna.nome}": alguma das colunas não existe mais neste relatório.`;
+    }
+    if (coluna.colunaA === coluna.id || coluna.colunaB === coluna.id) {
+      return `Coluna "${coluna.nome}": não pode apontar pra ela mesma.`;
+    }
+    return null;
+  }
+
   // valorDoPeriodo / desvio / difPP: apontam pra uma coluna só, que precisa existir.
   if (!coluna.coluna) return `Coluna "${coluna.nome}": escolha a coluna de origem.`;
   if (!refValida(coluna.coluna, config)) {
@@ -161,7 +180,7 @@ export function refsNativasInexistentes(config: ConfigRelatorio, dicionario: Col
       if (!ehRefCalculada(termo.colunaRef)) usados.add(termo.colunaRef);
     }
   }
-  return [...usados].filter((ref) => !existentes.has(ref));
+  return [...usados].filter((ref) => !existentes.has(ref) && !REFS_SINTETICOS.has(ref));
 }
 
 /** Quebrada = alguma fórmula referencia uma calculada que não existe mais (foi excluída). */

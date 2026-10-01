@@ -1,11 +1,14 @@
 import {
   agregarComprador,
   agregarDepartamento,
+  agregarPorLoja,
   filtrarPorComprador,
+  filtrarPorLojas,
   filtrarPorNoEstrutura,
   somarLinhas,
   type LinhaReduzida,
   type NoEntradasSaidas,
+  type NoLoja,
 } from "./aggregate";
 import { NIVEIS_ESTRUTURA, type NivelEstrutura, type NivelHierarquia } from "@/lib/desempenho/aggregate";
 import type { IndiceDepartamentos } from "@/lib/desempenho/comprador-cadastro";
@@ -38,12 +41,22 @@ export interface ConsultaEntradasSaidas {
   /** Caminho dentro do comprador escolhido (Departamento → ... → Produto) —
    * ignorado enquanto `compradorSelecionado` for `null`. */
   caminhoDentroComprador: NoSelecionadoES[];
+  /** Códigos de Loja escolhidos no filtro (decisão de 2026-09-30) — vazio = todas.
+   * Recorte prévio, aplicado antes de tudo. */
+  lojas: string[];
+  /** Qual dos dois painéis alimenta a tabela informativa de Lojas (decisão de
+   * 2026-09-30) — segue o último clique: clicou numa linha de Departamento,
+   * vira "departamento"; clicou numa de Comprador (inclusive escolher o
+   * comprador), vira "comprador". Painel não-navegável, só reflete o recorte. */
+  focoLojas: "departamento" | "comprador";
 }
 
 export const CONSULTA_ENTRADAS_SAIDAS_PADRAO: ConsultaEntradasSaidas = {
   caminhoDepartamento: [],
   compradorSelecionado: null,
   caminhoDentroComprador: [],
+  lojas: [],
+  focoLojas: "departamento",
 };
 
 export interface ResultadoEntradasSaidas {
@@ -54,6 +67,8 @@ export interface ResultadoEntradasSaidas {
    * nível da Hierarquia dentro daquele comprador. */
   nivelComprador: "comprador" | NivelEstrutura;
   linhasComprador: NoEntradasSaidas[];
+  /** Tabela informativa de Lojas — reflete `consulta.focoLojas` (ver comentário lá). */
+  linhasLoja: NoLoja[];
 }
 
 /**
@@ -62,10 +77,12 @@ export interface ResultadoEntradasSaidas {
  * drill-down e agrega, nunca por data.
  */
 export function computarEntradasSaidas(
-  linhas: LinhaReduzida[],
+  linhasSemFiltroDeLoja: LinhaReduzida[],
   consulta: ConsultaEntradasSaidas,
   indiceComprador: IndiceDepartamentos,
 ): ResultadoEntradasSaidas {
+  const linhas = filtrarPorLojas(linhasSemFiltroDeLoja, consulta.lojas);
+
   // --- painel Departamento (raiz: Departamento) ---
   const nivelDepartamento = NIVEIS_ESTRUTURA[consulta.caminhoDepartamento.length] ?? "produto";
   let baseDepartamento = linhas;
@@ -75,15 +92,23 @@ export function computarEntradasSaidas(
   // --- painel Comprador (raiz: Comprador, depois entra em Departamento→...) ---
   let linhasComprador: NoEntradasSaidas[];
   let nivelComprador: "comprador" | NivelEstrutura;
+  // Sem comprador escolhido, o "recorte" do painel Comprador ainda é tudo (`linhas`) —
+  // é a mesma base que `agregarComprador` agrupa; guardada aqui pra alimentar o foco
+  // de Lojas também (ver `linhasFoco` abaixo).
+  let baseComprador = linhas;
   if (!consulta.compradorSelecionado) {
     nivelComprador = "comprador";
     linhasComprador = agregarComprador(linhas, indiceComprador);
   } else {
-    let baseComprador = filtrarPorComprador(linhas, consulta.compradorSelecionado, indiceComprador);
+    baseComprador = filtrarPorComprador(linhas, consulta.compradorSelecionado, indiceComprador);
     for (const no of consulta.caminhoDentroComprador) baseComprador = filtrarPorNoEstrutura(baseComprador, no.nivel, no.chave);
     nivelComprador = NIVEIS_ESTRUTURA[consulta.caminhoDentroComprador.length] ?? "produto";
     linhasComprador = agregarDepartamento(baseComprador, nivelComprador);
   }
 
-  return { kpi: somarLinhas(linhas), nivelDepartamento, linhasDepartamento, nivelComprador, linhasComprador };
+  // --- painel Lojas (informativo, não-navegável — reflete o foco atual) ---
+  const linhasFoco = consulta.focoLojas === "departamento" ? baseDepartamento : baseComprador;
+  const linhasLoja = agregarPorLoja(linhasFoco);
+
+  return { kpi: somarLinhas(linhas), nivelDepartamento, linhasDepartamento, nivelComprador, linhasComprador, linhasLoja };
 }

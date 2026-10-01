@@ -4,6 +4,7 @@ import path from "path";
 import { semearDicionarioColunas } from "@/lib/parametros/dicionario";
 import { migrarConfigRelatorio, migrarDicionario } from "@/lib/parametros/migracao-refs";
 import {
+  semearColunasCompraVenda,
   semearColunasDesempenhoComercial,
   semearColunasEntradasSaidas,
   semearDepartamentosCadastro,
@@ -174,6 +175,7 @@ function configRelatorioVazia(modulo: string): ConfigRelatorio {
 function semearConfigRelatorio(modulo: string): ConfigRelatorio {
   if (modulo === "desempenho-comercial") return semearColunasDesempenhoComercial();
   if (modulo === "entradas-saidas") return semearColunasEntradasSaidas();
+  if (modulo === "compra-venda") return semearColunasCompraVenda();
   return configRelatorioVazia(modulo);
 }
 

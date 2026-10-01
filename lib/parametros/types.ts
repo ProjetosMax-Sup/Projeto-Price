@@ -112,7 +112,20 @@ export type ColunaCalculada =
   /** Variação percentual de uma coluna contra o período de Comparação. */
   | { id: string; nome: string; tipo: "desvio"; coluna: string; formato?: FormatoColuna; oculta: boolean }
   /** Diferença em pontos percentuais entre Atual e Comparação — pra coluna que já é %. */
-  | { id: string; nome: string; tipo: "difPP"; coluna: string; formato?: FormatoColuna; oculta: boolean };
+  | { id: string; nome: string; tipo: "difPP"; coluna: string; formato?: FormatoColuna; oculta: boolean }
+  /** Diferença entre duas colunas quaisquer do MESMO período (não Atual×Comparação
+   * como difPP — ex.: "Meta - Realizado" no Compra e Venda). `heatmap` pinta a
+   * célula numa escala vermelho→verde pelo valor em vez do texto cinza padrão. */
+  | {
+      id: string;
+      nome: string;
+      tipo: "diferenca";
+      colunaA: string;
+      colunaB: string;
+      formato?: FormatoColuna;
+      heatmap?: boolean;
+      oculta: boolean;
+    };
 
 /**
  * Papéis das colunas — âncoras pro código. Nenhuma parte do app pode depender do
@@ -147,6 +160,14 @@ export interface ConfigRelatorio {
   rotulos?: Record<string, string>;
   /** Ausente enquanto ninguém tiver escolhido uma coluna principal neste relatório. */
   papeis?: PapeisRelatorio;
+  /**
+   * Metas cadastradas manualmente (não vêm do arquivo) — chave `"<códigoDpto>|<formato>"`,
+   * valor no mesmo formato exibido pela coluna que a usa (ex.: 79 = 79%). Fixa até
+   * alguém editar de novo (decisão de 2026-09-30: sem histórico por mês). Injetada
+   * como ref sintético `"Meta"` na agregação de quem precisar dela (ver
+   * `lib/compra-venda/aggregate.ts`) — não é uma coluna do Dicionário.
+   */
+  metas?: Record<string, number>;
   /** "Quem acessa este relatório" (seção 3.3) — condição 1 das duas que precisam valer juntas. */
   acessoComprador: boolean;
   acessoGestor: boolean;

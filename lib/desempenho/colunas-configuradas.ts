@@ -22,6 +22,8 @@ export interface ColunaRenderizavel {
   semaforo: boolean;
   /** Valor do período de Comparação — fundo sombreado + itálico, pra não confundir com o Atual. */
   ehComparacao: boolean;
+  /** "Meta - Realizado" e afins: fundo em escala vermelho→verde pelo valor, em vez de texto cinza. */
+  heatmap: boolean;
 }
 
 /** Larguras herdadas do layout aprovado (antes fixas em `colunas-tabela.ts`). */
@@ -54,6 +56,7 @@ export function colunasDoRelatorio(config: ConfigRelatorio, dicionario: ColunaNa
         largura: LARGURA_POR_FORMATO[formato],
         semaforo: false,
         ehComparacao: false,
+        heatmap: false,
       };
     }
     const formato = formatoDaCalculada(calculada);
@@ -65,6 +68,7 @@ export function colunasDoRelatorio(config: ConfigRelatorio, dicionario: ColunaNa
       largura: semaforo ? LARGURA_SEMAFORO : LARGURA_POR_FORMATO[formato],
       semaforo,
       ehComparacao: calculada.tipo === "valorDoPeriodo" && calculada.periodo === "comparacao",
+      heatmap: calculada.tipo === "diferenca" && calculada.heatmap === true,
     };
   });
 }

@@ -25,6 +25,13 @@ export interface ContextoAvaliacao {
 const PERIODO_PADRAO = "atual" as const;
 type Periodo = "atual" | "comparacao";
 
+/** Refs sintéticos (não vêm do arquivo, ver `ConfigRelatorio.metas`) onde AUSENTE
+ * significa "não cadastrado" (mostra "—" na tela), não "zero" — diferente de uma
+ * nativa de arquivo de verdade, onde ausente é sempre "sem movimento" = 0. Sem
+ * isso, "Meta - Realizado" de um Departamento sem meta cadastrada mostraria um
+ * número grande e enganoso (0 − Realizado) em vez de vazio. */
+const REFS_SINTETICOS_SEM_PADRAO_ZERO = new Set(["Meta"]);
+
 function somarTermos(
   termos: TermoFormula[],
   periodo: Periodo,
@@ -83,6 +90,7 @@ export function avaliarColunas(config: ConfigRelatorio, contexto: ContextoAvalia
       // dessa coluna pra este grupo), exceto quando o período inteiro não existe.
       const doPeriodo = valores(periodo);
       if (!doPeriodo) return null;
+      if (REFS_SINTETICOS_SEM_PADRAO_ZERO.has(ref) && !(ref in doPeriodo)) return null;
       return doPeriodo[ref] ?? 0;
     }
 
@@ -122,6 +130,13 @@ export function avaliarColunas(config: ConfigRelatorio, contexto: ContextoAvalia
         if (atual === null || anterior === null) return null;
         return atual - anterior;
       }
+
+      case "diferenca": {
+        const a = resolver(calculada.colunaA, periodo);
+        const b = resolver(calculada.colunaB, periodo);
+        if (a === null || b === null) return null;
+        return a - b;
+      }
     }
   }
 
@@ -146,6 +161,7 @@ export function formatoDaCalculada(calculada: ColunaCalculada): FormatoColuna {
     case "desvio":
       return "percentual";
     case "difPP":
+    case "diferenca":
       return "pontosPercentuais";
     case "valorDoPeriodo":
       return "moeda";
@@ -180,6 +196,10 @@ export function refsNativasNecessarias(config: ConfigRelatorio): string[] {
       case "desvio":
       case "difPP":
         percorrer(calculada.coluna);
+        break;
+      case "diferenca":
+        percorrer(calculada.colunaA);
+        percorrer(calculada.colunaB);
         break;
     }
   }

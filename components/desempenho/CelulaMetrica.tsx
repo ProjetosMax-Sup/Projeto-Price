@@ -2,6 +2,20 @@ import { Semaforo } from "@/components/ui/Semaforo";
 import type { ColunaRenderizavel } from "@/lib/desempenho/colunas-configuradas";
 import { formatMoeda, formatPercent } from "@/lib/desempenho/format";
 
+/**
+ * Escala divergente vermelho→amarelo→verde pra "Meta - Realizado" (em p.p.):
+ * 0 é o pivô (amarelo pálido), ±20p.p. já satura na cor cheia. Não é semáforo
+ * (3 estados fixos) — aqui a intensidade cresce com a distância da meta.
+ */
+const HEATMAP_SATURACAO_PP = 20;
+
+function corHeatmap(valor: number): string {
+  const t = Math.max(-1, Math.min(1, valor / HEATMAP_SATURACAO_PP));
+  // Matiz: 0 (vermelho) até 120 (verde), passando por 60 (amarelo) no pivô.
+  const matiz = 60 + t * 60;
+  return `hsl(${matiz}, 75%, 88%)`;
+}
+
 function formatar(valor: number, coluna: ColunaRenderizavel): string {
   switch (coluna.formato) {
     case "moeda":
@@ -41,6 +55,16 @@ export function CelulaMetrica({
         className={`px-3 py-2 text-right tabular-nums whitespace-nowrap ${fundoComparacao} ${enfase ? "text-azul/40" : "text-zinc-400"}`}
       >
         —
+      </td>
+    );
+  }
+  if (coluna.heatmap) {
+    return (
+      <td
+        className="px-3 py-2 text-right tabular-nums whitespace-nowrap text-zinc-800"
+        style={{ backgroundColor: corHeatmap(valor) }}
+      >
+        {formatar(valor, coluna)}
       </td>
     );
   }
