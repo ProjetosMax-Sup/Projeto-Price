@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   calculadaQuebrada,
   erroDaCalculada,
@@ -9,7 +9,7 @@ import {
   refsDisponiveisParaTermo,
   rotuloDaColuna,
 } from "@/lib/parametros/colunas-relatorio";
-import type { ColunaCalculada, ColunaNativa, ConfigRelatorio, TermoFormula } from "@/lib/parametros/types";
+import type { ColunaCalculada, ColunaNativa, ConfigRelatorio, FormatoColuna, TermoFormula } from "@/lib/parametros/types";
 
 const labelParaRef = (ref: string, dicionario: ColunaNativa[], config: ConfigRelatorio) =>
   rotuloDaColuna(ref, config, dicionario);
@@ -30,7 +30,192 @@ function resumoFormula(c: ColunaCalculada, dicionario: ColunaNativa[], config: C
       return `${nome(c.coluna)}: Atual − Comparação (em p.p.)`;
     case "diferenca":
       return `${nome(c.colunaA)} − ${nome(c.colunaB)}${c.heatmap ? ` · mapa de calor${c.heatmapInvertido ? " (invertido)" : ""}` : ""}`;
+    case "formula":
+      return c.expressao;
   }
+}
+
+const ROTULO_FORMATO: Record<FormatoColuna, string> = {
+  moeda: "Contábil (R$)",
+  numero: "Volume (sem símbolo)",
+  percentual: "%",
+  pontosPercentuais: "Pontos Percentuais",
+};
+
+/** Seletor de formato de saída + casas decimais — comum a todos os tipos de calculada. */
+function SeletorFormato({
+  formato,
+  casasDecimais,
+  formatosDisponiveis,
+  onChange,
+}: {
+  formato: FormatoColuna | undefined;
+  casasDecimais: number | undefined;
+  formatosDisponiveis: FormatoColuna[];
+  onChange: (formato: FormatoColuna | undefined, casasDecimais: number | undefined) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-end gap-3">
+      <label className="flex flex-col gap-1">
+        <span className="text-xs font-medium text-zinc-500">Formato de saída</span>
+        <select
+          value={formato ?? ""}
+          onChange={(e) => onChange((e.target.value || undefined) as FormatoColuna | undefined, casasDecimais)}
+          className="w-48 rounded border border-zinc-300 px-2 py-1 text-sm"
+        >
+          <option value="">Padrão do tipo</option>
+          {formatosDisponiveis.map((f) => (
+            <option key={f} value={f}>
+              {ROTULO_FORMATO[f]}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="flex flex-col gap-1">
+        <span className="text-xs font-medium text-zinc-500">Casas decimais</span>
+        <input
+          type="number"
+          min={0}
+          max={4}
+          value={casasDecimais ?? ""}
+          onChange={(e) => onChange(formato, e.target.value === "" ? undefined : Number(e.target.value))}
+          placeholder="Padrão"
+          className="w-24 rounded border border-zinc-300 px-2 py-1 text-sm"
+        />
+      </label>
+    </div>
+  );
+}
+
+const FORMATOS_PADRAO: FormatoColuna[] = ["moeda", "numero", "percentual", "pontosPercentuais"];
+
+/** Mapa de calor (vermelho → verde pelo valor) — comum a "formula" e ao legado "diferenca". */
+function ControlesHeatmap({
+  heatmap,
+  heatmapInvertido,
+  onChange,
+}: {
+  heatmap: boolean | undefined;
+  heatmapInvertido: boolean | undefined;
+  onChange: (heatmap: boolean, heatmapInvertido: boolean) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <label className="flex items-center gap-1.5 text-sm text-zinc-600">
+        <input
+          type="checkbox"
+          checked={heatmap ?? false}
+          onChange={(e) => onChange(e.target.checked, e.target.checked ? (heatmapInvertido ?? false) : false)}
+          className="accent-azul"
+        />
+        Mapa de calor (vermelho → verde pelo valor)
+      </label>
+      {heatmap && (
+        <label className="flex items-center gap-1.5 text-sm text-zinc-600">
+          <input
+            type="checkbox"
+            checked={heatmapInvertido ?? false}
+            onChange={(e) => onChange(true, e.target.checked)}
+            className="accent-azul"
+          />
+          Inverter (verde → vermelho pelo valor)
+        </label>
+      )}
+      {heatmap && (
+        <p className="w-full text-xs text-zinc-400">
+          {heatmapInvertido
+            ? "Invertido: valor negativo fica verde, positivo fica vermelho (use quando ficar abaixo é o bom, ex.: Custo − Meta)."
+            : "Padrão: valor positivo fica verde, negativo fica vermelho."}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Glossário clicável + legenda de operadores, lado a lado com o campo de fórmula. */
+function EditorFormula({
+  expressao,
+  opcoes,
+  dicionario,
+  config,
+  onChange,
+}: {
+  expressao: string;
+  opcoes: string[];
+  dicionario: ColunaNativa[];
+  config: ConfigRelatorio;
+  onChange: (expressao: string) => void;
+}) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  function inserirNoCursor(texto: string) {
+    const el = textareaRef.current;
+    if (!el) {
+      onChange(expressao + texto);
+      return;
+    }
+    const inicio = el.selectionStart ?? expressao.length;
+    const fim = el.selectionEnd ?? expressao.length;
+    const novoValor = expressao.slice(0, inicio) + texto + expressao.slice(fim);
+    onChange(novoValor);
+    requestAnimationFrame(() => {
+      el.focus();
+      const posicao = inicio + texto.length;
+      el.setSelectionRange(posicao, posicao);
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-3 sm:flex-row">
+      <div className="flex-1">
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-zinc-500">Fórmula</span>
+          <textarea
+            ref={textareaRef}
+            value={expressao}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="Ex.: [Compras] - [Meta] / 100 * [Valor]"
+            rows={3}
+            className="w-full rounded border border-zinc-300 px-2 py-1.5 font-mono text-sm"
+          />
+        </label>
+        <div className="mt-1.5 flex flex-wrap gap-2 text-xs text-zinc-400">
+          <span className="font-medium text-zinc-500">Operadores:</span>
+          <span className="rounded bg-zinc-100 px-1.5 py-0.5">+ soma</span>
+          <span className="rounded bg-zinc-100 px-1.5 py-0.5">− subtração</span>
+          <span className="rounded bg-zinc-100 px-1.5 py-0.5">* multiplicação</span>
+          <span className="rounded bg-zinc-100 px-1.5 py-0.5">/ divisão</span>
+          <span className="rounded bg-zinc-100 px-1.5 py-0.5">( ) agrupamento</span>
+          <span>— use [Nome da Coluna] pra referenciar uma coluna. Divisão por zero dá 0, nunca erro.</span>
+        </div>
+      </div>
+      <div className="w-full shrink-0 sm:w-56">
+        <p className="mb-1 text-xs font-medium text-zinc-500">Clique pra inserir na fórmula</p>
+        <div className="max-h-40 overflow-y-auto rounded border border-zinc-200 bg-white">
+          {opcoes.map((ref) => {
+            // O que entra na fórmula é o NOME da calculada ou o ref bruto da nativa —
+            // nunca a tradução/rótulo customizado, que pode mudar e quebraria a fórmula
+            // (mesmo motivo de PapeisRelatorio: refs são estáveis, nomes de tela não).
+            const calculada = config.calculadas.find((c) => c.id === ref);
+            const token = calculada ? calculada.nome : ref;
+            const label = labelParaRef(ref, dicionario, config);
+            return (
+              <button
+                key={ref}
+                type="button"
+                onClick={() => inserirNoCursor(`[${token}]`)}
+                className="block w-full px-2 py-1 text-left text-xs text-zinc-600 hover:bg-zinc-100"
+                title={token !== label ? `Insere [${token}]` : undefined}
+              >
+                {label}
+                {token !== label && <span className="text-zinc-400"> ({token})</span>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function ListaTermos({
@@ -108,15 +293,22 @@ export function CalculadasTab({
   // não acontece porque a opção não existe, em vez de acontecer e ser barrado depois.
   const opcoes = refsDisponiveisParaTermo(config, dicionario, editando?.id, editando?.tipo ?? "razao");
 
+  // Mesma função que a rota de API usa — roda a cada edição, não só no clique de Salvar,
+  // pra nunca deixar salvar uma fórmula com erro (nome vazio, referência desconhecida,
+  // fórmula se referenciando etc.).
+  const erroAtual = editando ? erroDaCalculada(editando, config) : null;
+
   function novaColuna(tipo: ColunaCalculada["tipo"]) {
     setErroEditor(null);
     const base = { id: novoIdCalculada(), nome: "", oculta: false };
     setEditando(
-      tipo === "soma"
-        ? { ...base, tipo: "soma", termos: [] }
-        : tipo === "razao"
-          ? { ...base, tipo: "razao", numerador: [], denominador: [] }
-          : tipo === "valorDoPeriodo"
+      tipo === "formula"
+        ? { ...base, tipo: "formula", expressao: "" }
+        : tipo === "soma"
+          ? { ...base, tipo: "soma", termos: [] }
+          : tipo === "razao"
+            ? { ...base, tipo: "razao", numerador: [], denominador: [] }
+            : tipo === "valorDoPeriodo"
             ? { ...base, tipo: "valorDoPeriodo", coluna: opcoes[0] ?? "", periodo: "comparacao" }
             : tipo === "desvio"
               ? { ...base, tipo: "desvio", coluna: opcoes[0] ?? "" }
@@ -136,8 +328,7 @@ export function CalculadasTab({
   function salvarEdicao() {
     if (!editando) return;
     // Mesma função que a rota de API usa — tela e servidor nunca divergem.
-    const erro = erroDaCalculada(editando, config);
-    if (erro) return setErroEditor(erro);
+    if (erroAtual) return setErroEditor(erroAtual);
 
     const existe = config.calculadas.some((c) => c.id === editando.id);
     onChange({
@@ -168,12 +359,13 @@ export function CalculadasTab({
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-zinc-500">
-        Fórmulas específicas deste relatório — sempre por seleção estruturada (sinal + coluna), nunca texto livre. Um
-        termo pode ser uma coluna nativa marcada em &quot;Nativas&quot; ou outra coluna calculada já criada aqui.
+        Fórmulas específicas deste relatório, no estilo Excel: escreva com <code>[Nome da Coluna]</code> e os
+        operadores <code>+ − * /</code>. Uma referência pode ser uma coluna nativa marcada em
+        &quot;Nativas&quot; ou outra coluna calculada já criada aqui — nunca dá pra referenciar algo que não existe,
+        porque o Salvar fica bloqueado enquanto houver erro.
         <br />
         <span className="text-zinc-400">
-          Percentuais (razão) não aparecem como opção dentro de uma soma: somar percentuais dá resultado errado no
-          subtotal e no total. Manual completo em <code className="text-zinc-500">docs/manual-de-formulas.md</code>.
+          Manual completo em <code className="text-zinc-500">docs/manual-de-formulas.md</code>.
         </span>
       </p>
 
@@ -238,12 +430,10 @@ export function CalculadasTab({
         <div className="flex flex-wrap gap-3">
           {(
             [
-              ["soma", "+ Soma/Subtração"],
-              ["razao", "+ Razão (%)"],
+              ["formula", "+ Fórmula"],
               ["valorDoPeriodo", "+ Valor de outro período"],
               ["desvio", "+ % Desvio"],
               ["difPP", "+ Diferença em p.p."],
-              ["diferenca", "+ Diferença entre colunas (Meta - Realizado)"],
             ] as const
           ).map(([tipo, rotulo]) => (
             <button
@@ -265,6 +455,23 @@ export function CalculadasTab({
             placeholder="Nome da coluna (ex.: % Desvio (Valor))"
             className="w-80 rounded border border-zinc-300 px-2 py-1.5 text-sm"
           />
+
+          {editando.tipo === "formula" && (
+            <>
+              <EditorFormula
+                expressao={editando.expressao}
+                opcoes={opcoes}
+                dicionario={dicionario}
+                config={config}
+                onChange={(expressao) => setEditando({ ...editando, expressao })}
+              />
+              <ControlesHeatmap
+                heatmap={editando.heatmap}
+                heatmapInvertido={editando.heatmapInvertido}
+                onChange={(heatmap, heatmapInvertido) => setEditando({ ...editando, heatmap, heatmapInvertido })}
+              />
+            </>
+          )}
 
           {editando.tipo === "soma" && (
             <ListaTermos
@@ -382,46 +589,29 @@ export function CalculadasTab({
                   ))}
                 </select>
               </label>
-              <label className="flex items-center gap-1.5 pb-1.5 text-sm text-zinc-600">
-                <input
-                  type="checkbox"
-                  checked={editando.heatmap ?? false}
-                  onChange={(e) =>
-                    setEditando({
-                      ...editando,
-                      heatmap: e.target.checked,
-                      heatmapInvertido: e.target.checked ? editando.heatmapInvertido : false,
-                    })
-                  }
-                  className="accent-azul"
-                />
-                Mapa de calor (vermelho → verde pelo valor)
-              </label>
-              {editando.heatmap && (
-                <label className="flex items-center gap-1.5 pb-1.5 text-sm text-zinc-600">
-                  <input
-                    type="checkbox"
-                    checked={editando.heatmapInvertido ?? false}
-                    onChange={(e) => setEditando({ ...editando, heatmapInvertido: e.target.checked })}
-                    className="accent-azul"
-                  />
-                  Inverter (verde → vermelho pelo valor)
-                </label>
-              )}
               <p className="w-full text-xs text-zinc-400">
                 Diferença dentro do mesmo período (não Atual × Comparação) — ex.: Meta − Realizado.
-                {editando.heatmap &&
-                  (editando.heatmapInvertido
-                    ? " Invertido: valor negativo fica verde, positivo fica vermelho (use quando ficar abaixo é o bom, ex.: Custo − Meta)."
-                    : " Padrão: valor positivo fica verde, negativo fica vermelho.")}
               </p>
+              <ControlesHeatmap
+                heatmap={editando.heatmap}
+                heatmapInvertido={editando.heatmapInvertido}
+                onChange={(heatmap, heatmapInvertido) => setEditando({ ...editando, heatmap, heatmapInvertido })}
+              />
             </div>
           )}
+
+          <SeletorFormato
+            formato={editando.formato}
+            casasDecimais={editando.casasDecimais}
+            formatosDisponiveis={FORMATOS_PADRAO}
+            onChange={(formato, casasDecimais) => setEditando({ ...editando, formato, casasDecimais })}
+          />
 
           <div className="flex items-center gap-3">
             <button
               onClick={salvarEdicao}
-              className="rounded-md bg-azul px-4 py-1.5 text-sm font-medium text-white hover:bg-azul/90"
+              disabled={!!erroAtual}
+              className="rounded-md bg-azul px-4 py-1.5 text-sm font-medium text-white hover:bg-azul/90 disabled:cursor-not-allowed disabled:opacity-40"
             >
               Salvar coluna
             </button>
@@ -434,7 +624,7 @@ export function CalculadasTab({
             >
               Cancelar
             </button>
-            {erroEditor && <span className="text-sm text-vermelho">{erroEditor}</span>}
+            {(erroAtual || erroEditor) && <span className="text-sm text-vermelho">{erroAtual ?? erroEditor}</span>}
           </div>
         </div>
       )}

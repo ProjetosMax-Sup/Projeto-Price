@@ -1,7 +1,7 @@
 import { Semaforo } from "@/components/ui/Semaforo";
 import type { Metricas } from "@/lib/desempenho/aggregate";
-import { valoresDaLinha, type ColunaRenderizavel } from "@/lib/desempenho/colunas-configuradas";
-import { calcDesvio, formatMoeda, formatPercent } from "@/lib/desempenho/format";
+import { colunasKpi, valoresDaLinha, type ColunaRenderizavel } from "@/lib/desempenho/colunas-configuradas";
+import { calcDesvio, formatMoeda, formatNumero, formatPercent, formatPontosPercentuais } from "@/lib/desempenho/format";
 import type { ConfigRelatorio } from "@/lib/parametros/types";
 
 function KpiCard({
@@ -31,9 +31,11 @@ function KpiCard({
 }
 
 /**
- * Três cards: a coluna marcada como **principal** em /parametros (a estrela na aba
- * Ativas) e as duas colunas seguintes da ordem configurada. É assim que o topo da
- * tela deixa de depender de "venda/lucro/% lucro" estarem escritos no código.
+ * Cards de KPI — colunas marcadas com "Destacar no card" na aba Ativas
+ * (`config.destaquesKpi`), ou, sem nada marcado ainda, a coluna **principal** +
+ * as duas seguintes da ordem configurada (ver `colunasKpi`). Sempre por ref/id,
+ * nunca por nome — é o que faz o topo da tela nunca depender de "venda/lucro/%
+ * lucro" estarem escritos no código, nem sumir quando alguém renomeia a coluna.
  */
 export function KpiCards({
   atual,
@@ -47,18 +49,24 @@ export function KpiCards({
   colunas: ColunaRenderizavel[];
 }) {
   const valoresAtual = valoresDaLinha(config, atual, comparacao);
-  const refPrincipal = config.papeis?.principal;
-  const principal = colunas.find((c) => c.ref === refPrincipal) ?? colunas[0];
-  const demais = colunas.filter((c) => c.ref !== principal?.ref && !c.ehComparacao && !c.semaforo).slice(0, 2);
-  const emDestaque = [principal, ...demais].filter((c): c is ColunaRenderizavel => Boolean(c));
+  const emDestaque = colunasKpi(config, colunas);
 
   const formatar = (coluna: ColunaRenderizavel, valor: number | null) => {
     if (valor === null) return "—";
-    return coluna.formato === "moeda" ? formatMoeda(valor) : formatPercent(valor);
+    switch (coluna.formato) {
+      case "moeda":
+        return formatMoeda(valor, coluna.casasDecimais ?? 0);
+      case "numero":
+        return formatNumero(valor, coluna.casasDecimais ?? 0);
+      case "pontosPercentuais":
+        return formatPontosPercentuais(valor, coluna.casasDecimais ?? 1);
+      case "percentual":
+        return formatPercent(valor, coluna.casasDecimais ?? 1);
+    }
   };
 
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+    <div className="grid grid-cols-1 gap-3 sm:[grid-template-columns:repeat(auto-fit,minmax(180px,1fr))]">
       {emDestaque.map((coluna) => {
         const valorAtual = valoresAtual[coluna.ref] ?? null;
         // Comparação do card: o mesmo valor no período anterior, avaliado pelo mesmo

@@ -5,7 +5,7 @@ import { filtrarPorFormato, injetarMetasNoResultado, pesosPorDepartamentoFormato
 import { getEntradasSaidasReduzido, getMesesDisponiveisEntradasSaidas } from "@/lib/data-providers/file-provider";
 import { colunasDoRelatorio } from "@/lib/desempenho/colunas-configuradas";
 import { construirIndiceDepartamentos } from "@/lib/desempenho/comprador-cadastro";
-import { CONSULTA_ENTRADAS_SAIDAS_PADRAO, computarEntradasSaidas } from "@/lib/entradas-saidas/consulta";
+import { CONSULTA_ENTRADAS_SAIDAS_PADRAO, computarEntradasSaidas, departamentosExcluidosDoTotal } from "@/lib/entradas-saidas/consulta";
 import {
   obterOuSemearConfigRelatorio,
   obterOuSemearDepartamentosCadastro,
@@ -48,8 +48,9 @@ export default async function CompraVendaPage() {
 
   const linhasBrutas = await getEntradasSaidasReduzido(mesPadrao ? [`bd${mesPadrao}.txt`] : []);
   const linhasIniciais = formatoPadrao ? filtrarPorFormato(linhasBrutas, formatoPadrao) : [];
-  const resultadoBase = computarEntradasSaidas(linhasIniciais, CONSULTA_ENTRADAS_SAIDAS_PADRAO, indiceComprador);
-  const pesos = pesosPorDepartamentoFormato(linhasBrutas);
+  const excluidos = departamentosExcluidosDoTotal(departamentos);
+  const resultadoBase = computarEntradasSaidas(linhasIniciais, CONSULTA_ENTRADAS_SAIDAS_PADRAO, indiceComprador, excluidos);
+  const pesos = pesosPorDepartamentoFormato(linhasBrutas).filter((p) => !excluidos.has(p.dpto));
   const resultadoInicial = injetarMetasNoResultado(
     resultadoBase,
     CONSULTA_ENTRADAS_SAIDAS_PADRAO,

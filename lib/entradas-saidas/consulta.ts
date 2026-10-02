@@ -13,6 +13,14 @@ import {
 import { NIVEIS_ESTRUTURA, type NivelEstrutura, type NivelHierarquia } from "@/lib/desempenho/aggregate";
 import type { IndiceDepartamentos } from "@/lib/desempenho/comprador-cadastro";
 import type { ValoresNativos } from "@/lib/parametros/avaliador";
+import type { DepartamentoCadastro } from "@/lib/parametros/types";
+
+/** Códigos dos departamentos marcados "excluir do total principal" (ex.: "Apropriações")
+ * — usar sempre o código, nunca o nome, pra não depender de como o departamento está
+ * escrito no cadastro hoje. */
+export function departamentosExcluidosDoTotal(departamentosCadastro: DepartamentoCadastro[]): Set<string> {
+  return new Set(departamentosCadastro.filter((d) => d.excluirDoTotalPrincipal).map((d) => d.codigo));
+}
 
 /**
  * Ponto único de agregação do Entradas e Saídas — mesmo espírito de
@@ -88,6 +96,10 @@ export function computarEntradasSaidas(
   linhasSemFiltroDeLoja: LinhaReduzida[],
   consulta: ConsultaEntradasSaidas,
   indiceComprador: IndiceDepartamentos,
+  /** Códigos de Departamento marcados "excluir do total principal" (ex.: "Apropriações",
+   * cadastro em /parametros → Departamentos) — ficam de fora só do `kpi`, continuam
+   * aparecendo normalmente nas tabelas de drill-down. */
+  departamentosExcluidosDoTotal: ReadonlySet<string> = new Set(),
 ): ResultadoEntradasSaidas {
   const linhas = filtrarPorLojas(linhasSemFiltroDeLoja, consulta.lojas);
 
@@ -119,5 +131,8 @@ export function computarEntradasSaidas(
   if (consulta.produtoFoco) linhasFoco = linhasFoco.filter((l) => l.codigo === consulta.produtoFoco);
   const linhasLoja = agregarPorLoja(linhasFoco);
 
-  return { kpi: somarLinhas(linhas), nivelDepartamento, linhasDepartamento, nivelComprador, linhasComprador, linhasLoja };
+  const linhasParaKpi =
+    departamentosExcluidosDoTotal.size === 0 ? linhas : linhas.filter((l) => !departamentosExcluidosDoTotal.has(l.dpto));
+
+  return { kpi: somarLinhas(linhasParaKpi), nivelDepartamento, linhasDepartamento, nivelComprador, linhasComprador, linhasLoja };
 }

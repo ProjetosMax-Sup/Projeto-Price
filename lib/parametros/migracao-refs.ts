@@ -54,6 +54,8 @@ function migrarCalculada(calculada: ColunaCalculada): ColunaCalculada {
   if (calculada.tipo === "diferenca") {
     return { ...calculada, colunaA: migrarRef(calculada.colunaA), colunaB: migrarRef(calculada.colunaB) };
   }
+  // formula não existia quando ref era posicional — nada a migrar.
+  if (calculada.tipo === "formula") return calculada;
   // valorDoPeriodo/desvio/difPP: uma coluna só. Não existiam quando refs eram
   // numéricos, mas migrar é barato e evita um caso especial se alguém criar antes
   // de a migração rodar.

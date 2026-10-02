@@ -75,6 +75,23 @@ export function metasPorDepartamento(
   return metaPonderadaPorChave(itens);
 }
 
+/** Meta do TOTAL (card de KPI) — uma única média ponderada pela Venda atual de
+ * todos os Departamentos (mesmo espírito de `metasPorDepartamento`, só que
+ * colapsado numa chave só em vez de uma por Departamento). Sem isso, o ref
+ * sintético "Meta" nunca existe no nível do KPI — só nos nós de Departamento/
+ * Comprador — e qualquer calculada que dependa dela (ex.: "GAP R$") fica vazia
+ * no card mesmo tendo dado na tabela. */
+export function metaTotalPonderada(
+  pesos: PesoDepartamentoFormato[],
+  metas: Record<string, number>,
+  formatoView: string,
+): number | undefined {
+  const itens = pesos
+    .filter((p) => formatoView === FORMATO_TODOS || p.formato === formatoView)
+    .map((p) => ({ chave: "total", peso: p.venda, meta: metas[`${p.dpto}|${p.formato}`] }));
+  return metaPonderadaPorChave(itens).get("total");
+}
+
 /** Meta por Comprador — ponderada pela Venda atual de cada Departamento que ele
  * compra (mesmo espírito do Total: metas percentuais não somam, têm que ser
  * ponderadas pelo volume de cada parte). */
@@ -190,8 +207,11 @@ export function injetarMetasNoResultado(
     );
   }
 
+  const metaTotal = metaTotalPonderada(pesos, metasCadastradas, formatoView);
+
   return {
     ...resultado,
+    kpi: metaTotal !== undefined ? { ...resultado.kpi, Meta: metaTotal } : resultado.kpi,
     linhasDepartamento: removerSemMovimento(linhasDepartamento),
     linhasComprador: removerSemMovimento(linhasComprador),
   };

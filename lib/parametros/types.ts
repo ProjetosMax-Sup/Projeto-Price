@@ -19,6 +19,11 @@ export interface DepartamentoCadastro {
   mesmoCompradorTodosFormatos: boolean;
   comprador: string;
   compradorPorFormato: Record<string, string>;
+  /** Departamento contábil (ex.: "Apropriações") — não tem produto/venda de verdade,
+   * então fica de fora do Total principal e dos cards de KPI de Entradas e Saídas /
+   * Compra e Venda (mas continua aparecendo na tabela, à parte, marcado em vermelho).
+   * Ausente/false = entra no total normalmente. */
+  excluirDoTotalPrincipal?: boolean;
 }
 
 /**
@@ -87,7 +92,7 @@ export type FormatoColuna = "moeda" | "percentual" | "numero" | "pontosPercentua
  */
 export type ColunaCalculada =
   /** Combinação linear de colunas — a única que soma normalmente na agregação. */
-  | { id: string; nome: string; tipo: "soma"; termos: TermoFormula[]; formato?: FormatoColuna; oculta: boolean }
+  | { id: string; nome: string; tipo: "soma"; termos: TermoFormula[]; formato?: FormatoColuna; casasDecimais?: number; oculta: boolean }
   /** Divisão de dois grupos de termos; só existe depois de agregar. */
   | {
       id: string;
@@ -96,6 +101,7 @@ export type ColunaCalculada =
       numerador: TermoFormula[];
       denominador: TermoFormula[];
       formato?: FormatoColuna;
+      casasDecimais?: number;
       oculta: boolean;
     }
   /** O valor de outra coluna no período escolhido — é assim que "Comparação" deixa
@@ -107,12 +113,13 @@ export type ColunaCalculada =
       coluna: string;
       periodo: "atual" | "comparacao";
       formato?: FormatoColuna;
+      casasDecimais?: number;
       oculta: boolean;
     }
   /** Variação percentual de uma coluna contra o período de Comparação. */
-  | { id: string; nome: string; tipo: "desvio"; coluna: string; formato?: FormatoColuna; oculta: boolean }
+  | { id: string; nome: string; tipo: "desvio"; coluna: string; formato?: FormatoColuna; casasDecimais?: number; oculta: boolean }
   /** Diferença em pontos percentuais entre Atual e Comparação — pra coluna que já é %. */
-  | { id: string; nome: string; tipo: "difPP"; coluna: string; formato?: FormatoColuna; oculta: boolean }
+  | { id: string; nome: string; tipo: "difPP"; coluna: string; formato?: FormatoColuna; casasDecimais?: number; oculta: boolean }
   /** Diferença entre duas colunas quaisquer do MESMO período (não Atual×Comparação
    * como difPP — ex.: "Meta - Realizado" no Compra e Venda). `heatmap` pinta a
    * célula numa escala vermelho→verde pelo valor em vez do texto cinza padrão.
@@ -125,6 +132,23 @@ export type ColunaCalculada =
       colunaA: string;
       colunaB: string;
       formato?: FormatoColuna;
+      casasDecimais?: number;
+      heatmap?: boolean;
+      heatmapInvertido?: boolean;
+      oculta: boolean;
+    }
+  /** Fórmula estilo Excel: texto com `[Nome da Coluna]` e operadores `+ - * / ( )`.
+   * Substitui soma/razão/diferença como forma de criar calculada nova — os três
+   * tipos antigos continuam válidos só pra ler configs já salvas (ver
+   * `docs/manual-de-formulas.md`). Nunca é "linha": sempre avaliada depois de
+   * agregar, mesma trava estrutural de razão/diferença hoje. */
+  | {
+      id: string;
+      nome: string;
+      tipo: "formula";
+      expressao: string;
+      formato?: FormatoColuna;
+      casasDecimais?: number;
       heatmap?: boolean;
       heatmapInvertido?: boolean;
       oculta: boolean;
@@ -163,6 +187,13 @@ export interface ConfigRelatorio {
   rotulos?: Record<string, string>;
   /** Ausente enquanto ninguém tiver escolhido uma coluna principal neste relatório. */
   papeis?: PapeisRelatorio;
+  /**
+   * Refs/ids marcados pra aparecer como card de KPI no topo da tela (botão "Destacar
+   * no card" na aba Ativas), na ordem escolhida. Ausente/vazio = cada módulo cai no
+   * próprio padrão (coluna principal + as seguintes da ordem) — renomear uma coluna
+   * nunca derruba o card, porque a referência é sempre o ref/id, nunca o nome exibido.
+   */
+  destaquesKpi?: string[];
   /**
    * Metas cadastradas manualmente (não vêm do arquivo) — chave `"<códigoDpto>|<formato>"`,
    * valor no mesmo formato exibido pela coluna que a usa (ex.: 79 = 79%). Fixa até

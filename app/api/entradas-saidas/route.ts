@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { arquivoMensal, NOMES_MESES_ARQUIVO } from "@/config/data-sources";
 import { getEntradasSaidasReduzido, getMesesDisponiveisEntradasSaidas } from "@/lib/data-providers/file-provider";
 import { construirIndiceDepartamentos } from "@/lib/desempenho/comprador-cadastro";
-import { computarEntradasSaidas, type ConsultaEntradasSaidas } from "@/lib/entradas-saidas/consulta";
+import { computarEntradasSaidas, departamentosExcluidosDoTotal, type ConsultaEntradasSaidas } from "@/lib/entradas-saidas/consulta";
 import { obterOuSemearDepartamentosCadastro } from "@/lib/parametros/store";
 
 /**
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     obterOuSemearDepartamentosCadastro(),
   ]);
   const indiceComprador = construirIndiceDepartamentos(departamentosCadastro);
-  const resultado = computarEntradasSaidas(linhas, corpo, indiceComprador);
+  const resultado = computarEntradasSaidas(linhas, corpo, indiceComprador, departamentosExcluidosDoTotal(departamentosCadastro));
   return NextResponse.json(resultado);
 }
 

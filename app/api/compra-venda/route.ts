@@ -4,7 +4,7 @@ import { getEntradasSaidasReduzido, getMesesDisponiveisEntradasSaidas } from "@/
 import { filtrarPorFormato, injetarMetasNoResultado, pesosPorDepartamentoFormato } from "@/lib/compra-venda/aggregate";
 import { filtrarPorLojas } from "@/lib/entradas-saidas/aggregate";
 import { construirIndiceDepartamentos } from "@/lib/desempenho/comprador-cadastro";
-import { computarEntradasSaidas, type ConsultaEntradasSaidas } from "@/lib/entradas-saidas/consulta";
+import { computarEntradasSaidas, departamentosExcluidosDoTotal, type ConsultaEntradasSaidas } from "@/lib/entradas-saidas/consulta";
 import { obterOuSemearConfigRelatorio, obterOuSemearDepartamentosCadastro } from "@/lib/parametros/store";
 
 /**
@@ -38,8 +38,12 @@ export async function POST(request: Request) {
   const linhasDaLoja = filtrarPorLojas(linhasBrutas, corpo.lojas ?? []);
   const linhas = filtrarPorFormato(linhasDaLoja, corpo.formato);
   const indiceComprador = construirIndiceDepartamentos(departamentosCadastro);
-  const resultado = computarEntradasSaidas(linhas, corpo, indiceComprador);
-  const pesos = pesosPorDepartamentoFormato(linhasDaLoja);
+  const excluidos = departamentosExcluidosDoTotal(departamentosCadastro);
+  const resultado = computarEntradasSaidas(linhas, corpo, indiceComprador, excluidos);
+  // Fora do peso que pondera a Meta do Total (card de KPI) pelo mesmo motivo que fica
+  // fora da soma de Compras/Venda — "Apropriações" não é departamento de venda de
+  // verdade. Não afeta a meta POR departamento (cada um só olha a própria chave).
+  const pesos = pesosPorDepartamentoFormato(linhasDaLoja).filter((p) => !excluidos.has(p.dpto));
   const resultadoComMeta = injetarMetasNoResultado(resultado, corpo, linhas, pesos, config.metas ?? {}, corpo.formato, indiceComprador);
 
   return NextResponse.json(resultadoComMeta);

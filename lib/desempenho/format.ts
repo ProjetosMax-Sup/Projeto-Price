@@ -1,8 +1,9 @@
-export function formatMoeda(valor: number): string {
+export function formatMoeda(valor: number, casas = 0): string {
   return valor.toLocaleString("pt-BR", {
     style: "currency",
     currency: "BRL",
-    maximumFractionDigits: 0,
+    minimumFractionDigits: casas,
+    maximumFractionDigits: casas,
   });
 }
 
@@ -31,8 +32,8 @@ export function formatPontosPercentuais(valor: number, casas = 1): string {
   })} pp`;
 }
 
-export function formatNumero(valor: number): string {
-  return valor.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
+export function formatNumero(valor: number, casas = 0): string {
+  return valor.toLocaleString("pt-BR", { minimumFractionDigits: casas, maximumFractionDigits: casas });
 }
 
 /** %Desvio entre atual e comparação. null quando não há base de comparação. */

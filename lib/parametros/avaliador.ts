@@ -1,3 +1,4 @@
+import { avaliarFormula, parsearFormula, refsDaFormula } from "@/lib/parametros/formula";
 import type { ColunaCalculada, ConfigRelatorio, FormatoColuna, TermoFormula } from "@/lib/parametros/types";
 
 /**
@@ -137,6 +138,13 @@ export function avaliarColunas(config: ConfigRelatorio, contexto: ContextoAvalia
         if (a === null || b === null) return null;
         return a - b;
       }
+
+      case "formula": {
+        const { ast } = parsearFormula(calculada.expressao);
+        if (!ast) return null;
+        const porNome = new Map(config.calculadas.map((c) => [c.nome, c.id]));
+        return avaliarFormula(ast, (nomeOuRef) => resolver(porNome.get(nomeOuRef) ?? nomeOuRef, periodo));
+      }
     }
   }
 
@@ -164,6 +172,7 @@ export function formatoDaCalculada(calculada: ColunaCalculada): FormatoColuna {
     case "diferenca":
       return "pontosPercentuais";
     case "valorDoPeriodo":
+    case "formula":
       return "moeda";
   }
 }
@@ -201,6 +210,13 @@ export function refsNativasNecessarias(config: ConfigRelatorio): string[] {
         percorrer(calculada.colunaA);
         percorrer(calculada.colunaB);
         break;
+      case "formula": {
+        const { ast } = parsearFormula(calculada.expressao);
+        if (!ast) break;
+        const porNome = new Map(config.calculadas.map((c) => [c.nome, c.id]));
+        refsDaFormula(ast).forEach((nome) => percorrer(porNome.get(nome) ?? nome));
+        break;
+      }
     }
   }
 

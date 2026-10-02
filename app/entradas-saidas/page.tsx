@@ -4,7 +4,7 @@ import { ModuleNav } from "@/components/ui/ModuleNav";
 import { getEntradasSaidasReduzido, getMesesDisponiveisEntradasSaidas } from "@/lib/data-providers/file-provider";
 import { colunasDoRelatorio } from "@/lib/desempenho/colunas-configuradas";
 import { construirIndiceDepartamentos } from "@/lib/desempenho/comprador-cadastro";
-import { CONSULTA_ENTRADAS_SAIDAS_PADRAO, computarEntradasSaidas } from "@/lib/entradas-saidas/consulta";
+import { CONSULTA_ENTRADAS_SAIDAS_PADRAO, computarEntradasSaidas, departamentosExcluidosDoTotal } from "@/lib/entradas-saidas/consulta";
 import {
   obterOuSemearConfigRelatorio,
   obterOuSemearDepartamentosCadastro,
@@ -42,7 +42,12 @@ export default async function EntradasSaidasPage() {
   const mesPadrao = mesesDisponiveisInicial.at(-1) ?? null;
 
   const linhasIniciais = await getEntradasSaidasReduzido(mesPadrao ? [`bd${mesPadrao}.txt`] : []);
-  const resultadoInicial = computarEntradasSaidas(linhasIniciais, CONSULTA_ENTRADAS_SAIDAS_PADRAO, indiceComprador);
+  const resultadoInicial = computarEntradasSaidas(
+    linhasIniciais,
+    CONSULTA_ENTRADAS_SAIDAS_PADRAO,
+    indiceComprador,
+    departamentosExcluidosDoTotal(departamentosCadastro),
+  );
 
   return (
     <div className="flex min-h-full flex-col">

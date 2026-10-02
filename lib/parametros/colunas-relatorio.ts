@@ -1,3 +1,4 @@
+import { parsearFormula, refsDaFormula } from "@/lib/parametros/formula";
 import type { ColunaCalculada, ColunaNativa, ConfigRelatorio, TermoFormula } from "@/lib/parametros/types";
 
 /**
@@ -36,6 +37,16 @@ export function estagioDoTipo(tipo: ColunaCalculada["tipo"]): EstagioCalculo {
 }
 
 /**
+ * Uma referência dentro do texto de uma fórmula é o NOME de uma coluna
+ * calculada (ex.: "% Margem") ou, quando não bate com nenhum nome cadastrado,
+ * o ref bruto de uma nativa (ex.: "Compras", "Meta") — a mesma string que o
+ * glossário insere. Resolve pro `id`/ref real que o resto do motor entende.
+ */
+function resolverTokenFormula(nomeOuRef: string, config: ConfigRelatorio): string {
+  return config.calculadas.find((c) => c.nome === nomeOuRef)?.id ?? nomeOuRef;
+}
+
+/**
  * Como a coluna se chama NESTE relatório. Ordem de precedência: nome próprio da
  * calculada → rótulo definido pro relatório → tradução do Dicionário → o ref cru.
  * Usado pela tabela, pelo editor de fórmula e pela aba Ativas, pra o mesmo nome
@@ -60,6 +71,10 @@ export function refsDaCalculada(c: ColunaCalculada): string[] {
       return [c.coluna];
     case "diferenca":
       return [c.colunaA, c.colunaB];
+    case "formula": {
+      const { ast } = parsearFormula(c.expressao);
+      return ast ? refsDaFormula(ast) : [];
+    }
   }
 }
 
@@ -79,10 +94,15 @@ export function refValida(ref: string, config: ConfigRelatorio): boolean {
   return config.calculadas.some((c) => c.id === ref);
 }
 
-export function termosDaCalculada(c: ColunaCalculada): TermoFormula[] {
+export function termosDaCalculada(c: ColunaCalculada, config: ConfigRelatorio): TermoFormula[] {
   if (c.tipo === "soma") return c.termos;
   if (c.tipo === "razao") return [...c.numerador, ...c.denominador];
   if (c.tipo === "diferenca") return [{ sinal: "+", colunaRef: c.colunaA }, { sinal: "-", colunaRef: c.colunaB }];
+  if (c.tipo === "formula") {
+    const { ast } = parsearFormula(c.expressao);
+    if (!ast) return [];
+    return refsDaFormula(ast).map((nome) => ({ sinal: "+" as const, colunaRef: resolverTokenFormula(nome, config) }));
+  }
   // valorDoPeriodo/desvio/difPP apontam pra uma coluna só, sem sinal.
   return [{ sinal: "+", colunaRef: c.coluna }];
 }
@@ -142,6 +162,16 @@ export function erroDaCalculada(coluna: ColunaCalculada, config: ConfigRelatorio
     return null;
   }
 
+  if (coluna.tipo === "formula") {
+    const { ast, erro } = parsearFormula(coluna.expressao);
+    if (!ast) return `Coluna "${coluna.nome}": ${erro}`;
+    const refs = refsDaFormula(ast).map((nome) => resolverTokenFormula(nome, config));
+    if (refs.includes(coluna.id)) return `Coluna "${coluna.nome}": a fórmula não pode se referenciar.`;
+    const invalida = refs.find((r) => !refValida(r, config));
+    if (invalida) return `Coluna "${coluna.nome}": "${invalida}" não é uma coluna conhecida deste relatório.`;
+    return null;
+  }
+
   if (coluna.tipo === "diferenca") {
     if (!coluna.colunaA || !coluna.colunaB) return `Coluna "${coluna.nome}": escolha as duas colunas (A e B).`;
     if (!refValida(coluna.colunaA, config) || !refValida(coluna.colunaB, config)) {
@@ -176,7 +206,7 @@ export function refsNativasInexistentes(config: ConfigRelatorio, dicionario: Col
   const existentes = new Set(dicionario.map((c) => c.ref));
   const usados = new Set<string>(config.nativasVisiveis);
   for (const calculada of config.calculadas) {
-    for (const termo of termosDaCalculada(calculada)) {
+    for (const termo of termosDaCalculada(calculada, config)) {
       if (!ehRefCalculada(termo.colunaRef)) usados.add(termo.colunaRef);
     }
   }
@@ -185,12 +215,12 @@ export function refsNativasInexistentes(config: ConfigRelatorio, dicionario: Col
 
 /** Quebrada = alguma fórmula referencia uma calculada que não existe mais (foi excluída). */
 export function calculadaQuebrada(c: ColunaCalculada, config: ConfigRelatorio): boolean {
-  return termosDaCalculada(c).some((t) => !refValida(t.colunaRef, config));
+  return termosDaCalculada(c, config).some((t) => !refValida(t.colunaRef, config));
 }
 
 /** Nomes das calculadas que dependem (via termo) da ref informada — pra avisar antes de excluir. */
 export function quemDependeDe(ref: string, config: ConfigRelatorio): string[] {
-  return config.calculadas.filter((c) => termosDaCalculada(c).some((t) => t.colunaRef === ref)).map((c) => c.nome);
+  return config.calculadas.filter((c) => termosDaCalculada(c, config).some((t) => t.colunaRef === ref)).map((c) => c.nome);
 }
 
 /** Bloqueio de publicação (seção 3.1): nenhuma calculada pode estar quebrada. */

@@ -89,6 +89,7 @@ export function DepartamentosTable({
               <th className="px-3 py-2 text-left font-medium">Nome</th>
               <th className="w-56 px-3 py-2 text-left font-medium">Mesmo comprador (todos os formatos)</th>
               <th className="px-3 py-2 text-left font-medium">Comprador</th>
+              <th className="w-32 px-3 py-2 text-left font-medium">Excluir do total</th>
               <th className="w-12 px-3 py-2" />
             </tr>
           </thead>
@@ -155,6 +156,15 @@ export function DepartamentosTable({
                       })}
                     </div>
                   )}
+                </td>
+                <td className="px-3 py-1.5 align-top">
+                  <input
+                    type="checkbox"
+                    checked={dpto.excluirDoTotalPrincipal ?? false}
+                    onChange={(e) => atualizar(index, { excluirDoTotalPrincipal: e.target.checked })}
+                    title="Departamento contábil (ex.: Apropriações) — fica de fora do Total principal e dos cards de KPI, continua aparecendo à parte na tabela."
+                    className="h-4 w-4"
+                  />
                 </td>
                 <td className="px-3 py-1.5 text-center align-top">
                   <button

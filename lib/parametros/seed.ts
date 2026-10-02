@@ -208,6 +208,9 @@ const REFS_OUTRAS_SAIDAS = REFS_SAIDAS_OUTRAS;
 const REF_QTDE_VMD = REF_ENTRADAS_SAIDAS_QTDE_VMD;
 const REF_ESTOQUE = REF_ENTRADAS_SAIDAS_ESTOQUE;
 
+/** Soma de refs via fórmula de texto — `[ref1] + [ref2] + ...`. */
+const somaRefs = (refs: readonly string[]) => refs.map((ref) => `[${ref}]`).join(" + ");
+
 export function semearColunasEntradasSaidas(): ConfigRelatorio {
   const idOutrasEntradas = novoIdCalculada();
   const idOutrasSaidas = novoIdCalculada();
@@ -223,56 +226,47 @@ export function semearColunasEntradasSaidas(): ConfigRelatorio {
     {
       id: idOutrasEntradas,
       nome: "(+) Outras Entradas",
-      tipo: "soma",
-      termos: REFS_OUTRAS_ENTRADAS.map((ref) => ({ sinal: "+" as const, colunaRef: ref })),
+      tipo: "formula",
+      expressao: somaRefs(REFS_OUTRAS_ENTRADAS),
       oculta: false,
     },
     {
       id: idEntradasTotais,
       nome: "(+) Entradas Totais",
-      tipo: "soma",
-      termos: [
-        { sinal: "+", colunaRef: REF_COMPRAS },
-        { sinal: "+", colunaRef: idOutrasEntradas },
-      ],
+      tipo: "formula",
+      expressao: `[${REF_COMPRAS}] + [(+) Outras Entradas]`,
       oculta: false,
     },
     {
       id: idOutrasSaidas,
       nome: "(-) Outras Saídas",
-      tipo: "soma",
-      termos: REFS_OUTRAS_SAIDAS.map((ref) => ({ sinal: "+" as const, colunaRef: ref })),
+      tipo: "formula",
+      expressao: somaRefs(REFS_OUTRAS_SAIDAS),
       oculta: false,
     },
     {
       id: idSaidasTotais,
       nome: "(-) Saídas Totais",
-      tipo: "soma",
-      termos: [
-        { sinal: "+", colunaRef: REF_VENDAS },
-        { sinal: "+", colunaRef: idOutrasSaidas },
-      ],
+      tipo: "formula",
+      expressao: `[${REF_VENDAS}] + [(-) Outras Saídas]`,
       oculta: false,
     },
     {
       id: idSaldo,
       nome: "(=) Entradas Totais - Saídas Totais",
-      tipo: "soma",
-      termos: [
-        { sinal: "+", colunaRef: idEntradasTotais },
-        { sinal: "-", colunaRef: idSaidasTotais },
-      ],
+      tipo: "formula",
+      expressao: `[(+) Entradas Totais] - [(-) Saídas Totais]`,
       oculta: false,
     },
     {
       id: novoIdCalculada(),
       nome: "DDE (Dias de Estoque)",
-      tipo: "razao",
-      // Sem isso, razão cai no padrão "percentual" (multiplica por 100 e mostra
-      // "%") — DDE é dias de estoque, um número puro, não um percentual.
+      tipo: "formula",
+      // Sem isso, cairia no padrão "moeda" de `formatoDaCalculada` — DDE é dias de
+      // estoque, um número puro, não dinheiro. Divisão por zero aqui já dá 0 (regra
+      // do próprio `avaliarFormula`), equivalente à regra antiga de razão.
       formato: "numero",
-      numerador: [{ sinal: "+", colunaRef: REF_ESTOQUE }],
-      denominador: [{ sinal: "+", colunaRef: REF_QTDE_VMD }],
+      expressao: `[${REF_ESTOQUE}] / [${REF_QTDE_VMD}]`,
       oculta: false,
     },
   ];
@@ -293,6 +287,7 @@ export function semearColunasEntradasSaidas(): ConfigRelatorio {
     // O número que este relatório existe pra responder: sobrou ou faltou estoque no
     // período (é a coluna de destaque da planilha de referência do time).
     papeis: { principal: idSaldo },
+    destaquesKpi: [idEntradasTotais, idSaidasTotais, idSaldo],
     acessoComprador: true,
     acessoGestor: true,
     status: "Rascunho",
@@ -316,21 +311,24 @@ export function semearColunasCompraVenda(): ConfigRelatorio {
   const idMeta = novoIdCalculada();
   const idMargem = novoIdCalculada();
   const idMetaRealizado = novoIdCalculada();
+  const idGapReais = novoIdCalculada();
 
   const calculadas: ColunaCalculada[] = [
     {
       id: idPercCompraVenda,
       nome: "% Compra/Venda",
-      tipo: "razao",
-      numerador: [{ sinal: "+", colunaRef: REF_COMPRAS }],
-      denominador: [{ sinal: "+", colunaRef: REF_VENDAS }],
+      tipo: "formula",
+      // "* 100" explícito — fórmula de texto não multiplica automaticamente pra
+      // percentual como "razao" fazia; aqui quem decide é a própria expressão.
+      expressao: `[${REF_COMPRAS}] / [${REF_VENDAS}] * 100`,
       formato: "percentual",
       oculta: false,
     },
     // Meta em si, como coluna visível ao lado de "% Compra/Venda" — sem isso só dava
     // pra ver o resultado dela dentro de "Meta - Realizado", nunca o valor cadastrado.
     // "valorDoPeriodo" (período "atual") é só um jeito de expor o ref sintético "Meta"
-    // como coluna própria, com o formato certo (percentual) — não lê nada do arquivo.
+    // como coluna própria, com o formato certo (percentual) — não lê nada do arquivo,
+    // não é aritmética pura, por isso continua fora do formato de fórmula de texto.
     {
       id: idMeta,
       nome: "Meta",
@@ -343,23 +341,31 @@ export function semearColunasCompraVenda(): ConfigRelatorio {
     {
       id: idMargem,
       nome: "% Margem",
-      tipo: "razao",
-      numerador: [
-        { sinal: "+", colunaRef: REF_VENDAS },
-        { sinal: "-", colunaRef: REF_COMPRAS },
-      ],
-      denominador: [{ sinal: "+", colunaRef: REF_VENDAS }],
+      tipo: "formula",
+      expressao: `([${REF_VENDAS}] - [${REF_COMPRAS}]) / [${REF_VENDAS}] * 100`,
       formato: "percentual",
       oculta: false,
     },
     {
       id: idMetaRealizado,
       nome: "Meta - Realizado",
-      tipo: "diferenca",
-      colunaA: REF_META,
-      colunaB: idPercCompraVenda,
+      tipo: "formula",
+      expressao: `[Meta] - [% Compra/Venda]`,
       formato: "pontosPercentuais",
       heatmap: true,
+      oculta: false,
+    },
+    // GAP R$ — mesmo conceito do PDF por Comprador (Compra − Meta% × Venda, ver
+    // CLAUDE.md > "PDF por Comprador"), agora também como coluna ao vivo na tela.
+    // "Meta" aqui já está na escala 0–100 (79 = 79%, ver ConfigRelatorio.metas),
+    // por isso o "/ 100" explícito — diferente de `lib/compra-venda/priorizacao.ts`
+    // (motor exclusivo do PDF), que trabalha com fração 0–1 internamente.
+    {
+      id: idGapReais,
+      nome: "GAP R$",
+      tipo: "formula",
+      expressao: `[${REF_COMPRAS}] - [Meta] / 100 * [${REF_VENDAS}]`,
+      formato: "moeda",
       oculta: false,
     },
   ];
@@ -375,6 +381,7 @@ export function semearColunasCompraVenda(): ConfigRelatorio {
     calculadas,
     ordemAtivas: [],
     papeis: { principal: REF_VENDAS },
+    destaquesKpi: [REF_COMPRAS, REF_VENDAS, idPercCompraVenda],
     acessoComprador: true,
     acessoGestor: true,
     status: "Rascunho",

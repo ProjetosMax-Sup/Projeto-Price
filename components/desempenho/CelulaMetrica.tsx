@@ -1,6 +1,6 @@
 import { Semaforo } from "@/components/ui/Semaforo";
 import type { ColunaRenderizavel } from "@/lib/desempenho/colunas-configuradas";
-import { formatMoeda, formatPercent } from "@/lib/desempenho/format";
+import { formatMoeda, formatPercent, formatPontosPercentuais } from "@/lib/desempenho/format";
 
 /**
  * Escala divergente vermelho/verde pra "Meta - Realizado" (em p.p.): 0 é o
@@ -26,14 +26,16 @@ function corHeatmap(valor: number, invertido: boolean): string {
 }
 
 function formatar(valor: number, coluna: ColunaRenderizavel): string {
+  const casas = coluna.casasDecimais;
   switch (coluna.formato) {
     case "moeda":
-      return formatMoeda(valor);
+      return formatMoeda(valor, casas ?? 0);
     case "numero":
-      return valor.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+      return valor.toLocaleString("pt-BR", { minimumFractionDigits: casas ?? 0, maximumFractionDigits: casas ?? 2 });
     case "percentual":
+      return formatPercent(valor, casas ?? 1);
     case "pontosPercentuais":
-      return formatPercent(valor);
+      return formatPontosPercentuais(valor, casas ?? 1);
   }
 }
 

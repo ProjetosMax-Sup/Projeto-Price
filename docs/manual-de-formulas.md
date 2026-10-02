@@ -16,49 +16,48 @@ O modelo geral (o que é configuração e o que é código) está em
 | **Coluna calculada** | uma conta que você monta a partir de outras colunas | aba **Calculadas** |
 | **Ativas** | a ordem final das colunas na tela e na exportação | aba **Ativas** |
 
-Nunca se escreve fórmula em texto livre. Sempre por seleção: um **sinal** (+ ou −)
-e uma **coluna** escolhida numa lista. Assim é impossível referenciar algo que não
-existe.
+Toda calculada tem, no fim do editor, um seletor de **formato de saída**
+(Contábil R$ / Volume sem símbolo / %) e de **casas decimais** — sem escolher
+nada, vale o padrão do tipo (0 casas pra R$/volume, 1 casa pra %).
 
----
-
-## Os dois tipos de conta disponíveis hoje
-
-### Soma / Subtração
-
-Junta colunas com + e −. Use pra **agrupar** ou **descontar**.
+Fórmula é texto, no estilo Excel: `[Nome da Coluna]` entre colchetes + os
+operadores `+ − * / ( )`. Mas nunca dá pra referenciar algo que não existe — o
+botão Salvar fica bloqueado enquanto a fórmula tiver erro (colchete não
+fechado, coluna desconhecida, fórmula se referenciando), e a mesma checagem
+roda de novo no servidor antes de gravar.
 
 ```
-Entradas Totais      = + Compras  + Outras Entradas  + Transfer. Entradas
-Vendas Regular       = + Valor    − Vendas Oferta
-Saldo Entradas-Saídas = + Entradas Totais  − Saídas Totais
+Entradas Totais       = [Compras] + [Outras Entradas] + [Transfer. Entradas]
+Vendas Regular        = [Valor] - [Vendas Oferta]
+Saldo Entradas-Saídas = [Entradas Totais] - [Saídas Totais]
+% Lucro                = [Lucros] / [Valor] * 100
+% Part. Oferta         = [Vendas Oferta] / [Valor] * 100
+DDE                    = [Estoque Disponível] / [Qtde Venda Média Diária]
+GAP R$ (Compra e Venda) = [Compras] - [Meta] / 100 * [Valor]
 ```
 
-Um termo pode ser uma coluna nativa **ou** outra soma que você já criou — é assim
-que se monta em camadas (Outras Entradas Totais → Entradas Totais → Saldo).
+Uma referência pode ser uma coluna nativa (ex.: `[Compras]`) **ou** outra
+coluna calculada já criada neste relatório, pelo **nome** dela (ex.:
+`[Entradas Totais]`) — é assim que se monta em camadas. Divisão por zero nunca
+quebra a tela: o resultado vira `0` ("zero é mais honesto que Infinity" — a
+mesma regra que já valia pra razão).
 
-### Razão (÷)
+No campo da fórmula, um glossário lista as colunas disponíveis: clicar insere
+a referência certa na posição do cursor, sem precisar digitar o nome exato.
 
-Divide um grupo de colunas por outro. Use pra **percentual** e para **indicadores
-por unidade**.
-
-```
-% Lucro   = (Lucros) ÷ (Valor)
-% Part. Oferta = (Vendas Oferta) ÷ (Valor)
-DDE       = (Estoque Disponível) ÷ (Qtde Venda Média Diária)
-```
-
-Numerador e denominador são montados do mesmo jeito (lista de sinal + coluna),
-então dá pra dividir somas por somas — ex.: `(Lucros − Lucros Oferta) ÷ (Valor −
-Vendas Oferta)`.
+Dois tipos antigos continuam existindo só pra ler configs já salvas antes
+desta mudança (`soma` e `razão`, por seleção de sinal + coluna numa lista, sem
+texto livre) — toda coluna nova de aritmética pura nasce como fórmula de
+texto.
 
 ---
 
 ## A regra que o editor não deixa quebrar
 
-**Percentual (razão) não pode entrar dentro de uma soma.** A lista de colunas
-disponíveis dentro de uma soma simplesmente não oferece razões — e se chegar uma
-config assim pela API, ela é recusada.
+**Uma fórmula de texto nunca pode ser termo de uma soma antiga.** A lista de
+colunas disponíveis dentro de uma soma (tipo legado) simplesmente não oferece
+fórmulas/razões como opção — e se chegar uma config assim pela API, ela é
+recusada.
 
 ### Por que
 
@@ -95,8 +94,9 @@ com mais termos em cima ou embaixo:
 | Tipo | Quando é calculada | Pode virar termo de uma soma? |
 |---|---|---|
 | Coluna nativa | por linha do arquivo | sim |
-| **Soma** | por linha, e soma normalmente nos subtotais | sim |
-| **Razão** | só depois de agrupar (loja, departamento, total) | **não** |
+| **Soma** (legado) | por linha, e soma normalmente nos subtotais | sim |
+| **Fórmula** (texto) | só depois de agrupar (loja, departamento, total) | **não** |
+| **Razão** (legado) | só depois de agrupar | **não** |
 | **Valor de outro período / % Desvio / Dif. p.p.** | só depois de agrupar | **não** |
 
 ---

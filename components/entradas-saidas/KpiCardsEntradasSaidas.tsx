@@ -1,11 +1,30 @@
-import { formatMoeda } from "@/lib/desempenho/format";
+import { colunasKpi } from "@/lib/desempenho/colunas-configuradas";
 import type { ColunaRenderizavel } from "@/lib/desempenho/colunas-configuradas";
+import { formatMoeda, formatNumero, formatPercent, formatPontosPercentuais } from "@/lib/desempenho/format";
 import type { ConfigRelatorio } from "@/lib/parametros/types";
 
+function formatar(coluna: ColunaRenderizavel, valor: number | null | undefined): string {
+  if (valor === null || valor === undefined) return "—";
+  switch (coluna.formato) {
+    case "moeda":
+      return formatMoeda(valor, coluna.casasDecimais ?? 0);
+    case "numero":
+      return formatNumero(valor, coluna.casasDecimais ?? 0);
+    case "pontosPercentuais":
+      return formatPontosPercentuais(valor, coluna.casasDecimais ?? 1);
+    case "percentual":
+      return formatPercent(valor, coluna.casasDecimais ?? 1);
+  }
+}
+
 /**
- * Três cards: a coluna principal (Saldo, marcada em Parâmetros) + Entradas
- * Totais + Saídas Totais, se existirem no relatório — sem comparação de
- * período (decisão de 2026-09-30, diferente do Desempenho Comercial).
+ * Cards de KPI — colunas marcadas com "Destacar no card" na aba Ativas
+ * (`config.destaquesKpi`), ou, sem nada marcado ainda, a principal (Saldo) + as
+ * duas seguintes da ordem configurada (ver `colunasKpi`). Sempre por ref/id,
+ * nunca por rótulo — renomear uma coluna nunca derruba o card dela. Sem
+ * comparação de período (decisão de 2026-09-30, diferente do Desempenho
+ * Comercial). O `kpi` já chega filtrado dos departamentos marcados "excluir do
+ * total principal" (ver `lib/entradas-saidas/consulta.ts`).
  */
 export function KpiCardsEntradasSaidas({
   kpi,
@@ -16,26 +35,16 @@ export function KpiCardsEntradasSaidas({
   config: ConfigRelatorio;
   colunas: ColunaRenderizavel[];
 }) {
-  const principal = colunas.find((c) => c.ref === config.papeis?.principal) ?? colunas[0];
-  const entradas = colunas.find((c) => c.rotulo.includes("Entradas Totais"));
-  const saidas = colunas.find((c) => c.rotulo.includes("Saídas Totais"));
-  const emDestaque = [entradas, saidas, principal].filter(
-    (c, i, arr): c is ColunaRenderizavel => Boolean(c) && arr.findIndex((x) => x?.ref === c!.ref) === i,
-  );
+  const emDestaque = colunasKpi(config, colunas);
 
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-      {emDestaque.map((coluna) => {
-        const valor = kpi[coluna.ref];
-        return (
-          <div key={coluna.ref} className="rounded-lg border border-zinc-200 border-t-4 border-t-azul bg-white px-5 py-4 shadow-sm">
-            <div className="text-xs font-bold tracking-wide text-azul uppercase">{coluna.rotulo}</div>
-            <div className="mt-1 font-display text-2xl font-bold tabular-nums text-zinc-900">
-              {valor === null || valor === undefined ? "—" : formatMoeda(valor)}
-            </div>
-          </div>
-        );
-      })}
+    <div className="grid grid-cols-1 gap-3 sm:[grid-template-columns:repeat(auto-fit,minmax(180px,1fr))]">
+      {emDestaque.map((coluna) => (
+        <div key={coluna.ref} className="rounded-lg border border-zinc-200 border-t-4 border-t-azul bg-white px-5 py-4 shadow-sm">
+          <div className="text-xs font-bold tracking-wide text-azul uppercase">{coluna.rotulo}</div>
+          <div className="mt-1 font-display text-2xl font-bold tabular-nums text-zinc-900">{formatar(coluna, kpi[coluna.ref])}</div>
+        </div>
+      ))}
     </div>
   );
 }

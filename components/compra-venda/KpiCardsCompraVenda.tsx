@@ -1,10 +1,27 @@
-import { formatMoeda, formatPercent } from "@/lib/desempenho/format";
+import { colunasKpi } from "@/lib/desempenho/colunas-configuradas";
 import type { ColunaRenderizavel } from "@/lib/desempenho/colunas-configuradas";
+import { formatMoeda, formatNumero, formatPercent, formatPontosPercentuais } from "@/lib/desempenho/format";
 import type { ConfigRelatorio } from "@/lib/parametros/types";
 
+function formatar(coluna: ColunaRenderizavel, valor: number | null | undefined): string {
+  if (valor === null || valor === undefined) return "—";
+  switch (coluna.formato) {
+    case "moeda":
+      return formatMoeda(valor, coluna.casasDecimais ?? 0);
+    case "numero":
+      return formatNumero(valor, coluna.casasDecimais ?? 0);
+    case "pontosPercentuais":
+      return formatPontosPercentuais(valor, coluna.casasDecimais ?? 1);
+    case "percentual":
+      return formatPercent(valor, coluna.casasDecimais ?? 1);
+  }
+}
+
 /**
- * Espelho de KpiCardsEntradasSaidas.tsx — Compra, Venda e a coluna principal
- * (% Compra/Venda), sem período de Comparação.
+ * Cards de KPI — colunas marcadas com "Destacar no card" na aba Ativas
+ * (`config.destaquesKpi`), ou, sem nada marcado ainda, a coluna principal + as
+ * duas seguintes da ordem (ver `colunasKpi`). Sempre por ref/id, nunca por
+ * rótulo — é o bug que fazia o card sumir ao renomear uma coluna (ex.: "Compra").
  */
 export function KpiCardsCompraVenda({
   kpi,
@@ -15,31 +32,16 @@ export function KpiCardsCompraVenda({
   config: ConfigRelatorio;
   colunas: ColunaRenderizavel[];
 }) {
-  const compra = colunas.find((c) => c.rotulo === "Compra");
-  const venda = colunas.find((c) => c.rotulo === "Venda");
-  const percCompraVenda = colunas.find((c) => c.rotulo === "% Compra/Venda");
-  const principal = colunas.find((c) => c.ref === config.papeis?.principal) ?? colunas[0];
-  const emDestaque = [compra, venda, percCompraVenda, principal].filter(
-    (c, i, arr): c is ColunaRenderizavel => Boolean(c) && arr.findIndex((x) => x?.ref === c!.ref) === i,
-  );
+  const emDestaque = colunasKpi(config, colunas);
 
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-      {emDestaque.map((coluna) => {
-        const valor = kpi[coluna.ref];
-        const formatado =
-          valor === null || valor === undefined
-            ? "—"
-            : coluna.formato === "percentual" || coluna.formato === "pontosPercentuais"
-              ? formatPercent(valor)
-              : formatMoeda(valor);
-        return (
-          <div key={coluna.ref} className="rounded-lg border border-zinc-200 border-t-4 border-t-azul bg-white px-5 py-4 shadow-sm">
-            <div className="text-xs font-bold tracking-wide text-azul uppercase">{coluna.rotulo}</div>
-            <div className="mt-1 font-display text-2xl font-bold tabular-nums text-zinc-900">{formatado}</div>
-          </div>
-        );
-      })}
+    <div className="grid grid-cols-1 gap-3 sm:[grid-template-columns:repeat(auto-fit,minmax(180px,1fr))]">
+      {emDestaque.map((coluna) => (
+        <div key={coluna.ref} className="rounded-lg border border-zinc-200 border-t-4 border-t-azul bg-white px-5 py-4 shadow-sm">
+          <div className="text-xs font-bold tracking-wide text-azul uppercase">{coluna.rotulo}</div>
+          <div className="mt-1 font-display text-2xl font-bold tabular-nums text-zinc-900">{formatar(coluna, kpi[coluna.ref])}</div>
+        </div>
+      ))}
     </div>
   );
 }
