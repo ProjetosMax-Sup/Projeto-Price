@@ -1184,20 +1184,6 @@ function anexos(doc: jsPDF, autoTable: AutoTable, resumo: ResumoComprador): void
       subtotal: ["", "Subtotal", "", brl(resumo.lancamentos.reduce((tot, l) => tot + l.compra, 0))],
     });
   }
-  if (resumo.inventario.length > 0) {
-    blocos.push({
-      titulo: "Estoque negativo com venda ativa",
-      texto: "O sistema acredita que não falta nada, então nunca vai sugerir reposição destes itens. É inventário, não compra.",
-      colunas: [
-        { titulo: "Código", largura: 16 },
-        { titulo: "Produto", largura: 130 },
-        { titulo: "Venda no período", alinhar: "right" },
-        { titulo: "Lojas afetadas", alinhar: "center" },
-      ],
-      linhas: resumo.inventario.map((i) => [i.codigo, i.nome, brl(i.metricas.venda), String(i.lojas)]),
-      subtotal: ["", "Subtotal", brl(somarMetricas(resumo.inventario).venda), ""],
-    });
-  }
   if (resumo.metasFaltando.length > 0) {
     blocos.push({
       titulo: "Departamentos sem meta cadastrada",
@@ -1227,7 +1213,6 @@ function anexos(doc: jsPDF, autoTable: AutoTable, resumo: ResumoComprador): void
 function temAnexos(resumo: ResumoComprador): boolean {
   return (
     resumo.lancamentos.length > 0 ||
-    resumo.inventario.length > 0 ||
     resumo.metasFaltando.length > 0 ||
     resumo.departamentos.some((d) => d.anexados.length > 0 || d.filhos.some((s) => s.anexados.length > 0))
   );

@@ -230,6 +230,16 @@ fazer falta, o jeito de reconstruir é somar `no.gap` só dos nós positivos de
 (artefato de cadastro não é trabalho de compra) — era exatamente isso que
 `somarGapsPositivos()` fazia.
 
+**A tabela "Estoque negativo com venda ativa" saiu dos Anexos em 2026-10-03**,
+a pedido do usuário. `estoqueNegativoComVenda()` e `ResumoComprador.inventario`
+saíram de `priorizacao.ts` inteiros — não tinha outro consumidor. A ideia por
+trás dela segue válida (estoque negativo com venda ativa é o ERP achando que
+não falta nada, então nunca sugere reposição — é inventário, não decisão de
+compra) e pode voltar como anexo se fizer falta de novo: a conta é
+`REF_ENTRADAS_SAIDAS_ESTOQUE < 0` com `venda >= piso`, nos departamentos de
+`DPTOS_ESTOQUE_NAO_CONFIAVEL` excluídos (lá o estoque negativo é esperado, não
+é sinal de nada).
+
 Acesso restrito enquanto está em validação: `PDF_COMPRADOR_TOKEN` (ver
 `.env.local.example` e o cabeçalho da rota). Sem ela configurada, a rota só
 responde em ambiente local. O botão (`BotaoPdfComprador`) pergunta à rota antes

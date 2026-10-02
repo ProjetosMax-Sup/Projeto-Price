@@ -608,30 +608,6 @@ export function itensEmRisco(
   return itens.sort((a, b) => b.vendaDiariaEmRisco - a.vendaDiariaEmRisco);
 }
 
-/**
- * Estoque negativo com venda ativa — o ERP acredita que não falta nada, então
- * **nunca** vai sugerir reposição. Não é decisão de compra, é inventário, e por
- * isso sai num bloco separado do risco de ruptura.
- */
-export function estoqueNegativoComVenda(linhas: LinhaReduzida[], nomeDoProduto: (codigo: string) => string, vendaMinima: number) {
-  const mapa = new Map<string, { dpto: string; m: MetricasPrioridade; lojas: Set<string> }>();
-  for (const linha of linhas) {
-    if (DPTOS_ESTOQUE_NAO_CONFIAVEL.has(linha.dpto)) continue;
-    if ((linha.valores[REF_ENTRADAS_SAIDAS_ESTOQUE] ?? 0) >= 0) continue;
-    let e = mapa.get(linha.codigo);
-    if (!e) {
-      e = { dpto: linha.dpto, m: metricasZeradas(), lojas: new Set() };
-      mapa.set(linha.codigo, e);
-    }
-    acumular(e.m, linha);
-    e.lojas.add(linha.lojaCodigo);
-  }
-  return Array.from(mapa.entries())
-    .filter(([, e]) => e.m.venda >= vendaMinima)
-    .map(([codigo, e]) => ({ codigo, nome: nomeDoProduto(codigo), dpto: e.dpto, metricas: e.m, lojas: e.lojas.size }))
-    .sort((a, b) => b.metricas.venda - a.metricas.venda);
-}
-
 // ---------------------------------------------------------------------------
 // Montagem da árvore do relatório
 // ---------------------------------------------------------------------------
@@ -689,7 +665,6 @@ export interface ResumoComprador {
   panorama: { dpto: string; nome: string; metricas: MetricasPrioridade; meta: number | null; gap: number | null }[];
   ruptura: ItemRuptura[];
   transferencias: { produto: LinhaProduto; gapParado: number }[];
-  inventario: ReturnType<typeof estoqueNegativoComVenda>;
   lancamentos: { codigo: string; nome: string; dpto: string; compra: number; dataCadastro: string }[];
   /** Departamentos do comprador sem meta cadastrada em /parametros, com a compra que
    * ficou fora da conta por isso. */
@@ -924,7 +899,6 @@ export function priorizarComprador(
     panorama,
     ruptura: itensEmRisco(minhas, nomeDoProduto, opcoes.diasDoPeriodo, opcoes.piso).slice(0, 15),
     transferencias: transferencias.slice(0, 12),
-    inventario: estoqueNegativoComVenda(minhas, nomeDoProduto, opcoes.piso).slice(0, 12),
     lancamentos: lancamentos.slice(0, 12),
     metasFaltando: porDpto
       .filter((no) => no.meta === null && no.metricas.compra > 0)
