@@ -228,10 +228,13 @@ const REFS_ENTRADAS_SAIDAS_IDENTIFICADORES = new Set([
   "Data",
 ]);
 
-/** Colunas "foto" — já são um valor acumulado/médio do mês inteiro, repetido em
+/**
+ * Colunas "foto" — já são um valor acumulado/médio do mês inteiro, repetido em
  * toda linha (confirmado no arquivo real pra Estoque/VMD em 2026-09-30, mesma
- * lógica se estende às demais "Médio"/Estoque daqui). Tomadas de UMA ocorrência
- * (a mais recente), nunca somadas — somar contaria o mesmo valor várias vezes. */
+ * lógica se estende às demais "Médio"/Estoque daqui). Tomadas de UMA ocorrência,
+ * nunca somadas — somar contaria o mesmo valor várias vezes. **De qual**
+ * ocorrência depende do grupo, ver as duas listas abaixo.
+ */
 export const REFS_ENTRADAS_SAIDAS_SNAPSHOT = [
   REF_ENTRADAS_SAIDAS_QTDE_VMD,
   REF_ENTRADAS_SAIDAS_ESTOQUE,
@@ -240,6 +243,38 @@ export const REFS_ENTRADAS_SAIDAS_SNAPSHOT = [
   "Ct Médio Vendas",
   "Valor Venda Média Diária",
 ] as const;
+
+/**
+ * Fotos de **média móvel**, que precisam ser lidas da ocorrência mais ANTIGA do
+ * mês, não da mais recente (achado de 2026-10-02).
+ *
+ * A fórmula da `Qtde Venda Média Diária` foi confirmada contra os arquivos, em
+ * 58 de 58 pares Produto×Loja testados: é a **Qtde Vendas dos 3 meses fechados
+ * anteriores ÷ 92 dias de calendário**. Ex.: Coca-Cola 2l na loja 002 em
+ * Setembro = (2.469 + 2.559 + 2.885) de Jun/Jul/Ago ÷ 92 = 86,01, contra 86
+ * no arquivo.
+ *
+ * ⚠️ O problema: no **último dia** do arquivo do mês corrente o ERP já rolou a
+ * janela pro trio seguinte (Jul+Ago+Set), mas o mês corrente ainda não fechou e
+ * entra com zero — o valor estampado ali é `Qtde Vendas(Jul+Ago) ÷ 92`,
+ * sistematicamente ~25-30% menor que o verdadeiro (confirmado em 57 de 58
+ * casos). Nos meses já fechados o arquivo traz um valor só, sem esse artefato.
+ *
+ * Como `Estoque Disponível` tem que vir do ÚLTIMO dia (é o estoque no fim do
+ * período, e aí a ocorrência mais recente é a certa), e a VMD divide esse
+ * estoque pra virar DDE, usar a mesma data pros dois inflava **todo** DDE do
+ * relatório em ~35%. Por isso as duas listas são separadas.
+ */
+export const REFS_ENTRADAS_SAIDAS_MEDIA_MOVEL = [
+  REF_ENTRADAS_SAIDAS_QTDE_VMD,
+  "Valor Venda Média Diária",
+] as const;
+
+/** Dias de calendário no divisor da `Qtde Venda Média Diária` do ERP — a janela
+ * dos 3 meses fechados anteriores. Varia de 89 a 92 conforme o trimestre; 92 é
+ * o do trio Jun/Jul/Ago, usado nos testes. Documentado aqui porque é a única
+ * forma de refazer a conta da VMD sem o ERP. */
+export const DIAS_JANELA_VMD = 92;
 
 /** TODAS as colunas numéricas de `CABECALHO_REFERENCIA_MENSAL` (identificador
  * fora) — decisão de 2026-10-01: o Dicionário já promete as 83 colunas do

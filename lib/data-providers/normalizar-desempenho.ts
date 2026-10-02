@@ -30,7 +30,7 @@ export function normalizarLojas(conteudo: string): Loja[] {
   }));
 }
 
-const CAMPOS_PRODUTO = ["Código", "Dpto", "Grupo", "Nome Grupo", "Hierarquia de Grupos", "Compr", "Nome Comprador"] as const;
+const CAMPOS_PRODUTO = ["Código", "Dpto", "Grupo", "Nome Grupo", "Hierarquia de Grupos", "Compr", "Nome Comprador", "Dt Cad"] as const;
 
 export function normalizarProdutos(conteudo: string): Produto[] {
   const linhas = parseTabela(conteudo, CAMPOS_PRODUTO, true);
@@ -44,6 +44,7 @@ export function normalizarProdutos(conteudo: string): Produto[] {
       hierarquiaGrupos,
       comprador: l["Compr"],
       nomeComprador: l["Nome Comprador"],
+      dataCadastro: l["Dt Cad"],
       cadastroIncompleto: isCadastroIncompleto(hierarquiaGrupos),
     };
   });

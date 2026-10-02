@@ -1,4 +1,4 @@
-import { REFS_ENTRADAS_SAIDAS_SNAPSHOT, REFS_NATIVOS_ENTRADAS_SAIDAS } from "@/config/data-sources";
+import { REFS_ENTRADAS_SAIDAS_MEDIA_MOVEL, REFS_ENTRADAS_SAIDAS_SNAPSHOT, REFS_NATIVOS_ENTRADAS_SAIDAS } from "@/config/data-sources";
 import { caminhoAteNivel, NIVEIS_ESTRUTURA, type NivelEstrutura, type NivelHierarquia } from "@/lib/desempenho/aggregate";
 import { nomeCompradorPorDptoCadastro, type IndiceDepartamentos } from "@/lib/desempenho/comprador-cadastro";
 import { valorNativoEntradasSaidas, type RegistroEntradasSaidas } from "@/lib/data-providers/normalizar-entradas-saidas";
@@ -21,6 +21,16 @@ import type { ValoresNativos } from "@/lib/parametros/avaliador";
  * (Estoque/Qtde VMD e afins, que são fotografia, ver abaixo). */
 const REFS_SNAPSHOT_SET = new Set<string>(REFS_ENTRADAS_SAIDAS_SNAPSHOT);
 const REFS_FLUXO = REFS_NATIVOS_ENTRADAS_SAIDAS.filter((ref) => !REFS_SNAPSHOT_SET.has(ref));
+
+/** Usada só pra achar o primeiro dia com venda de cada Produto×Loja. */
+const REF_QTDE_VENDAS = "Qtde Vendas";
+
+/** Fotos lidas da ocorrência mais ANTIGA do mês (média móvel — ver
+ * `REFS_ENTRADAS_SAIDAS_MEDIA_MOVEL` em config/data-sources.ts: o último dia do
+ * arquivo traz a janela já rolada com o mês corrente valendo zero). */
+const REFS_MEDIA_MOVEL_SET = new Set<string>(REFS_ENTRADAS_SAIDAS_MEDIA_MOVEL);
+/** Fotos lidas da ocorrência mais RECENTE (estoque no fim do período). */
+const REFS_FOTO_FINAL = REFS_ENTRADAS_SAIDAS_SNAPSHOT.filter((ref) => !REFS_MEDIA_MOVEL_SET.has(ref));
 
 export type NivelEntradasSaidas = NivelEstrutura | "comprador";
 export const NIVEIS_ENTRADAS_SAIDAS: NivelEntradasSaidas[] = ["comprador", ...NIVEIS_ESTRUTURA];
@@ -45,6 +55,25 @@ export interface LinhaReduzida {
   /** Código da loja (`codUnid`) — só usado pelo filtro de Loja (decisão de 2026-09-30);
    * agregação por Departamento/Comprador nunca olha pra isso. */
   lojaCodigo: string;
+  /**
+   * Data mais recente deste Produto×Loja no período, no formato ordenável
+   * `AA-MM-DD` — a mesma de onde sai a foto de estoque. O arquivo do mês
+   * corrente costuma parar no último dia com movimento, não no fim do mês, e é
+   * esse dia que o relatório mostra como fim do período (ver `periodoDoRecorte`
+   * em `app/api/compra-venda/pdf-comprador/route.ts`). O redutor já calcula
+   * isto pra decidir o snapshot; aqui ele só deixa de ser descartado.
+   */
+  ultimaData: string;
+  /**
+   * Data mais ANTIGA com venda deste Produto×Loja no período (`AA-MM-DD`), ou
+   * vazio se nunca vendeu. Serve pra calcular uma venda média diária própria
+   * quando o ERP não tem nenhuma pro item — ver `vmdEfetiva` em
+   * `lib/compra-venda/priorizacao.ts`. Produto novo ou de promoção fica meses
+   * sem VMD no ERP, porque a janela dele é de 3 meses FECHADOS.
+   */
+  primeiraVenda: string;
+  /** `Produto.dataCadastro` — quando o SKU entrou no ERP ("DD/MM/AA"). */
+  dataCadastro: string;
   valores: ValoresNativos;
 }
 
@@ -58,7 +87,21 @@ function dataOrdenavel(data: string): string {
 export function reduzirPorProdutoLoja(registros: RegistroEntradasSaidas[]): LinhaReduzida[] {
   const mapa = new Map<
     string,
-    { codigo: string; descricao: string; complemento: string; dpto: string; hierarquiaGrupos: string; formatoLoja: string; lojaCodigo: string; fluxo: Record<string, number>; snapshot: Record<string, number>; ultimaData: string }
+    {
+      codigo: string;
+      descricao: string;
+      complemento: string;
+      dpto: string;
+      hierarquiaGrupos: string;
+      formatoLoja: string;
+      lojaCodigo: string;
+      fluxo: Record<string, number>;
+      snapshot: Record<string, number>;
+      ultimaData: string;
+      primeiraData: string;
+      primeiraVenda: string;
+      dataCadastro: string;
+    }
   >();
 
   for (const r of registros) {
@@ -77,6 +120,9 @@ export function reduzirPorProdutoLoja(registros: RegistroEntradasSaidas[]): Linh
         fluxo: {},
         snapshot: {},
         ultimaData: "",
+        primeiraData: "",
+        primeiraVenda: "",
+        dataCadastro: r.produto.dataCadastro,
       };
       mapa.set(chave, entrada);
     }
@@ -84,9 +130,22 @@ export function reduzirPorProdutoLoja(registros: RegistroEntradasSaidas[]): Linh
       entrada.fluxo[ref] = (entrada.fluxo[ref] ?? 0) + valorNativoEntradasSaidas(r, ref);
     }
     const ordenavel = dataOrdenavel(r.data);
+    if (valorNativoEntradasSaidas(r, REF_QTDE_VENDAS) > 0 && (entrada.primeiraVenda === "" || ordenavel < entrada.primeiraVenda)) {
+      entrada.primeiraVenda = ordenavel;
+    }
     if (ordenavel >= entrada.ultimaData) {
       entrada.ultimaData = ordenavel;
-      for (const ref of REFS_ENTRADAS_SAIDAS_SNAPSHOT) {
+      for (const ref of REFS_FOTO_FINAL) {
+        entrada.snapshot[ref] = valorNativoEntradasSaidas(r, ref);
+      }
+    }
+    // Média móvel vem do primeiro dia do mês, não do último — ver
+    // `REFS_ENTRADAS_SAIDAS_MEDIA_MOVEL`: no último dia do arquivo do mês
+    // corrente o ERP já rolou a janela da VMD e o mês novo entra com zero,
+    // o que subestimava a VMD em ~25-30% e inflava todo DDE do relatório.
+    if (entrada.primeiraData === "" || ordenavel <= entrada.primeiraData) {
+      entrada.primeiraData = ordenavel;
+      for (const ref of REFS_ENTRADAS_SAIDAS_MEDIA_MOVEL) {
         entrada.snapshot[ref] = valorNativoEntradasSaidas(r, ref);
       }
     }
@@ -100,6 +159,9 @@ export function reduzirPorProdutoLoja(registros: RegistroEntradasSaidas[]): Linh
     hierarquiaGrupos: e.hierarquiaGrupos,
     formatoLoja: e.formatoLoja,
     lojaCodigo: e.lojaCodigo,
+    ultimaData: e.ultimaData,
+    primeiraVenda: e.primeiraVenda,
+    dataCadastro: e.dataCadastro,
     valores: { ...e.fluxo, ...e.snapshot },
   }));
 }
@@ -131,7 +193,13 @@ export function mesclarMeses(porMes: LinhaReduzida[][]): LinhaReduzida[] {
       for (const [ref, valor] of Object.entries(linha.valores)) {
         valoresFundidos[ref] = REFS_SNAPSHOT_SET.has(ref) ? valor : (valoresFundidos[ref] ?? 0) + valor;
       }
-      mapa.set(chave, { ...linha, valores: valoresFundidos });
+      // `porMes` vem em ordem cronológica, então a linha mais nova tem a data
+      // mais recente — mas comparar é barato e protege contra ordem invertida.
+      const ultimaData = linha.ultimaData > anterior.ultimaData ? linha.ultimaData : anterior.ultimaData;
+      // Primeira venda é a mais antiga entre os meses — "" significa que não houve.
+      const candidatas = [linha.primeiraVenda, anterior.primeiraVenda].filter(Boolean).sort();
+      const primeiraVenda = candidatas[0] ?? "";
+      mapa.set(chave, { ...linha, ultimaData, primeiraVenda, valores: valoresFundidos });
     }
   }
   return Array.from(mapa.values());

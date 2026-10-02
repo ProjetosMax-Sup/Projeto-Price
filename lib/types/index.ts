@@ -22,6 +22,16 @@ export interface Produto {
   hierarquiaGrupos: string;
   comprador: string;
   nomeComprador: string;
+  /**
+   * Data em que o produto foi cadastrado no ERP, como vem no arquivo
+   * ("DD/MM/AA", coluna `Dt Cad` do `bdCadastro`) — string vazia quando não
+   * preenchida. Separa cadastro novo de item antigo parado, que no número do
+   * período são idênticos: os dois aparecem como "comprou e não vendeu".
+   *
+   * Fica em `Produto` (36 mil linhas de cadastro) e não em `MovimentoVendas`
+   * (5+ milhões) — ver o aviso em `normalizar-desempenho.ts` > CAMPOS_MOVIMENTO.
+   */
+  dataCadastro: string;
   /** true quando a hierarquia está incompleta (ex: "Verificar Dpto") */
   cadastroIncompleto: boolean;
 }

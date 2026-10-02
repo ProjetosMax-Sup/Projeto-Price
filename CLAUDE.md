@@ -13,7 +13,10 @@ Composta por 5 módulos:
    `DataProvider`/parser do Desempenho Comercial) — a ideia antiga de carregar
    num banco Supabase à parte foi abandonada, nunca chegou a ir pra frente.
 3. **Compra e Venda** ← implementado (mesmo motor do Entradas e Saídas, com
-   filtro de Formato a mais e Meta ponderada por Departamento)
+   filtro de Formato a mais e Meta ponderada por Departamento). Tem também um
+   **PDF por Comprador** (`lib/compra-venda/priorizacao.ts` + `pdf-comprador.ts`,
+   rota `app/api/compra-venda/pdf-comprador/`), pra mandar ao time Comercial
+   enquanto eles não acessam a plataforma — ver "PDF por Comprador" abaixo.
 4. Perdas e Quebras ← não construído ainda
 5. Raio X Fornecedor ← não construído ainda
 
@@ -151,6 +154,189 @@ Tabela completa de departamentos/compradores (usada só como semente) e
 detalhe da regra de cadastro: **`docs/regras-de-negocio.md`** — leia antes de
 mexer em `lib/desempenho/compradores.ts`/`comprador-cadastro.ts` ou na lógica
 de exclusão de produtos.
+
+## PDF por Comprador (Compra e Venda)
+
+Relatório que sai da plataforma e vai pro e-mail do time Comercial (decisão de
+2026-10-01). **Um arquivo por Comprador × Formato** (decisão de 2026-10-02,
+revendo a de 2026-10-01 de juntar os dois formatos num arquivo só): o time
+trabalha Varejo e Atacado separados, e um PDF com os dois dentro obrigava a
+pessoa a achar a sua metade. Quem não atua num formato não ganha arquivo dele —
+Setembro/2026 rendeu 18 arquivos, não 20.
+
+Nome do arquivo: `(Formato)_Compra_Venda_(Comprador)_(DD-MMM) à (DD-MMM).pdf`.
+O período vai do **1º dia do mês mais antigo escolhido** até o **último dia com
+movimento nos dados** (`periodoDoRecorte`) — não o fim do mês de calendário, que
+seria mentira enquanto o mês corrente não fechou. A barra do `DD/MMM` pedido
+virou hífen porque o Windows não aceita `/` em nome de arquivo, e o acento de
+"à" sobrevive via `filename*=UTF-8` no Content-Disposition (`anexo()`). Gerado **no servidor**
+(`gerarPdfComprador`), nunca no cliente como o Desempenho Comercial faz: são ~10
+relatórios de uma vez sobre recortes diferentes, e fazer no navegador exigiria
+mandar o dado bruto pra lá.
+
+A régua é **GAP em R$ = Compra − (Meta% × Venda)**, não o desvio em pontos
+percentuais que a tela mostra: pp ordena errado (em Setembro/2026, +42,7pp em
+Mercearia Saudável valiam R$ 21 mil e +21,5pp em Mercearia Básica valiam R$ 134
+mil). GAP é somável, então a cascata Departamento → Seção → Categoria → Produto
+fecha conta em todo nível; dentro dela a ordem é sempre de **venda**.
+
+E o % C/V se decompõe exatamente em dois fatores, que são responsabilidades
+diferentes:
+
+    % C/V = (QC/QV) × (preço de compra ÷ preço de venda)
+             ↑ decisão de compra      ↑ estrutura (custo, imposto, preço)
+
+O segundo fator é o **% C/V de equilíbrio**: o que o item marcaria comprando
+exatamente o que vende. Quando ele já passa da meta, nenhum ajuste de pedido
+resolve — é preço, substituição tributária ou meta que não cabe na categoria.
+89% do GAP do Varejo é quantidade, mas os 10% de estrutura estão concentrados
+nos maiores itens (Café, Cerveja Amstel, Costela): mandar "cortar" neles
+destruiria a credibilidade do resto. `decomporGap()` parte o GAP nas duas
+causas, em R$, somando exatamente o GAP.
+
+Quatro regras que **não** podem ser afrouxadas sem refazer a análise — cada uma
+nasceu de um erro real encontrado nos arquivos de Setembro/2026, documentado no
+cabeçalho da função correspondente em `lib/compra-venda/priorizacao.ts`:
+
+- **GAP ≠ exposição**, e os dois aparecem nomeados lado a lado. GAP é a cobrança;
+  exposição (soma só do que está acima da meta, no grão de SKU) é o trabalho.
+  Johathan/Varejo: GAP R$ 43 mil, exposição R$ 290 mil.
+- **Travas de cadastro** (`motivoAnexo`): os dois maiores "excessos" do Varejo
+  eram rateio de desmembramento de carcaça — R$ 340 mil de fantasma, mais da
+  metade do GAP do formato inteiro.
+- **Estoque/DDE não aparecem** em Açougue, Hortifruti, Padaria Própria e Eletro
+  (`DPTOS_ESTOQUE_NAO_CONFIAVEL`): 12% a 33% das linhas Produto×Loja têm estoque
+  negativo, contra 2–6% no resto.
+- **Loja é um nível do relatório**, não detalhe: o excesso quase nunca é do SKU.
+  Leite Leitbom 1l tinha R$ 44 mil dos R$ 46 mil de GAP numa loja só.
+  Transferência **só dentro do mesmo formato** (decisão de 2026-10-02): Varejo e
+  Atacado têm matrizes diferentes, e mandar de um pro outro é venda entre lojas,
+  não remanejamento. Garantido pela estrutura — `priorizarComprador()` recebe as
+  linhas já filtradas por formato, então o nível de Loja nunca vê o outro lado.
+  A doadora é escolhida **em relação à loja mais apertada**, não por um limite
+  absoluto de cobertura (`DDE_MINIMO_DOADORA` + `RAZAO_DESEQUILIBRIO`): o corte
+  antigo de 60 dias perdia o caso mais comum — Café Moinho Fino no Varejo tinha
+  Vila Mutirão com 42 dias e Rio Verde/Independência com 9,8, e nada era
+  sugerido. A regra nova levou as sugestões de 9 para 31 na rede.
+
+Acesso restrito enquanto está em validação: `PDF_COMPRADOR_TOKEN` (ver
+`.env.local.example` e o cabeçalho da rota). Sem ela configurada, a rota só
+responde em ambiente local. O botão (`BotaoPdfComprador`) pergunta à rota antes
+de se desenhar e some sozinho pra quem não tem acesso.
+
+### Data de cadastro do produto
+
+`Produto.dataCadastro` vem da coluna **`Dt Cad`** do `bdCadastro` (posição 28,
+formato "DD/MM/AA") e aparece nos anexos "Revisar cadastro ou rateio" e "Comprou
+e ainda não vendeu" (decisão de 2026-10-02). Ela separa dois casos que no número
+do período são idênticos: **cadastro recente é lançamento entrando; cadastro
+antigo com compra e sem venda é item que travou**. Exemplo real de Edvaldo /
+Varejo / Setembro: dois pneus cadastrados em 10/09/26 (lançamento) ao lado de
+uma TV Samsung cadastrada em 16/02/26 que comprou R$ 3.060 e não vendeu nada em
+sete meses.
+
+O campo mora em `Produto` (36 mil linhas de cadastro), **nunca** em
+`MovimentoVendas` — ver o aviso em `normalizar-desempenho.ts` > CAMPOS_MOVIMENTO.
+O `bdCadastro` tem outras datas que podem servir depois: `Dt Alt` (última
+alteração), `Ult Comp` (última compra), `Dt Preço` e `Dt Custos`.
+
+### Contrato visual (2026-10-02)
+
+O documento vai por e-mail pro time, sem ninguém do lado pra explicar, então a
+forma é parte do conteúdo. Três regras, todas em `pdf-comprador.ts`:
+
+- **Toda página tem a mesma moldura**: marca MAX no topo à esquerda, nome da
+  seção, contexto (comprador · formato · período) à direita, régua da cor da
+  seção, e rodapé com marca, origem do dado e numeração. Desenhada de uma vez no
+  fim (`moldura`), porque o autoTable quebra página sozinho — as páginas que ele
+  cria herdam a seção da última marcada por `marcarPagina`.
+- **Cada seção tem uma cor** (`SECOES`), que aparece na régua do topo, na tarja
+  do título e no cabeçalho das tabelas: azul = visão geral e onde cortar,
+  vermelho = ruptura, verde = transferência, grafite = legenda e anexos.
+- **A ordem nunca muda** em nenhum formato: visão geral → onde cortar (uma
+  página por departamento) → risco de ruptura → transferência → anexos.
+
+Todas as tabelas passam por `tabela()`, que centraliza zebra, régua fina,
+cabeçalho sólido e o alinhamento. ⚠️ **O alinhamento do cabeçalho é forçado em
+`didParseCell`**, não em `columnStyles`: o autoTable aplica `headStyles` por cima
+no cabeçalho, e o título saía à esquerda com o número à direita (confirmado no
+PDF gerado). ⚠️ A soma das larguras fixas tem que caber nos 273mm úteis;
+estourando, o autoTable espreme tudo e o alinhamento se perde — `tabela()` avisa
+no console quando isso acontece (dois casos já pegos assim).
+
+**Subtotal como PRIMEIRA linha** de toda tabela com mais de uma linha de dado
+(decisão de 2026-10-02, mesmo padrão do Desempenho Comercial): no fim ele sumiria
+abaixo da dobra nas tabelas longas. ⚠️ Percentual e DDE do subtotal são
+**recalculados das parcelas somadas** (`somarMetricas` + `percentualCompraVenda`
+/ `dde`), nunca a média dos filhos — média de percentual ignora o peso de cada um
+e produz um número que não existe. Por isso `tabela()` recebe a linha pronta de
+quem a monta, em vez de somar as células de texto.
+
+**A tabela de produtos tem oito colunas** (decisão de 2026-10-02): Código,
+Produto, Venda, Compra, % C/V, GAP R$, Comprou a mais, DDE. "Comprou a mais" é
+`Qtde Compras − Qtde Vendas`, **em unidades do produto** — e por isso fica vazia
+no subtotal: não se soma peça com quilo, nem pacote de 500g com o de 250g.
+Chegou a existir como "GAP de pedido R$" (a parcela do GAP vinda de quantidade,
+via `decomporGap`), mas o comprador precisa do número que ele controla, que é
+quantas unidades pediu a mais. Eram doze — QC vs QV,
+Equilíbrio, Histórico e Causa saíram para o relatório ficar objetivo na primeira
+entrega ao time; continuam calculados em `priorizacao.ts` (`variacaoQuantidade`,
+`percentualEquilibrio`, `Historico`, `acaoDoProduto` — esta ainda em uso, é ela
+que monta a lista de transferências) e voltam quando o time estiver à vontade com
+o básico. O espaço que sobrou virou fonte maior: 8pt em vez de 6,8pt.
+
+## Venda Média Diária, Estoque e DDE
+
+**Regra (decisão do usuário, 2026-10-02): a VMD é sempre a coluna
+`Qtde Venda Média Diária` do arquivo — nunca recalculada aqui.** É o número que
+o time enxerga no ERP, e manter duas contas diferentes para a mesma coisa cria
+discussão em vez de resolver. Vale para o Compra e Venda e para o Entradas e
+Saídas.
+
+O que foi medido nos arquivos sobre essa coluna, e precisa ser levado em conta
+por quem usar:
+
+- **Fórmula**: `Qtde Vendas dos 3 meses fechados ÷ dias de calendário`.
+  Confirmada em **58 de 58** pares Produto×Loja. A janela acompanha o
+  fechamento: no arquivo de Setembro (extraído em 01/10) ela cobre Jun+Jul+Ago;
+  depois que o ERP fecha Setembro, passa a cobrir Jul+Ago+Set.
+- ⚠️ **O valor estampado no último dia do arquivo do mês corrente está
+  parcial**: o ERP já rolou a janela pro trio seguinte mas o mês novo ainda não
+  fechou e entra com zero, então sai ~25-30% menor (confirmado em 57 de 58). Por
+  isso `REFS_ENTRADAS_SAIDAS_MEDIA_MOVEL` é lido da ocorrência mais **antiga** do
+  mês, enquanto `Estoque Disponível` vem da mais **recente** — ver
+  `reduzirPorProdutoLoja`. Sem essa separação, todo DDE saía inflado 26-51%.
+- **Difere da tela "Análise Sugestão de Compra" do ERP**, que divide pelos dias
+  em que havia estoque, não por dias de calendário. Na Mussarela Deale (583596)
+  da Santa Rita: a tela mostra `4.120 ÷ 84 = 49,048/dia` e a coluna traz
+  `3.794 ÷ 92 = 41,2/dia`. Consequência aceita: **em item que ficou zerado, o DDE
+  do relatório aparece mais folgado que o da tela** (25 dias contra 20, nesse
+  caso). Fechar essa diferença exigiria a contagem de dias com estoque, que o
+  ERP tem internamente e não exporta — ver abaixo.
+
+### As colunas de estoque não são série diária
+
+Medido na amostra de Setembro/2026:
+
+| Coluna | Comportamento |
+|---|---|
+| `Estoque Diário` | **1 valor único o mês inteiro em 100%** dos pares Produto×Loja (4.108 de 4.108), inclusive nos 4.010 que tiveram venda ou compra no mês. Não é estoque de abertura por data: o teste `abertura + compras − vendas = abertura do dia seguinte` bate em só 7,1% das transições, e justamente nos dias sem movimento. |
+| `Estoque Disponível` | Muda, mas **só nas últimas 2 linhas do mês, em 100%** dos pares. O teste de fechamento diário bate em 11,6%. É a posição corrente na extração, carimbada em toda linha, com uma cauda de 1-2 dias reais no fim. |
+
+Ou seja: **o arquivo não permite contar em quantos dias o produto teve estoque**,
+e por isso não dá pra reproduzir o divisor da tela de Sugestão de Compra. Se um
+dia isso for necessário, o caminho é pedir a coluna de dias com estoque na
+extração do ERP.
+
+Outras relações confirmadas na mesma conferência:
+
+- `Estoque Disponível` = Estoque Físico − Venda On-Line (1.046 − 64 = 982 na tela
+  do ERP). É o número certo pra cobertura: o reservado de pedido on-line não está
+  na prateleira.
+- Na tela do ERP, **"Saídas em Dias Normais" é a Qtde Vendas total** da janela, não
+  o total menos as vendas em oferta — as "Saídas do Produto em Oferta" aparecem ao
+  lado como informação e estão dentro do número maior (4.120 é exatamente o total
+  de Jul+Ago+Set, com os 1.032 de oferta incluídos).
 
 ## Design system e padrões de UX
 

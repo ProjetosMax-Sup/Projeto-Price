@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { HierarquiaPanel } from "@/components/entradas-saidas/HierarquiaPanel";
 import { LojasInformativoPanel, type ColunaLojas } from "@/components/entradas-saidas/LojasInformativoPanel";
+import { BotaoPdfComprador } from "@/components/compra-venda/BotaoPdfComprador";
 import { KpiCardsCompraVenda } from "@/components/compra-venda/KpiCardsCompraVenda";
 import { MultiSelect } from "@/components/ui/MultiSelect";
 import type { ColunaRenderizavel } from "@/lib/desempenho/colunas-configuradas";
@@ -172,6 +173,10 @@ export function CompraVendaDashboard({
       : base;
   })();
 
+  // "Todos" é uma visão da tela (soma os formatos), não um formato de loja — o PDF
+  // precisa dos formatos de verdade, porque a meta é cadastrada por Formato.
+  const formatosReais = formatosDisponiveis.filter((f) => f !== "Todos");
+
   const breadcrumbDepartamento = caminhoDepartamento.map((n) => ({ nome: n.nome }));
   const breadcrumbComprador = compradorSelecionado
     ? [{ nome: compradorSelecionado }, ...caminhoDentroComprador.map((n) => ({ nome: n.nome }))]
@@ -193,6 +198,9 @@ export function CompraVendaDashboard({
         style={{ top: ALTURA_NAV }}
       >
         <div className="flex flex-wrap items-center justify-end gap-3">
+          {/* Em validação: só aparece pra quem a rota autoriza (ver BotaoPdfComprador). */}
+          <BotaoPdfComprador meses={meses} lojas={lojasSelecionadas} formato={formato} formatosDisponiveis={formatosReais} />
+          <div className="flex-1" />
           <MultiSelect
             rotulo="Loja"
             rotuloTodos="Todas"
