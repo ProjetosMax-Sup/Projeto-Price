@@ -1,7 +1,7 @@
 import { Semaforo } from "@/components/ui/Semaforo";
 import type { Metricas } from "@/lib/desempenho/aggregate";
-import { colunasKpi, valoresDaLinha, type ColunaRenderizavel } from "@/lib/desempenho/colunas-configuradas";
-import { calcDesvio, formatMoeda, formatNumero, formatPercent, formatPontosPercentuais } from "@/lib/desempenho/format";
+import { colunasKpi, formatarColuna, valoresDaLinha, type ColunaRenderizavel } from "@/lib/desempenho/colunas-configuradas";
+import { calcDesvio } from "@/lib/desempenho/format";
 import type { ConfigRelatorio } from "@/lib/parametros/types";
 
 function KpiCard({
@@ -51,20 +51,6 @@ export function KpiCards({
   const valoresAtual = valoresDaLinha(config, atual, comparacao);
   const emDestaque = colunasKpi(config, colunas);
 
-  const formatar = (coluna: ColunaRenderizavel, valor: number | null) => {
-    if (valor === null) return "—";
-    switch (coluna.formato) {
-      case "moeda":
-        return formatMoeda(valor, coluna.casasDecimais ?? 0);
-      case "numero":
-        return formatNumero(valor, coluna.casasDecimais ?? 0);
-      case "pontosPercentuais":
-        return formatPontosPercentuais(valor, coluna.casasDecimais ?? 1);
-      case "percentual":
-        return formatPercent(valor, coluna.casasDecimais ?? 1);
-    }
-  };
-
   return (
     <div className="grid grid-cols-1 gap-3 sm:[grid-template-columns:repeat(auto-fit,minmax(180px,1fr))]">
       {emDestaque.map((coluna) => {
@@ -78,10 +64,10 @@ export function KpiCards({
           <KpiCard
             key={coluna.ref}
             titulo={coluna.rotulo}
-            valor={formatar(coluna, valorAtual)}
+            valor={formatarColuna(coluna, valorAtual)}
             desvio={desvio}
             linhaComparacao={
-              valorComparacao !== null ? `vs. ${formatar(coluna, valorComparacao)} na comparação` : undefined
+              valorComparacao !== null ? `vs. ${formatarColuna(coluna, valorComparacao)} na comparação` : undefined
             }
           />
         );

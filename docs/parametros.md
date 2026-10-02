@@ -135,6 +135,12 @@ Tela nova (`/parametros` ou equivalente), com duas grandes divisões:
 - Botão **"Reprocessar comprador"**: recalcula a resolução de comprador
   efetivo (Departamento + Formato da Loja) sem esperar o cron diário (ver
   seção 4).
+- **(2026-10-02) Checkbox "Excluir do total"**
+  (`DepartamentoCadastro.excluirDoTotalPrincipal`): departamento contábil
+  (ex.: "Apropriações") sem produto/venda de verdade — fica de fora do Total
+  principal e dos cards de KPI de Entradas e Saídas/Compra e Venda, mas
+  continua aparecendo à parte na tabela. Por código, nunca por nome — ver
+  "Motor de colunas calculadas e cards de KPI" em `CLAUDE.md`.
 
 ### 2.4 Usuários e Acesso
 - Acesso é **direto**, nunca via nome de comprador (nome de comprador é só
@@ -184,13 +190,24 @@ de módulos diferentes têm o mesmo nome.
   relatório, não uma coluna.
 
 **Calculadas**
+
+✅ **Ponto em aberto resolvido (2026-10-02) — mudou de direção.** O texto
+abaixo (seleção por chips, "nunca texto livre") era o plano original e ficou
+**desatualizado**: o editor construído usa fórmula de texto estilo Excel
+(`[Nome da Coluna]` + operadores), com glossário clicável e validação que
+bloqueia Salvar em erro — ver "Motor de colunas calculadas e cards de KPI" em
+`CLAUDE.md` e **`docs/manual-de-formulas.md`** (fonte de verdade atual).
+Soma/Razão por chips continuam existindo como tipos de leitura (configs
+salvas antes da mudança), mas não são mais como se cria uma coluna nova.
+Mantido abaixo só como registro histórico da decisão original.
+
 - Fórmulas **específicas daquele relatório** (mesmo nome pode ter fórmula
   diferente em outro módulo).
 - Motor de cálculo: **aritmética simples** — soma/subtração de termos, em
   nível de linha, antes de qualquer agregação. Um termo pode ser uma coluna
   nativa **ou** outra coluna calculada (permite encadear — ex.:
   `Entradas Totais = Compra + Outras Entradas`).
-- **Nunca há campo de texto livre para escrever fórmula.** Sempre seleção
+- ~~Nunca há campo de texto livre para escrever fórmula.~~ Sempre seleção
   estruturada por chips: cada termo tem um sinal (+/−) e uma coluna escolhida
   em dropdown restrito às colunas **já existentes naquele relatório**
   (nativas ou calculadas) — nunca dá para referenciar algo que não existe,
@@ -236,6 +253,11 @@ de módulos diferentes têm o mesmo nome.
   com efeito idêntico a desmarcar na aba de origem.
 - **Esta mesma ordem vale também para a exportação Excel/PDF** (padrão já
   documentado em `docs/padroes-ux.md`) — não é só ordem visual da tela.
+- **(2026-10-02) Botão "Destacar no card de KPI"** (▣, ao lado da estrela de
+  coluna principal): escolhe quais colunas aparecem como card no topo da tela
+  (`ConfigRelatorio.destaquesKpi`). Sem nada marcado, cai no padrão (principal
+  + as duas seguintes da ordem) — ver "Motor de colunas calculadas e cards de
+  KPI" em `CLAUDE.md`.
 
 ### 3.2 Linha (drill-down) — decisão de código, não de Parâmetros
 - A **forma** da linha (o eixo do drill-down — Estrutura Mercadológica +

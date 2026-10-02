@@ -13,10 +13,12 @@ Composta por 5 módulos:
    `DataProvider`/parser do Desempenho Comercial) — a ideia antiga de carregar
    num banco Supabase à parte foi abandonada, nunca chegou a ir pra frente.
 3. **Compra e Venda** ← implementado (mesmo motor do Entradas e Saídas, com
-   filtro de Formato a mais e Meta ponderada por Departamento). Tem também um
-   **PDF por Comprador** (`lib/compra-venda/priorizacao.ts` + `pdf-comprador.ts`,
-   rota `app/api/compra-venda/pdf-comprador/`), pra mandar ao time Comercial
-   enquanto eles não acessam a plataforma — ver "PDF por Comprador" abaixo.
+   filtro de Formato a mais e Meta ponderada por Departamento). Tem dois PDFs
+   que saem da plataforma pro e-mail do time Comercial enquanto eles não
+   acessam a plataforma: **PDF por Comprador** (`lib/compra-venda/priorizacao.ts`
+   + `pdf-comprador.ts`, rota `app/api/compra-venda/pdf-comprador/`) e **PDF por
+   Loja** (`lib/compra-venda/pdf-loja.ts`, rota `app/api/compra-venda/pdf-loja/`)
+   — ver as seções correspondentes abaixo.
 4. Perdas e Quebras ← não construído ainda
 5. Raio X Fornecedor ← não construído ainda
 
@@ -154,6 +156,46 @@ Tabela completa de departamentos/compradores (usada só como semente) e
 detalhe da regra de cadastro: **`docs/regras-de-negocio.md`** — leia antes de
 mexer em `lib/desempenho/compradores.ts`/`comprador-cadastro.ts` ou na lógica
 de exclusão de produtos.
+
+## Motor de colunas calculadas e cards de KPI (2026-10-02)
+
+Três mudanças no motor de Parâmetros que valem pros três módulos (Desempenho
+Comercial, Entradas e Saídas, Compra e Venda), não só Compra e Venda:
+
+- **Fórmula estilo Excel**: a aba Calculadas ganhou um 7º tipo de coluna,
+  `"formula"` (`lib/parametros/formula.ts`) — texto com `[Nome da Coluna]` e
+  os operadores `+ - * / ( )`, com glossário clicável, tooltip de operadores e
+  validação que bloqueia Salvar em erro. Substitui soma/razão/diferença como
+  forma de criar calculada nova (os três tipos antigos continuam existindo só
+  pra ler configs salvas antes da mudança). Documentação completa, incluindo a
+  regra de divisão por zero (vira `0`, nunca erro) e por que `[Ref]` dentro dos
+  colchetes é sempre o nome de outra calculada ou o ref bruto de uma nativa
+  (nunca a tradução/rótulo, que pode mudar): **`docs/manual-de-formulas.md`**.
+  Compra e Venda ganhou **GAP R$** (`[Compras] - [Meta] / 100 * [Valor]`) como
+  coluna ao vivo, logo após "Meta - Realizado" — mesmo conceito do GAP do PDF
+  por Comprador, mas exposto na tela.
+- **Cards de KPI por ref, não por rótulo**: os três módulos casavam a coluna
+  do card pelo texto exibido (`c.rotulo === "Compra"`) — renomear a coluna
+  derrubava o card silenciosamente (bug real, achado em 2026-10-02 depois de
+  renomear "Compras" pra "R$ Compra"). Agora usam sempre `config.destaquesKpi`
+  (lista de refs/ids, `ConfigRelatorio.destaquesKpi`), escolhido por um botão
+  **▣** na aba Ativas ao lado da estrela de coluna principal — ver
+  `colunasKpi()`/`formatarColuna()` em `lib/desempenho/colunas-configuradas.ts`,
+  função única reaproveitada pelos três `KpiCards*.tsx` e por `pdf-loja.ts`.
+  Sem nada marcado, cai no padrão de sempre (principal + as duas seguintes da
+  ordem). Grid dos cards é `auto-fit` (preenche a tela com poucos cards,
+  espreme com muitos) em vez de 3 colunas fixas.
+- **Departamento "excluir do total principal"**: campo
+  `DepartamentoCadastro.excluirDoTotalPrincipal` (checkbox em /parametros →
+  Departamentos), usado por código (nunca por nome) tanto pela tabela
+  (`HierarquiaPanel.tsx`, "Total s/ Apropriações" vs. "Total c/ Apropriações")
+  quanto pelo `kpi` agregado de Entradas e Saídas/Compra e Venda
+  (`departamentosExcluidosDoTotal()` em `lib/entradas-saidas/consulta.ts`) —
+  antes o KPI somava TUDO, inclusive Apropriações, divergindo da tabela.
+  "Apropriações" (departamento 099) já vem marcado. A Meta do card de KPI
+  (antes inexistente nesse nível — só existia por Departamento/Comprador)
+  agora é uma média ponderada pela Venda, excluindo os departamentos marcados
+  (`metaTotalPonderada()` em `lib/compra-venda/aggregate.ts`).
 
 ## PDF por Comprador (Compra e Venda)
 
@@ -307,6 +349,34 @@ uso, é ela que monta a lista de transferências) e voltam pra tabela quando o
 time estiver à vontade com o básico. Histórico foi removido por completo em
 2026-10-03 (ver nota acima) — não dá pra "trazer de volta", teria que ser
 refeito. O espaço que sobrou virou fonte maior: 8pt em vez de 6,8pt.
+
+## PDF por Loja (Compra e Venda)
+
+Substitui a planilha que o time montava à mão a partir da plataforma (pedido
+de 2026-10-02, com PDFs de referência versionados em `docs/exemplos-pdf`
+quando existirem): Total da rede no Formato escolhido, depois um bloco por
+Loja — cada um com as mesmas colunas configuradas na tela
+(`colunasDoRelatorio`, nunca hardcoded) e os dois subtotais de sempre, **com**
+e **sem** "Apropriações" (mesmo flag `excluirDoTotalPrincipal` de cima).
+Departamentos saem **ordenados por código** (o código em si não aparece, só o
+nome) e **uma tabela por página**, sempre — nunca duas tabelas na mesma
+página mesmo quando a anterior é curta.
+
+De propósito **bem mais simples** que PDF por Comprador: uma tabela por
+bloco, sem seções, sem priorização (`lib/compra-venda/pdf-loja.ts`, rota
+`app/api/compra-venda/pdf-loja/`). Reaproveita o motor de colunas
+(`avaliarColunas` + `formatarColuna`) pra nunca divergir dos números da tela,
+e o heatmap de colunas tipo "Meta - Realizado" é a mesma régua de
+`CelulaMetrica.tsx`, portada pra RGB (`corHeatmap` em `pdf-loja.ts`).
+
+⚠️ Mesma pegadinha de `pdf-comprador.ts`: o `headStyles` do autoTable aplica
+por cima do `columnStyles` no cabeçalho — alinhar título com dado exige forçar
+`halign` em `didParseCell` pra `section === "head"` também, senão o título
+fica à esquerda com o número à direita.
+
+Formato "Todos" não serve aqui (a meta é cadastrada por Formato, igual PDF
+por Comprador) — o botão exige um Formato concreto escolhido na tela. Mesma
+porta de acesso: `PDF_COMPRADOR_TOKEN` (ver seção acima).
 
 ## Venda Média Diária, Estoque e DDE
 

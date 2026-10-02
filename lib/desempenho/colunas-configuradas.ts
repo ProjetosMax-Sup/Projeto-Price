@@ -1,6 +1,7 @@
 import { avaliarColunas, formatoDaCalculada, type ValoresNativos } from "@/lib/parametros/avaliador";
 import { ordemAtivasEfetiva, rotuloDaColuna } from "@/lib/parametros/colunas-relatorio";
 import type { ColunaNativa, ConfigRelatorio, FormatoColuna } from "@/lib/parametros/types";
+import { formatMoeda, formatNumero, formatPercent, formatPontosPercentuais } from "./format";
 import type { Metricas } from "./aggregate";
 
 /**
@@ -150,6 +151,25 @@ export function colunasKpi(config: ConfigRelatorio, colunas: ColunaRenderizavel[
   const principal = colunas.find((c) => c.ref === config.papeis?.principal) ?? colunas[0];
   const demais = colunas.filter((c) => c.ref !== principal?.ref && !c.ehComparacao && !c.semaforo).slice(0, 2);
   return [principal, ...demais].filter((c): c is ColunaRenderizavel => Boolean(c));
+}
+
+/**
+ * Formata um valor pro formato/casas decimais da coluna — único lugar que decide
+ * isso (cards de KPI, PDF por Loja); `CelulaMetrica.tsx` tem a própria cópia por
+ * causa da marcação de heatmap/semáforo, mas segue exatamente a mesma regra.
+ */
+export function formatarColuna(coluna: ColunaRenderizavel, valor: number | null | undefined): string {
+  if (valor === null || valor === undefined) return "—";
+  switch (coluna.formato) {
+    case "moeda":
+      return formatMoeda(valor, coluna.casasDecimais ?? 0);
+    case "numero":
+      return formatNumero(valor, coluna.casasDecimais ?? 0);
+    case "pontosPercentuais":
+      return formatPontosPercentuais(valor, coluna.casasDecimais ?? 1);
+    case "percentual":
+      return formatPercent(valor, coluna.casasDecimais ?? 1);
+  }
 }
 
 /**
