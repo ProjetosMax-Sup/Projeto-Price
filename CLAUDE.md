@@ -87,10 +87,11 @@ Desempenho Comercial (9+ meses, 4+ milhões de registros) — `salvarDataset()`
 (`lib/desempenho/dataset-cache.ts`) dá **OOM** ao tentar guardar tudo de uma
 vez. Mitigação atual: `MESES_HABILITADOS` (`config/data-sources.ts`) restringe
 quais meses o app processa em produção — não é regra de negócio, é só o
-dataset caber na memória disponível. Resolver de vez exige decisão do
-usuário: upgrade do plano Redis, ou mover esse cache pra um banco de verdade
-(o Supabase já provisionado pro Entradas e Saídas seria mais adequado pra
-esse volume). Enquanto o limite existir, `salvarDataset()` apaga a geração
+dataset caber na memória disponível. **Resolução definitiva já aprovada pela
+diretoria** — migração pra Postgres (Supabase) + atualização diária via
+GitHub Actions, domínio próprio e login individual de volta: roteiro
+completo, custos e riscos em **`docs/mapa-de-investimento.md`**. Enquanto a
+execução não começa, `salvarDataset()` apaga a geração
 anterior *antes* de escrever a nova (prioriza pico de memória baixo sobre
 garantir dataset sempre válido) — se a escrita falhar no meio, `lerDataset()`
 detecta e o app cai pro fallback de ler direto do OneDrive até a próxima
