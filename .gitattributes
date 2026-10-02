@@ -1,0 +1,20 @@
+# Este repositório roda com core.autocrlf=true, que converte quebras de linha nos
+# arquivos que o Git considera texto. Em arquivo binário essa conversão
+# CORROMPE o conteúdo — um PDF com bytes 0x0A trocados por 0x0D0A não abre mais.
+# As regras abaixo marcam os formatos binários para o Git nunca os tocar.
+*.pdf   binary
+*.xlsx  binary
+*.xls   binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.woff  binary
+*.woff2 binary
+*.zip   binary
+
+# Os arquivos-fonte do ERP (bd<Mês>.txt) não ficam versionados — vêm do OneDrive,
+# ver CLAUDE.md > "Fonte de dados". Se algum dia entrar um TXT de amostra aqui,
+# ele é latin1 com 200MB+ e também não deve passar por conversão.
+*.txt   -text
