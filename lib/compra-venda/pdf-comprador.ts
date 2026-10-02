@@ -527,12 +527,10 @@ function capa(doc: jsPDF, autoTable: AutoTable, dados: DadosPdfComprador): void 
       { titulo: "Meta", alinhar: "right" },
       { titulo: "Desvio (pp)", alinhar: "right" },
       { titulo: "GAP em R$", alinhar: "right", negrito: true },
-      { titulo: "Exposição", alinhar: "right" },
     ],
     subtotal: (() => {
       const soma = somarMetricas(dados.porFormato);
       const gap = dados.porFormato.reduce((tot, r) => tot + r.gap, 0);
-      const exposicao = dados.porFormato.reduce((tot, r) => tot + r.exposicao, 0);
       // Meta do total é ponderada pela venda de cada formato — média simples de
       // percentual ignoraria que um formato é o dobro do outro.
       const pesoMeta = dados.porFormato.filter((r) => r.meta !== null).reduce((tot, r) => tot + r.metricas.venda, 0);
@@ -546,7 +544,6 @@ function capa(doc: jsPDF, autoTable: AutoTable, dados: DadosPdfComprador): void 
         pct(meta),
         pp(percentualCompraVenda(soma), meta),
         brl(gap),
-        brl(exposicao),
       ];
     })(),
     linhas: dados.porFormato.map((r) => [
@@ -557,7 +554,6 @@ function capa(doc: jsPDF, autoTable: AutoTable, dados: DadosPdfComprador): void 
       pct(r.meta),
       pp(percentualCompraVenda(r.metricas), r.meta),
       brl(r.gap),
-      brl(r.exposicao),
     ]),
     alertar: (i) => dados.porFormato[i].gap > 0,
   });
@@ -755,23 +751,11 @@ function visaoGeral(doc: jsPDF, autoTable: AutoTable, resumo: ResumoComprador): 
     { rotulo: "Margem", valor: pct(margem(m)) },
   ]);
 
-  // ⚠️ GAP e exposição, sempre juntos e nomeados — ver `ResumoComprador` em
-  // priorizacao.ts. A frase de compensação só entra quando há compensação de
-  // verdade: dizer "compensados" com os dois números iguais seria falso logo na
-  // primeira linha do relatório.
-  const base = `GAP em R$ = Compra − (Meta × Venda): é o quanto de compra passou do que a meta autorizava — ${brl(resumo.gap)}.`;
-  const compensacao =
-    resumo.exposicao > resumo.gap * 1.05
-      ? ` Por dentro, ${brl(resumo.exposicao)} estão em itens acima da meta, compensados por ${brl(resumo.exposicao - resumo.gap)} em itens abaixo. ` +
-        `A cobrança é o GAP; o trabalho é a exposição.`
-      : "";
   const frase =
     resumo.gap > 0
-      ? base + compensacao
+      ? `GAP em R$ = Compra − (Meta × Venda): é o quanto de compra passou do que a meta autorizava — ${brl(resumo.gap)}.`
       : `Compra dentro da meta no período (${brl(Math.abs(resumo.gap))} de folga). Não há corte a fazer — ` +
-        (resumo.exposicao > 0
-          ? `mas ${brl(resumo.exposicao)} estão em itens acima da meta, compensados por itens abaixo. A atenção aqui é risco de ruptura, mais adiante.`
-          : `a atenção deste formato está no risco de ruptura, mais adiante.`);
+        `a atenção deste formato está no risco de ruptura, mais adiante.`;
   y = paragrafo(doc, frase, y, PRETO, 8);
   y += 2;
 
@@ -910,9 +894,10 @@ function tabelaProdutos(
     ],
     // Oito colunas em vez de doze (decisão de 2026-10-02) deixaram espaço pra
     // subir a fonte de 6,8 pra 8 — o relatório ficou mais curto de ler e mais
-    // fácil de enxergar. QC vs QV, Equilíbrio, Histórico e Causa saíram da
-    // tabela; continuam calculados em `priorizacao.ts` e voltam quando o time
-    // estiver à vontade com o básico.
+    // fácil de enxergar. QC vs QV, Equilíbrio e Causa saíram da tabela; continuam
+    // calculados em `priorizacao.ts` e voltam quando o time estiver à vontade com
+    // o básico. Histórico (sequência de meses acima da meta) foi removido de
+    // vez em 2026-10-03: não estava sendo usado no PDF.
     fonte: 8,
     detalhe,
     // ⚠️ A soma das larguras tem que caber em `UTIL` (273mm). Estourando, o
@@ -1033,7 +1018,6 @@ function ondeCortar(
     y = tituloBloco(doc, `Onde cortar — ${dep.nome}`, y, SECOES.cortar.cor, 13);
     y = faixaIndicadores(doc, y, [
       { rotulo: "GAP do departamento", valor: brl(dep.gap), destaque: true },
-      { rotulo: "Exposição", valor: brl(dep.exposicao) },
       { rotulo: "SKUs acima da meta", valor: `${dep.skusAcimaDaMeta} de ${dep.skus}` },
       { rotulo: "Venda", valor: brl(dep.metricas.venda) },
       { rotulo: "% Compra/Venda", valor: pct(percentualCompraVenda(dep.metricas)) },

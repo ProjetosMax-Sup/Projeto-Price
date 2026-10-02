@@ -375,11 +375,6 @@ export function somarGaps(nos: { gap: number | null }[]): number {
   return nos.reduce((total, no) => total + (no.gap ?? 0), 0);
 }
 
-/** Soma só o que está ACIMA da meta — a "exposição". Ver `ResumoComprador`. */
-export function somarGapsPositivos(nos: { gap: number | null }[]): number {
-  return nos.reduce((total, no) => total + Math.max(no.gap ?? 0, 0), 0);
-}
-
 export function motivoAnexo(m: MetricasPrioridade): MotivoAnexo | null {
   if (m.venda <= 0 && m.compra > 0) return "lancamento";
   const precoCompra = razao(m.compra, m.qtdeCompras);
@@ -650,31 +645,10 @@ export interface LinhaProduto {
   acao: AcaoProduto;
   /** Preenchido só quando uma loja concentra o problema ou há transferência a fazer. */
   lojas: { sobrando: NoLojaPrioridade[]; faltando: NoLojaPrioridade[] } | null;
-  /** Histórico do item nos períodos anteriores — ver `Historico`. */
-  historico: Historico | null;
   /** % C/V de equilíbrio (preço de compra ÷ preço de venda). */
   equilibrio: number | null;
   /** GAP partido em preço e quantidade, somando o GAP. */
   causa: { preco: number; quantidade: number } | null;
-}
-
-/**
- * Quantos meses seguidos (contando o período atual) o SKU fechou acima da meta,
- * e como o GAP variou contra o mês imediatamente anterior. Substitui o "sim/não"
- * de 2026-10-01, que tratava igual um item estável e um que dobrou de tamanho:
- * o Café foi de +R$ 36.875 (Agosto) para +R$ 63.186 (Setembro) e exibia a mesma
- * marca "sim" de um item parado.
- *
- * ⚠️ Usa a meta cadastrada **hoje** pra julgar o passado — o cadastro de metas
- * não guarda histórico. Se a meta do departamento mudou no meio, a sequência
- * pode marcar um mês que estava dentro da meta vigente na época.
- */
-export interface Historico {
-  /** 2 = segundo mês seguido acima da meta. 1 = só o período atual. */
-  mesesSeguidos: number;
-  /** Variação do GAP contra o mês anterior, em fração (0,71 = +71%). `null` se
-   * não havia GAP positivo antes (não há base de comparação). */
-  variacaoGap: number | null;
 }
 
 export interface NoCascata {
@@ -700,29 +674,15 @@ export interface NoCascata {
 
 export interface BlocoDepartamento extends NoCascata {
   dpto: string;
-  /** Soma dos GAPs positivos dos SKUs do departamento. Ver `ResumoComprador`. */
-  exposicao: number;
   estoqueConfiavel: boolean;
 }
 
-/**
- * ⚠️ GAP e exposição são números diferentes e os dois precisam aparecer.
- *
- * `gap` é o que o comprador deve à meta — é a cobrança. `exposicao` é a soma do
- * que está acima da meta por dentro, sem descontar o que está abaixo — é o
- * tamanho do trabalho. Em Setembro/2026 Johathan tinha GAP de R$ 43 mil e
- * R$ 527 mil de itens acima da meta, compensados por R$ 484 mil de itens
- * abaixo. Mostrar só o GAP faz ele ignorar uma lista de 17 produtos; mostrar só
- * a exposição faz ele responder "meu departamento está na meta" e o relatório
- * perde a autoridade. Nomeados lado a lado, as duas leituras são verdadeiras.
- */
 export interface ResumoComprador {
   comprador: string;
   formato: string;
   metricas: MetricasPrioridade;
   meta: number | null;
   gap: number;
-  exposicao: number;
   departamentos: BlocoDepartamento[];
   /** Todos os departamentos do comprador, em ordem de venda — inclusive os que estão
    * dentro da meta. O comprador precisa ver o que NÃO precisa tratar. */
@@ -740,34 +700,10 @@ export interface OpcoesPriorizacao {
   piso: number;
   /** Dias corridos do período escolhido — divide a venda pra chegar em venda/dia. */
   diasDoPeriodo: number;
-  /**
-   * GAP de cada SKU nos períodos anteriores, do mais recente pro mais antigo —
-   * `[mêsAnterior, doisMesesAtrás, ...]`. Alimenta `Historico`. Lista vazia =
-   * sem comparação, e aí a coluna de histórico sai em branco em vez de mentir
-   * que o item é novo.
-   */
-  gapAnterior: Map<string, number>[];
   nomeDepartamento: (codigo: string) => string;
   /** Data de cadastro do SKU no ERP ("DD/MM/AA") — separa cadastro novo de item
    * antigo parado nos anexos, que no número do período são idênticos. */
   dataCadastro: (codigo: string) => string;
-}
-
-/** Monta o `Historico` de um SKU a partir dos GAPs anteriores: anda a lista do
- * mês mais recente pro mais antigo contando a sequência, e compara com o
- * primeiro deles pra variação. */
-function historicoDoSku(codigo: string, gapAtual: number, anteriores: Map<string, number>[]): Historico | null {
-  if (anteriores.length === 0) return null;
-  let mesesSeguidos = 1;
-  for (const mes of anteriores) {
-    if ((mes.get(codigo) ?? 0) > 0) mesesSeguidos++;
-    else break;
-  }
-  const gapMesAnterior = anteriores[0].get(codigo) ?? 0;
-  return {
-    mesesSeguidos,
-    variacaoGap: gapMesAnterior > 0 ? gapAtual / gapMesAnterior - 1 : null,
-  };
 }
 
 function nomeProdutoDaLinha(linha: LinhaReduzida): string {
@@ -830,7 +766,6 @@ function construirProdutos(
         : concentradora
           ? { sobrando: [concentradora], faltando: [] }
           : null,
-      historico: historicoDoSku(no.chave, gap, opcoes.gapAnterior),
       equilibrio: percentualEquilibrio(no.metricas),
       causa: decomporGap(no.metricas, no.meta),
     });
@@ -911,19 +846,6 @@ export function priorizarComprador(
   const metricas = metricasZeradas();
   for (const linha of minhas) acumular(metricas, linha);
 
-  // Exposição é medida no grão de SKU, não de Departamento: é justamente a
-  // compensação DENTRO do departamento que ela existe pra revelar. Somando por
-  // departamento, Johathan apareceria com exposição ≈ GAP (R$ 43 mil) quando o
-  // que ele tem acima da meta são R$ 527 mil, compensados por R$ 484 mil abaixo.
-  // SKUs barrados pelas travas ficam de fora: exposição é "tamanho do trabalho",
-  // e rateio de desmembramento/insumo não é trabalho de compra. Sem isso, o
-  // "Osso Kg" sozinho somaria R$ 188 mil à exposição do Açougue.
-  const skusDoComprador = agruparComGap(
-    minhas,
-    resolverMeta,
-    (l) => l.codigo || null,
-    (l) => nomeProdutoDaLinha(l),
-  ).filter((no) => motivoAnexo(no.metricas) === null);
   const pesoMeta = porDpto.filter((n) => n.meta !== null).reduce((t, n) => t + n.metricas.venda, 0);
   const metaPonderada = porDpto.filter((n) => n.meta !== null).reduce((t, n) => t + n.meta! * n.metricas.venda, 0);
 
@@ -947,8 +869,6 @@ export function priorizarComprador(
       metricas: no.metricas,
       meta: no.meta,
       gap: no.gap ?? 0,
-      // Mesma regra do comprador: artefato de cadastro não é trabalho de compra.
-      exposicao: somarGapsPositivos(skusDoDpto.filter((s) => motivoAnexo(s.metricas) === null)),
       estoqueConfiavel,
       skus: skusDoDpto.length,
       skusAcimaDaMeta: skusDoDpto.filter((s) => (s.gap ?? 0) > 0).length,
@@ -1000,7 +920,6 @@ export function priorizarComprador(
     metricas,
     meta: pesoMeta > 0 ? metaPonderada / pesoMeta : null,
     gap: somarGaps(porDpto),
-    exposicao: somarGapsPositivos(skusDoComprador),
     departamentos,
     panorama,
     ruptura: itensEmRisco(minhas, nomeDoProduto, opcoes.diasDoPeriodo, opcoes.piso).slice(0, 15),
@@ -1011,24 +930,6 @@ export function priorizarComprador(
       .filter((no) => no.meta === null && no.metricas.compra > 0)
       .map((no) => ({ dpto: no.chave, nome: no.nome, compra: no.metricas.compra, venda: no.metricas.venda })),
   };
-}
-
-/** GAP de cada SKU num período passado — alimenta `Historico` (quantos meses
- * seguidos acima da meta e quanto o GAP variou). Sem isso o comprador pode
- * alegar mês atípico; com isso, Papel Higiênico Palo, Costela, Arroz Bonoarroz
- * e Queijo Deale aparecem como o que são: repetição de Agosto em Setembro/2026.
- * Só GAPs positivos entram — item dentro da meta no passado não é base de
- * comparação pra "cresceu x%". */
-export function gapPorSku(linhas: LinhaReduzida[], resolverMeta: ResolverMeta): Map<string, number> {
-  const nos = agruparComGap(
-    linhas,
-    resolverMeta,
-    (l) => l.codigo || null,
-    (l) => l.codigo,
-  );
-  const mapa = new Map<string, number>();
-  for (const no of nos) if ((no.gap ?? 0) > 0) mapa.set(no.chave, no.gap!);
-  return mapa;
 }
 
 /** Lista de compradores presentes nas linhas, sem o placeholder de departamento

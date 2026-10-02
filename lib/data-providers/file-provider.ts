@@ -126,14 +126,23 @@ async function linhasReduzidasDoArquivo(
 async function getLinhasReduzidasEntradasSaidas(nomesArquivo?: string[]): Promise<LinhaReduzida[]> {
   const [arquivos, { produtosPorCodigo, lojasPorCodigo }] = await Promise.all([listarArquivosMensais(), indices()]);
   const alvo = nomesArquivo ? arquivos.filter((a) => nomesArquivo.includes(a.nome)) : arquivos;
-  const resultados = await Promise.all(
-    alvo.map((arquivo) =>
-      linhasReduzidasDoArquivo(arquivo, produtosPorCodigo, lojasPorCodigo).catch((erro) => {
-        console.error(`Falha ao processar ${arquivo.nome} (Entradas e Saídas), excluído do conjunto:`, erro);
-        return [] as LinhaReduzida[];
-      }),
-    ),
-  );
+
+  // ⚠️ Um mês por vez, **nunca** `Promise.all`. Reduzir um mês segura, no pico,
+  // o arquivo inteiro como string (300MB+) mais os registros parseados antes de
+  // virarem as poucas dezenas de milhares de linhas reduzidas. Em paralelo, cada
+  // mês multiplica esse pico — e com o dataset do Desempenho Comercial vivo no
+  // mesmo processo isso estoura o heap de 8GB (confirmado em 2026-10-02:
+  // "JavaScript heap out of memory" a 7,7GB, com a página do Desempenho aberta e
+  // o PDF por Comprador lendo 4 meses). Sequencial não custa tempo de parede: o
+  // parse é CPU síncrona, que não ganha nada com concorrência.
+  const resultados: LinhaReduzida[][] = [];
+  for (const arquivo of alvo) {
+    try {
+      resultados.push(await linhasReduzidasDoArquivo(arquivo, produtosPorCodigo, lojasPorCodigo));
+    } catch (erro) {
+      console.error(`Falha ao processar ${arquivo.nome} (Entradas e Saídas), excluído do conjunto:`, erro);
+    }
+  }
   return mesclarMeses(resultados);
 }
 

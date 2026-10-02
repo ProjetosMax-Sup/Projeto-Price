@@ -4,7 +4,6 @@ import { getEntradasSaidasReduzido } from "@/lib/data-providers/file-provider";
 import { filtrarPorFormato, FORMATO_TODOS } from "@/lib/compra-venda/aggregate";
 import { gerarPdfComprador } from "@/lib/compra-venda/pdf-comprador";
 import {
-  gapPorSku,
   compradoresPresentes,
   criarResolverMeta,
   PISO_RELEVANCIA_PADRAO,
@@ -64,27 +63,6 @@ function nomesDeArquivo(meses: string[]): string[] {
   return meses
     .filter((m): m is (typeof NOMES_MESES_ARQUIVO)[number] => (NOMES_MESES_ARQUIVO as readonly string[]).includes(m))
     .map((m) => arquivoMensal(m).nome);
-}
-
-/** Até quantos meses antes do recorte o histórico olha — o bastante pra dizer
- * "3º mês seguido" sem ler o ano inteiro. Cada mês é um arquivo a mais (já
- * reduzido e em cache depois da 1ª leitura). */
-const MESES_DE_HISTORICO = 3;
-
-/** Meses imediatamente anteriores ao recorte, do mais recente pro mais antigo —
- * alimentam `Historico` (sequência acima da meta e variação do GAP). Lista
- * vazia quando o recorte já começa em Janeiro. */
-function mesesAnteriores(meses: string[]): string[] {
-  const indices = meses.map((m) => (NOMES_MESES_ARQUIVO as readonly string[]).indexOf(m)).filter((i) => i >= 0);
-  if (indices.length === 0) return [];
-  const primeiro = Math.min(...indices);
-  const anteriores: string[] = [];
-  for (let i = 1; i <= MESES_DE_HISTORICO; i++) {
-    const indice = primeiro - i;
-    if (indice < 0) break;
-    anteriores.push(NOMES_MESES_ARQUIVO[indice]);
-  }
-  return anteriores;
 }
 
 /** Dias corridos aproximados do período — converte venda do período em
@@ -183,19 +161,6 @@ export async function POST(request: Request) {
     ? corpo.formatos!.filter((f) => f !== FORMATO_TODOS)
     : formatosDisponiveis;
 
-  // Períodos anteriores, só pra montar o histórico de cada SKU — arquivos a
-  // mais, já reduzidos e em cache. Falha em qualquer um nunca derruba o
-  // relatório: o histórico some e o resto sai igual.
-  const linhasAnteriores = await Promise.all(
-    mesesAnteriores(meses).map(async (mes) => {
-      try {
-        return filtrarPorLojas(await getEntradasSaidasReduzido(nomesDeArquivo([mes])), corpo.lojas ?? []);
-      } catch {
-        return [];
-      }
-    }),
-  );
-
   const pedidos = corpo.compradores?.length ? corpo.compradores : compradoresPresentes(linhas, indiceComprador);
   if (pedidos.length === 0) return NextResponse.json({ erro: "Nenhum comprador no recorte escolhido" }, { status: 400 });
 
@@ -208,9 +173,6 @@ export async function POST(request: Request) {
   const porFormatoBase = formatos.map((formato) => ({
     formato,
     linhas: filtrarPorFormato(linhas, formato),
-    // Histórico sempre dentro do MESMO formato: a meta é por Departamento×Formato,
-    // e um item pode ser crônico no Atacado e saudável no Varejo.
-    gapAnterior: linhasAnteriores.map((doMes) => gapPorSku(filtrarPorFormato(doMes, formato), resolverMeta)),
   }));
 
   // Um arquivo por Comprador × Formato (decisão de 2026-10-02, revendo a de
@@ -223,7 +185,6 @@ export async function POST(request: Request) {
       const resumo = priorizarComprador(base.linhas, comprador, base.formato, indiceComprador, resolverMeta, {
         piso,
         diasDoPeriodo: diasDoPeriodo(meses),
-        gapAnterior: base.gapAnterior,
         nomeDepartamento,
         dataCadastro,
       });

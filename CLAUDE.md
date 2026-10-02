@@ -194,13 +194,10 @@ nos maiores itens (Café, Cerveja Amstel, Costela): mandar "cortar" neles
 destruiria a credibilidade do resto. `decomporGap()` parte o GAP nas duas
 causas, em R$, somando exatamente o GAP.
 
-Quatro regras que **não** podem ser afrouxadas sem refazer a análise — cada uma
+Três regras que **não** podem ser afrouxadas sem refazer a análise — cada uma
 nasceu de um erro real encontrado nos arquivos de Setembro/2026, documentado no
 cabeçalho da função correspondente em `lib/compra-venda/priorizacao.ts`:
 
-- **GAP ≠ exposição**, e os dois aparecem nomeados lado a lado. GAP é a cobrança;
-  exposição (soma só do que está acima da meta, no grão de SKU) é o trabalho.
-  Johathan/Varejo: GAP R$ 43 mil, exposição R$ 290 mil.
 - **Travas de cadastro** (`motivoAnexo`): os dois maiores "excessos" do Varejo
   eram rateio de desmembramento de carcaça — R$ 340 mil de fantasma, mais da
   metade do GAP do formato inteiro.
@@ -218,6 +215,20 @@ cabeçalho da função correspondente em `lib/compra-venda/priorizacao.ts`:
   antigo de 60 dias perdia o caso mais comum — Café Moinho Fino no Varejo tinha
   Vila Mutirão com 42 dias e Rio Verde/Independência com 9,8, e nada era
   sugerido. A regra nova levou as sugestões de 9 para 31 na rede.
+
+**Exposição e Histórico foram removidos em 2026-10-03**, a pedido do usuário —
+nenhum dos dois estava sendo usado na prática. `ResumoComprador.exposicao` /
+`BlocoDepartamento.exposicao`, a função `somarGapsPositivos()`, a interface
+`Historico`, `historicoDoSku()` e `gapPorSku()` saíram de `priorizacao.ts`; a
+rota parou de ler os 3 meses anteriores só pra alimentar o histórico
+(`mesesAnteriores()`, `MESES_DE_HISTORICO` em `route.ts`) — efeito colateral
+bom, já que ler 4 meses de uma vez tinha contribuído pra um OOM do processo em
+2026-10-02. Se a exposição (GAP vs. soma dos SKUs acima da meta, sem descontar
+os de baixo, ver `somarGaps()` que continua existindo pro GAP normal) voltar a
+fazer falta, o jeito de reconstruir é somar `no.gap` só dos nós positivos de
+`agruparComGap(...)` no grão de SKU, filtrando `motivoAnexo(...) === null`
+(artefato de cadastro não é trabalho de compra) — era exatamente isso que
+`somarGapsPositivos()` fazia.
 
 Acesso restrito enquanto está em validação: `PDF_COMPRADOR_TOKEN` (ver
 `.env.local.example` e o cabeçalho da rota). Sem ela configurada, a rota só
@@ -278,12 +289,14 @@ Produto, Venda, Compra, % C/V, GAP R$, Comprou a mais, DDE. "Comprou a mais" é
 no subtotal: não se soma peça com quilo, nem pacote de 500g com o de 250g.
 Chegou a existir como "GAP de pedido R$" (a parcela do GAP vinda de quantidade,
 via `decomporGap`), mas o comprador precisa do número que ele controla, que é
-quantas unidades pediu a mais. Eram doze — QC vs QV,
-Equilíbrio, Histórico e Causa saíram para o relatório ficar objetivo na primeira
-entrega ao time; continuam calculados em `priorizacao.ts` (`variacaoQuantidade`,
-`percentualEquilibrio`, `Historico`, `acaoDoProduto` — esta ainda em uso, é ela
-que monta a lista de transferências) e voltam quando o time estiver à vontade com
-o básico. O espaço que sobrou virou fonte maior: 8pt em vez de 6,8pt.
+quantas unidades pediu a mais. Eram doze — QC vs QV, Equilíbrio, Histórico e
+Causa saíram para o relatório ficar objetivo na primeira entrega ao time. QC vs
+QV, Equilíbrio e Causa continuam calculados em `priorizacao.ts`
+(`variacaoQuantidade`, `percentualEquilibrio`, `acaoDoProduto` — esta ainda em
+uso, é ela que monta a lista de transferências) e voltam pra tabela quando o
+time estiver à vontade com o básico. Histórico foi removido por completo em
+2026-10-03 (ver nota acima) — não dá pra "trazer de volta", teria que ser
+refeito. O espaço que sobrou virou fonte maior: 8pt em vez de 6,8pt.
 
 ## Venda Média Diária, Estoque e DDE
 

@@ -2,7 +2,9 @@
 
 Fotografia dos 18 arquivos gerados em **02/10/2026**, sobre o período
 **01-Set à 30-Set de 2026**, com as metas e o cadastro de Departamentos que
-estavam valendo naquele dia.
+estavam valendo naquele dia. Regerados no mesmo dia depois que Exposição e
+Histórico saíram do relatório (ver CLAUDE.md > "PDF por Comprador") — os
+números de GAP/Venda/Compra abaixo não mudaram, só o layout ficou mais enxuto.
 
 São um arquivo por **Comprador × Formato** — quem não atua num formato não tem
 arquivo dele (Jairo só Atacado, Marrone só Varejo), por isso 18 e não 20.
