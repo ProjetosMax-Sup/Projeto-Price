@@ -162,7 +162,14 @@ export function DesempenhoDashboard({
       setProdutoSelecionado((atual) => (atual === linha.chave ? null : linha.chave));
       return;
     }
-    setCaminhoDrill((atual) => [...atual, { nivel: linha.nivel, chave: linha.chave, nome: linha.nome }]);
+    // Guard contra clique duplicado do Modo Foco: `zoom` (ver useEscalaParaCaber)
+    // às vezes faz o Chromium despachar o clique na linha duas vezes, empilhando
+    // o mesmo nó 2x e desalinhando a contagem de nível do resto da trilha.
+    setCaminhoDrill((atual) =>
+      atual.at(-1)?.chave === linha.chave && atual.at(-1)?.nivel === linha.nivel
+        ? atual
+        : [...atual, { nivel: linha.nivel, chave: linha.chave, nome: linha.nome }],
+    );
     setProdutoSelecionado(null);
   }
 

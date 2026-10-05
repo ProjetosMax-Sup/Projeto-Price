@@ -94,14 +94,21 @@ const getDesempenhoCache = criarCacheVersionado(versaoMensal, async (): Promise<
  * milhões). `RegistroEntradasSaidas[]` de um arquivo nunca sai do escopo desta
  * função — fica elegível pro GC assim que a redução termina.
  */
-const cacheReducaoPorArquivo = new Map<string, { versao: number; linhas: LinhaReduzida[] }>();
+const cacheReducaoPorArquivo = new Map<string, { versao: string; linhas: LinhaReduzida[] }>();
 
+/** `dpto` de cada linha vem do cadastro (`r.produto.dpto`, resolvido em
+ * `reduzirPorProdutoLoja`) — sem o mtime do cadastro aqui, uma correção em
+ * `bdCadastro.txt` (ex: Dpto errado de um SKU) nunca invalidava o cache deste
+ * mês, porque só o mtime do PRÓPRIO arquivo mensal era versionado. Confirmado
+ * em 2026-10-05: SKU corrigido no cadastro continuou com o Dpto antigo no
+ * Compra e Venda até reiniciar o servidor. */
 async function linhasReduzidasDoArquivo(
   arquivo: ArquivoConfig,
   produtosPorCodigo: Map<string, Produto>,
   lojasPorCodigo: Map<string, Loja>,
+  versaoCadastro: number,
 ): Promise<LinhaReduzida[]> {
-  const versao = await mtime(arquivo);
+  const versao = `${await mtime(arquivo)}:${versaoCadastro}`;
   const emCache = cacheReducaoPorArquivo.get(arquivo.nome);
   if (emCache && emCache.versao === versao) return emCache.linhas;
 
@@ -124,7 +131,11 @@ async function linhasReduzidasDoArquivo(
  * campos de foto (Estoque, VMD, ...).
  */
 async function getLinhasReduzidasEntradasSaidas(nomesArquivo?: string[]): Promise<LinhaReduzida[]> {
-  const [arquivos, { produtosPorCodigo, lojasPorCodigo }] = await Promise.all([listarArquivosMensais(), indices()]);
+  const [arquivos, { produtosPorCodigo, lojasPorCodigo }, versaoCadastro] = await Promise.all([
+    listarArquivosMensais(),
+    indices(),
+    mtime(ARQUIVOS_DESEMPENHO_COMERCIAL.cadastro),
+  ]);
   const alvo = nomesArquivo ? arquivos.filter((a) => nomesArquivo.includes(a.nome)) : arquivos;
 
   // ⚠️ Um mês por vez, **nunca** `Promise.all`. Reduzir um mês segura, no pico,
@@ -138,7 +149,7 @@ async function getLinhasReduzidasEntradasSaidas(nomesArquivo?: string[]): Promis
   const resultados: LinhaReduzida[][] = [];
   for (const arquivo of alvo) {
     try {
-      resultados.push(await linhasReduzidasDoArquivo(arquivo, produtosPorCodigo, lojasPorCodigo));
+      resultados.push(await linhasReduzidasDoArquivo(arquivo, produtosPorCodigo, lojasPorCodigo, versaoCadastro));
     } catch (erro) {
       console.error(`Falha ao processar ${arquivo.nome} (Entradas e Saídas), excluído do conjunto:`, erro);
     }
