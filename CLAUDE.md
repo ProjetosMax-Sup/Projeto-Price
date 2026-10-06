@@ -125,6 +125,18 @@ camada de Parâmetros: **`docs/parametros.md`**.
 - Produtos com hierarquia mercadológica incompleta e movimentação são
   excluídos dos números consolidados e sinalizados por um badge (não um
   banner). Contagem é de SKUs únicos, não linhas.
+- **Insumo de produção** (Descrição começando com "Insumo", `ehInsumo` em
+  `lib/compra-venda/aggregate.ts`): o **valor continua contando em tudo** —
+  insumo é 92% da Compra de Padaria Própria, tirá-lo faria o departamento
+  parecer não comprar nada. O que ele não pode é virar **linha de produto**
+  cobrada do comprador (lista de ação ou anexos), porque compra sem vender por
+  definição. Dois cortes, em `construirProdutos` e em `lancamentos`
+  (`priorizacao.ts`) — ver `docs/regras-de-negocio.md`.
+- **Loja 013 fora da plataforma inteira**, temporariamente —
+  `LOJAS_EXCLUIDAS` em `config/data-sources.ts`, um interruptor só (esvaziar a
+  lista traz de volta). O corte precisa existir nos dois parsers e nas duas
+  pontas do cadastro de Lojas; o porquê de cada um está em
+  `docs/regras-de-negocio.md`.
 - Comprador exibido no app **não** vem do arquivo (`Compr`/`Nome Comprador`
   não é confiável) — vem do cadastro editável de Departamentos em
   `/parametros` (Redis em produção, JSON local em dev,
@@ -262,6 +274,10 @@ tudo e o alinhamento se perde — `tabela()` avisa no console quando isso aconte
 tabelas longas. ⚠️ Percentual e DDE do subtotal são **recalculados das
 parcelas somadas**, nunca a média dos filhos — média de percentual ignora o
 peso de cada um. Por isso `tabela()` recebe a linha pronta de quem a monta.
+
+**Insumo de produção não vira linha** (ver Regras de negócio acima): o valor
+fica no subtotal, a linha não existe, e a contagem da Categoria declara
+`skusInsumo`/`gapInsumo` pra conta continuar fechando.
 
 **A tabela de produtos tem oito colunas**: Código, Produto, Venda, Compra,
 % C/V, GAP R$, Comprou a mais, DDE. "Comprou a mais" é

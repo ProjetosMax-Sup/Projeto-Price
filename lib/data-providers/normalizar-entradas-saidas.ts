@@ -1,4 +1,4 @@
-import { REFS_NATIVOS_ENTRADAS_SAIDAS } from "@/config/data-sources";
+import { lojaExcluida, REFS_NATIVOS_ENTRADAS_SAIDAS } from "@/config/data-sources";
 import { parseTabela } from "./parse-tabela";
 import type { Loja, Produto } from "@/lib/types";
 
@@ -13,8 +13,11 @@ import type { Loja, Produto } from "@/lib/types";
  * caro em GC, não só em memória bruta. Revertido no mesmo commit.
  *
  * Por isso o Entradas e Saídas lê o MESMO arquivo mensal de novo, numa segunda
- * passada — mais I/O, mas zero risco pro que já funciona. Ainda não está
- * plugado em nenhum cache/rota (ver "Próximo passo" abaixo).
+ * passada — mais I/O, mas zero risco pro que já funciona. Já está plugado e
+ * em produção (`lib/entradas-saidas/aggregate.ts`/`consulta.ts`, e por reuso
+ * direto, Compra e Venda também) — ver docs/exemplos-motor-colunas/README.md
+ * pra por que essa separação do Desempenho Comercial é definitiva, não um
+ * "ainda não" a resolver.
  */
 
 // REFS_NATIVOS_ENTRADAS_SAIDAS já é TODAS as colunas numéricas do arquivo
@@ -61,15 +64,16 @@ export function valorNativoEntradasSaidas(registro: RegistroEntradasSaidas, ref:
  * Normaliza um arquivo mensal (mesmo `bd<Mês>.txt` do Desempenho Comercial, já
  * decodificado) pros campos que o Entradas e Saídas usa. Não valida cabeçalho
  * (`validarCabecalhoOuFalhar`) de novo — quem chama já validou ao processar
- * pelo caminho do Desempenho Comercial; ver nota de "Próximo passo" abaixo
- * sobre isso não estar plugado em nenhum lugar ainda.
+ * pelo caminho do Desempenho Comercial.
  */
 export function normalizarEntradasSaidas(
   conteudo: string,
   produtosPorCodigo: Map<string, Produto>,
   lojasPorCodigo: Map<string, Loja>,
 ): RegistroEntradasSaidas[] {
-  const linhas = parseTabela(conteudo, CAMPOS, true);
+  // Loja excluída da plataforma (`LOJAS_EXCLUIDAS`) nunca vira registro — some
+  // do Entradas e Saídas, do Compra e Venda e dos dois PDFs de uma vez só.
+  const linhas = parseTabela(conteudo, CAMPOS, true).filter((l) => !lojaExcluida(l["Unidade Código"]));
   return linhas.map((l) => {
     const unidadeCodigo = l["Unidade Código"];
     return {
@@ -85,12 +89,3 @@ export function normalizarEntradasSaidas(
   });
 }
 
-/**
- * Próximo passo (não feito ainda): plugar isto num cache próprio em
- * `file-provider.ts` (`criarCacheVersionado`, mesmo padrão de
- * `getDesempenhoCache`) e numa função de agregação própria (análoga a
- * `agregarPorEstrutura`/`agregarPorLoja` em `lib/desempenho/aggregate.ts`, mas
- * lendo `RegistroEntradasSaidas.nativos` via `valorNativoEntradasSaidas` em vez
- * dos campos fixos de `Metricas`) — só nesse momento o módulo passa a ter
- * página/rota de verdade.
- */

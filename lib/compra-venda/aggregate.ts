@@ -17,6 +17,27 @@ import type { ConsultaEntradasSaidas, NoSelecionadoES, ResultadoEntradasSaidas }
 /** "Todos" soma Varejo + Atacado juntos — não filtra nada. */
 export const FORMATO_TODOS = "Todos";
 
+/**
+ * Insumo de produção — SKU cuja Descrição começa com "Insumo" (ex.: "Insumo -
+ * Uva Passas Kg"). São ~500 itens de Padaria/Açougue que existem só pra
+ * comprar e produzir: entram na receita de outro produto e a venda é lançada
+ * no produto final, nunca neles. Não há coluna de tipo no cadastro que os
+ * separe (`Tipo`, `Função` e `Classe` foram verificados) — a Descrição é o
+ * único marcador, e todos os que existem hoje usam esse prefixo (conferido no
+ * arquivo real em 2026-10-05).
+ *
+ * ⚠️ **Não serve pra tirar insumo de nenhum valor.** A compra do insumo é a
+ * compra de verdade do departamento que produz — em Setembro/2026 era 92% da
+ * Compra de Padaria Própria, e descontá-la faria o departamento parecer não
+ * comprar nada (C/V de 47,5% cairia pra 3,8%). O que insumo não pode é virar
+ * **linha de produto** cobrada do comprador: ele compra sem vender por
+ * definição, então apareceria sempre com GAP cheio e no anexo "Comprou e ainda
+ * não vendeu". Ver `construirProdutos` em `priorizacao.ts`.
+ */
+export function ehInsumo(descricao: string): boolean {
+  return /^\s*insumo\b/i.test(descricao);
+}
+
 export function filtrarPorFormato(linhas: LinhaReduzida[], formato: string): LinhaReduzida[] {
   if (formato === FORMATO_TODOS) return linhas;
   return linhas.filter((l) => l.formatoLoja === formato);

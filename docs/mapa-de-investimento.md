@@ -17,6 +17,17 @@ agregação** (`lib/desempenho/consulta.ts` e
 `lib/entradas-saidas/aggregate.ts` + `lib/compra-venda/aggregate.ts`), não
 um só — reavaliar escopo/esforço da Fase 2 antes de começar.
 
+**Precisão adicional (2026-10-03):** nem tudo nesses "dois motores" precisa
+de trabalho. O motor de colunas/fórmulas configuráveis
+(`lib/parametros/avaliador.ts`, `ConfigRelatorio`, o Dicionário) já é único e
+module-agnostic hoje — os três módulos já o usam sem nenhum retrabalho (ver
+`docs/exemplos-motor-colunas/README.md`). O que a Fase 2/3 realmente precisa
+resolver é só a camada de **parser + soma por linha** (hoje duplicada em JS
+por motivo de performance: fundir isso em JS já foi tentado em 2026-09-30 e
+revertido por regressão de 60s→2min47 no dataset de 5M+ registros). Mover
+essa camada pro Postgres deve unificá-la naturalmente — a soma por linha vira
+`GROUP BY` em SQL, sem o custo de JS que motivou a reversão.
+
 ## 1. Onde estava a medição original
 
 Arquivo de referência: `bdAgosto.txt` (o mais pesado até então) — 352MB,

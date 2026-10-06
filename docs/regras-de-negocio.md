@@ -19,6 +19,71 @@ linhas infla o número (`lib/data-providers/normalizar-desempenho.ts`,
 `normalizarMovimentos`, usa um `Set` de códigos por arquivo, unidos depois por
 `unirMovimentos` — o mesmo SKU descartado em vários meses conta só 1 vez).
 
+## Insumo de produção não é linha de produto
+
+Produtos cuja **Descrição começa com "Insumo"** (`ehInsumo` em
+`lib/compra-venda/aggregate.ts`) existem só pra comprar e produzir: entram na
+receita de outro produto, e **a venda é lançada no produto final**, nunca
+neles. São ~500 SKUs, concentrados em Padaria Própria (dpto 004) e
+Apropriações (099). Todos usam esse prefixo; **não existe coluna de tipo no
+`bdCadastro`** que os separe — `Tipo`, `Função` e `Classe` foram verificados e
+não servem, a Descrição é o único marcador.
+
+Regra (pedido de 2026-10-05), e a distinção é o ponto todo:
+
+- ✅ **O valor continua contando em tudo** — Compra, Venda, % C/V, GAP, de
+  Produto até o Total da rede, na tela e nos dois PDFs.
+- ❌ **Não pode virar linha de produto cobrada do comprador**, nem na lista de
+  ação nem nos anexos. Insumo compra sem vender *por definição*, então
+  apareceria sempre com GAP cheio e em "Comprou e ainda não vendeu", todo mês,
+  sem nada pro comprador fazer.
+
+Dois cortes, porque são dois caminhos diferentes até a vista:
+
+| Onde | O que barra |
+|---|---|
+| `construirProdutos` (`priorizacao.ts`) | a linha na lista de ação e nos anexos de trava de cadastro — antes de `motivoAnexo`, pra não cair em nenhum dos dois |
+| `lancamentos` (`priorizarComprador`) | o anexo "Comprou e ainda não vendeu", que é calculado à parte, direto sobre todas as linhas |
+
+⚠️ **Por que o valor não pode sair**: em Setembro/2026, insumo era **92% da
+Compra de Padaria Própria** (R$ 762,7 mil de R$ 829,7 mil). Descontá-lo levaria
+o departamento de **47,5% para 3,8% de C/V** — pareceria não comprar nada, com
+um GAP negativo falso. A compra do insumo é a compra de verdade de quem produz.
+
+O GAP do insumo fica dentro do subtotal sem ter linha própria, então a conta
+"listados + pulverizados = acima da meta" não fecharia sozinha. Por isso
+`NoCascata.gapInsumo`/`skusInsumo` existem e o PDF declara o valor na linha de
+contagens da Categoria — o número continua conferível.
+
+Detalhe de hierarquia que muda onde o corte pega: 359 dos insumos de Padaria
+têm **só 2 níveis** de Hierarquia de Grupos ("Padaria Propria, Padaria - In"),
+e `caminhoAteNivel` devolve `null` em Categoria — ou seja, esses nunca
+chegavam a virar linha de produto, só apareciam no anexo. Os outros (4-5
+níveis, "Apropriacoes, Brinde Diversos, ...") chegavam. Daí os dois cortes.
+
+## Lojas fora da plataforma
+
+`LOJAS_EXCLUIDAS` (`config/data-sources.ts`) lista códigos de loja que a
+plataforma inteira ignora — hoje só a **013 (Max Atacadista Noroeste)**, "por
+enquanto", pedido de 2026-10-05. **Não é regra de negócio, é um interruptor
+temporário**: esvaziar a lista traz a loja de volta e nada mais precisa ser
+desfeito.
+
+Onde o corte acontece, e por que em mais de um lugar:
+
+| Lugar | Por quê |
+|---|---|
+| `normalizarLojas` | tira do `bdLojas.txt`, que alimenta o cadastro de Lojas e, por ele, todo seletor de Loja |
+| `normalizarMovimentos` | tirar só do mapa de lojas **não bastaria** — o registro continuaria no conjunto com `loja: null` e os totais do Desempenho Comercial seguiriam somando-o |
+| `normalizarEntradasSaidas` | mesmo corte na 2ª passada, que serve Entradas e Saídas, Compra e Venda e os dois PDFs |
+| `obterOuSemearLojasCadastro` | o cadastro já estava **salvo** com a 013 (Redis / `data/parametros/lojas.json`) — filtra na leitura, sem apagar o que está gravado |
+| `salvarLojasCadastro` | a tela /parametros só enxerga a lista filtrada; salvar o que vem dela apagaria a 013 do cadastro de vez. A função a preserva |
+
+Na prática a 013 **não tem nenhuma linha nos arquivos mensais** (conferido em
+`bdSetembro`/`bdOutubro`: só as lojas 002–012). O efeito visível é ela sumir do
+filtro de Loja e parar de virar um bloco vazio no PDF por Loja — os números de
+rede não mudam.
+
 ## Compradores padronizados por Departamento
 
 ✅ Confirmado com o usuário: a coluna `Compr`/`Nome Comprador` de `bdCadastro`

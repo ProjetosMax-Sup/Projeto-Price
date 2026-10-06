@@ -18,6 +18,27 @@ export const ARQUIVOS_DESEMPENHO_COMERCIAL = {
 export const DELIMITADOR = "|" as const;
 
 /**
+ * Lojas que a plataforma inteira ignora — as linhas dessas lojas são
+ * descartadas já na leitura dos arquivos (Desempenho Comercial e Entradas e
+ * Saídas/Compra e Venda) e o código some dos filtros e dos PDFs.
+ *
+ * ⚠️ É uma exclusão **temporária** (pedido de 2026-10-05: "por enquanto a loja
+ * 013 não seja considerada nos relatórios"), não uma regra de negócio — a 013
+ * (Max Atacadista Noroeste, Atacado) continua existindo no `bdLojas.txt` e nos
+ * arquivos mensais. Pra trazê-la de volta basta esvaziar esta lista; nada mais
+ * precisa ser desfeito.
+ */
+export const LOJAS_EXCLUIDAS: readonly string[] = ["013"];
+
+const LOJAS_EXCLUIDAS_SET = new Set(LOJAS_EXCLUIDAS);
+
+/** `true` se o código de loja (`Unidade Código`/`Cód Unid`, 3 dígitos) está fora
+ * da plataforma por `LOJAS_EXCLUIDAS`. */
+export function lojaExcluida(codUnid: string): boolean {
+  return LOJAS_EXCLUIDAS_SET.has(codUnid);
+}
+
+/**
  * Movimento (vendas, compras, perdas etc.) passou a vir num arquivo por mês
  * (`bd<Mês>.txt`, ex: `bdSetembro.txt`) — substitui os antigos
  * `bdDesempenhoComercialAtual.txt`/`...Comparação.txt` (ver docs/parametros.md

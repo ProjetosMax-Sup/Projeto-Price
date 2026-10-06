@@ -1,6 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from "fs/promises";
 import Redis from "ioredis";
 import path from "path";
+import { lojaExcluida } from "@/config/data-sources";
 import { semearDicionarioColunas } from "@/lib/parametros/dicionario";
 import { migrarConfigRelatorio, migrarDicionario } from "@/lib/parametros/migracao-refs";
 import {
@@ -98,8 +99,18 @@ export async function lerLojasCadastro(): Promise<LojaCadastro[] | null> {
   return ler<LojaCadastro[]>(CHAVE_LOJAS);
 }
 
+/**
+ * Grava o cadastro de Lojas preservando as lojas excluídas da plataforma
+ * (`LOJAS_EXCLUIDAS`). Quem chama daqui — a tela /parametros — só enxerga a
+ * lista já filtrada por `obterOuSemearLojasCadastro`, então salvar o que veio
+ * da tela apagaria a loja excluída do cadastro de vez e reativá-la exigiria
+ * recadastrar nome e formato na mão. Ela continua guardada, só invisível.
+ */
 export async function salvarLojasCadastro(lojas: LojaCadastro[]): Promise<void> {
-  await salvar(CHAVE_LOJAS, lojas);
+  const anteriores = (await ler<LojaCadastro[]>(CHAVE_LOJAS)) ?? [];
+  const informados = new Set(lojas.map((l) => l.codigo));
+  const preservadas = anteriores.filter((l) => lojaExcluida(l.codigo) && !informados.has(l.codigo));
+  await salvar(CHAVE_LOJAS, [...lojas, ...preservadas].sort((a, b) => a.codigo.localeCompare(b.codigo)));
 }
 
 export async function lerDepartamentosCadastro(): Promise<DepartamentoCadastro[] | null> {
@@ -117,11 +128,14 @@ export async function salvarDepartamentosCadastro(departamentos: DepartamentoCad
  * editável de fato, em vez de ser recalculada a cada leitura.
  */
 export async function obterOuSemearLojasCadastro(): Promise<LojaCadastro[]> {
+  // Filtra na leitura, não no que está gravado: o cadastro da loja excluída
+  // continua salvo, e tirá-la de `LOJAS_EXCLUIDAS` basta pra ela voltar.
+  const visiveis = (lojas: LojaCadastro[]) => lojas.filter((l) => !lojaExcluida(l.codigo));
   const salvas = await lerLojasCadastro();
-  if (salvas) return salvas;
+  if (salvas) return visiveis(salvas);
   const semeadas = await semearLojasCadastro();
   await salvarLojasCadastro(semeadas);
-  return semeadas;
+  return visiveis(semeadas);
 }
 
 export async function obterOuSemearDepartamentosCadastro(): Promise<DepartamentoCadastro[]> {

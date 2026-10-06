@@ -1,4 +1,4 @@
-import { CABECALHO_REFERENCIA_MENSAL } from "@/config/data-sources";
+import { CABECALHO_REFERENCIA_MENSAL, lojaExcluida } from "@/config/data-sources";
 import { parseTabela, validarCabecalhoOuFalhar } from "./parse-tabela";
 import type { Loja, MovimentoVendas, PeriodoDesempenho, Produto } from "@/lib/types";
 
@@ -20,14 +20,18 @@ const CAMPOS_LOJA = ["Cód Unid", "Cód Unid Reduzido", "Nome Sistema", "Nome Lo
 
 export function normalizarLojas(conteudo: string): Loja[] {
   const linhas = parseTabela(conteudo, CAMPOS_LOJA, false);
-  return linhas.map((l) => ({
-    codUnid: l["Cód Unid"],
-    codUnidReduzido: l["Cód Unid Reduzido"],
-    nomeSistema: l["Nome Sistema"],
-    nomeLoja: l["Nome Loja"],
-    formato: l["Formato"] === "Atacado" ? "Atacado" : "Varejo",
-    dataAbertura: null,
-  }));
+  // Loja fora da plataforma some já aqui — é o que alimenta o cadastro de
+  // Lojas (/parametros) e, por ele, todo seletor de Loja da aplicação.
+  return linhas
+    .filter((l) => !lojaExcluida(l["Cód Unid"]))
+    .map((l) => ({
+      codUnid: l["Cód Unid"],
+      codUnidReduzido: l["Cód Unid Reduzido"],
+      nomeSistema: l["Nome Sistema"],
+      nomeLoja: l["Nome Loja"],
+      formato: l["Formato"] === "Atacado" ? ("Atacado" as const) : ("Varejo" as const),
+      dataAbertura: null,
+    }));
 }
 
 const CAMPOS_PRODUTO = ["Código", "Dpto", "Grupo", "Nome Grupo", "Hierarquia de Grupos", "Compr", "Nome Comprador", "Dt Cad"] as const;
@@ -126,6 +130,10 @@ export function normalizarMovimentos(
   const codigosDescartados = new Set<string>();
 
   const registros = linhas
+    // Loja excluída da plataforma (`LOJAS_EXCLUIDAS`) sai aqui, antes de virar
+    // registro. Tirá-la só do mapa de lojas não bastaria: o registro continua
+    // no conjunto com `loja: null` e os totais seguiriam somando-a.
+    .filter((l) => !lojaExcluida(l["Unidade Código"]))
     .map((l) => {
       const movimento = linhaParaMovimento(l);
       const produto = produtosPorCodigo.get(movimento.codigo) ?? null;

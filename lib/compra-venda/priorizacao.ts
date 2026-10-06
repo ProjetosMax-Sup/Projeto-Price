@@ -3,6 +3,7 @@ import {
   REF_ENTRADAS_SAIDAS_ESTOQUE,
   REF_ENTRADAS_SAIDAS_QTDE_VMD,
 } from "@/config/data-sources";
+import { ehInsumo } from "@/lib/compra-venda/aggregate";
 import { caminhoAteNivel } from "@/lib/desempenho/aggregate";
 import { nomeCompradorPorDptoCadastro, type IndiceDepartamentos } from "@/lib/desempenho/comprador-cadastro";
 import type { LinhaReduzida } from "@/lib/entradas-saidas/aggregate";
@@ -644,6 +645,13 @@ export interface NoCascata {
   gapPulverizado: number;
   /** Em quantos SKUs esse GAP está espalhado. */
   skusPulverizados: number;
+  /** GAP que está em insumo de produção — continua somado em `gap`/`metricas`
+   * deste nó e de todos os de cima, só não vira linha de produto nem anexo
+   * (ver `construirProdutos`). Declarado à parte pra que as contagens do PDF
+   * continuem fechando com `skusAcimaDaMeta`. */
+  gapInsumo: number;
+  /** Em quantos insumos esse GAP está. */
+  skusInsumo: number;
   /** SKUs barrados pelas travas de cadastro, com o motivo. Vão pro anexo. */
   anexados: { codigo: string; nome: string; motivo: MotivoAnexo; gap: number; dataCadastro: string }[];
 }
@@ -695,6 +703,8 @@ function construirProdutos(
   anexados: NoCascata["anexados"];
   gapPulverizado: number;
   skusPulverizados: number;
+  gapInsumo: number;
+  skusInsumo: number;
   skus: number;
   skusAcimaDaMeta: number;
 } {
@@ -709,12 +719,26 @@ function construirProdutos(
   const anexados: NoCascata["anexados"] = [];
   let gapPulverizado = 0;
   let skusPulverizados = 0;
+  let gapInsumo = 0;
+  let skusInsumo = 0;
   let skusAcimaDaMeta = 0;
 
   for (const no of nos) {
     const gap = no.gap ?? 0;
     if (gap <= 0) continue;
     skusAcimaDaMeta++;
+    // Insumo de produção sai da vista ANTES das travas de cadastro, pra não cair
+    // nem na lista de ação nem nos anexos (pedido de 2026-10-05). Ele compra sem
+    // vender por definição — a venda é lançada no produto final —, então seria
+    // sempre um GAP cheio e um "Comprou e ainda não vendeu", todo mês, sem nada
+    // pro comprador fazer. O valor continua somado neste nó e em todos os de
+    // cima: a compra do insumo é a compra de verdade de quem produz (em
+    // Setembro/2026, 92% da Compra de Padaria Própria). Ver `ehInsumo`.
+    if (ehInsumo(no.nome)) {
+      gapInsumo += gap;
+      skusInsumo++;
+      continue;
+    }
     const motivo = motivoAnexo(no.metricas);
     if (motivo) {
       anexados.push({ codigo: no.chave, nome: no.nome, motivo, gap, dataCadastro: opcoes.dataCadastro(no.chave) });
@@ -749,7 +773,7 @@ function construirProdutos(
   // Ordem de VENDA, não de GAP: dentro do que já foi filtrado como "acima da meta",
   // o que mais pesa no faturamento é o que se trata primeiro (pedido de 2026-10-01).
   produtos.sort((a, b) => b.metricas.venda - a.metricas.venda);
-  return { produtos, anexados, gapPulverizado, skusPulverizados, skus: nos.length, skusAcimaDaMeta };
+  return { produtos, anexados, gapPulverizado, skusPulverizados, gapInsumo, skusInsumo, skus: nos.length, skusAcimaDaMeta };
 }
 
 function construirNivel(
@@ -785,6 +809,8 @@ function construirNivel(
       produtos: folha?.produtos ?? [],
       gapPulverizado: folha?.gapPulverizado ?? 0,
       skusPulverizados: folha?.skusPulverizados ?? 0,
+      gapInsumo: folha?.gapInsumo ?? 0,
+      skusInsumo: folha?.skusInsumo ?? 0,
       anexados: folha?.anexados ?? [],
     });
   }
@@ -851,6 +877,8 @@ export function priorizarComprador(
       filhos: secoes,
       produtos: folhaDireta?.produtos ?? [],
       gapPulverizado: folhaDireta?.gapPulverizado ?? 0,
+      gapInsumo: folhaDireta?.gapInsumo ?? 0,
+      skusInsumo: folhaDireta?.skusInsumo ?? 0,
       anexados: folhaDireta?.anexados ?? [],
     });
   }
@@ -879,7 +907,9 @@ export function priorizarComprador(
     (l) => l.codigo || null,
     (l) => nomeProdutoDaLinha(l),
   )
-    .filter((no) => motivoAnexo(no.metricas) === "lancamento" && no.metricas.compra >= opcoes.piso)
+    // Insumo bate a trava de "lancamento" (compra sem venda) todo mês e por
+    // definição, não por ser lançamento — fica fora deste anexo também.
+    .filter((no) => motivoAnexo(no.metricas) === "lancamento" && !ehInsumo(no.nome) && no.metricas.compra >= opcoes.piso)
     .map((no) => ({
       codigo: no.chave,
       nome: no.nome,

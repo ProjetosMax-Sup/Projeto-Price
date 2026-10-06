@@ -991,6 +991,12 @@ function bloco(
     if (no.skusPulverizados > 0) {
       contagens.push(`${no.skusPulverizados} pulverizados, somando ${brl(no.gapPulverizado)} de GAP`);
     }
+    // O GAP do insumo continua dentro do subtotal da categoria, mas não tem
+    // linha própria — sem dizer isso, a conta "listados + pulverizados = acima
+    // da meta" não fecharia e o leitor procuraria um erro que não existe.
+    if (no.skusInsumo > 0) {
+      contagens.push(`${no.skusInsumo} insumos de produção, somando ${brl(no.gapInsumo)} (não é compra a tratar)`);
+    }
     if (no.anexados.length > 0) contagens.push(`${no.anexados.length} fora da lista (ver Anexos)`);
     doc.setFontSize(7.2);
     doc.setTextColor(CINZA);
